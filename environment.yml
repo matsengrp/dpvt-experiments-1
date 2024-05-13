@@ -23,5 +23,5 @@ dependencies:
   - scikit-learn
   - snakemake
   - tensorboard
-#  - usher #currently broken for osx-arm64...
+# - usher #currently broken for osx-arm64...
 

@@ -35,7 +35,7 @@ For example, generating a random perfect phylogeny on 100 leaves takes about 0.0
 seconds, 500 leaves takes about 2.2 seconds, while 1000 leaves takes 17.2 seconds.
 Unlike `PerfectPhylogeny`, this class draws from all perfect phylogenies meeting the 
 minimality condition regardless of of site order, but specifying 
-`no_permutations=True` works the same as ``skip_perms=True`.
+`no_permutations=True` works the same as `skip_perms=True`.
 
 In short, use `PerfectPhylogeny` to get all pefect phylogenies and `RandomPefectPhylogeny` to get a
 single perfect phylogeny at random.
@@ -49,4 +49,4 @@ Perturbing trees is handled by `perfect_phylogenies/perturb_phylogeny.py`. See
 example of generating random perfect phylogenies and perturbing them to obtain a similar 
 phylogeny, but with worse parsimony score.
 
-To generate data for training the neural network, see `perfect_phylogenies/examples/`
+To generate data for training the neural network, see `perfect_phylogenies/examples/make_datasets.py`.

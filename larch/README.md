@@ -3,24 +3,28 @@
 This is a summary of how to disambiguate an input alignment and then run larch-usher on it to produce an hDAG.
 
 
-## Conda environment
+## Install
 
 To run this code, we need to install a conda environment:
 
 ```bash
 conda env create -f environment.yml
-conda activate larch-data-gen
+conda activate larch-data
 ```
+
+Additionally, we will use [larch](https://github.com/matsengrp/larch).
+Follow this link to build larch.
+Note that this will require creating a new conda environment, so make sure that once you have installed `larch`, you deactivate that environment and activate `larch-data` again.
 
 
 ## Removing ambiguities
 
-Before building a historydag with `larch-usher`, we clean input alignments by deleting all sites that either contain gaps or ambiguous characters.
+Before building a historydag with `larch-usher`, we clean input alignments by deleting all sites that contain gaps or ambiguous characters.
 We use [biopython](https://biopython.org/) to delete ambiguous characters and gaps.
 To do this, run
 
 ```bash
-python remove_ambiguities.py /path/to/input/fasta /path/to/disambiguated/output/fasta
+python scripts/remove_ambiguities.py /path/to/input/fasta /path/to/disambiguated/output/fasta
 ```
 
 We later require the fasta file on which we run `larch-usher` to be called `input.fasta`, so it might be a good idea to call the output file for `input.fasta`.
@@ -28,17 +32,14 @@ We later require the fasta file on which we run `larch-usher` to be called `inpu
 
 ## Constructing an hDAG
 
-You first need to install [larch](https://github.com/matsengrp/larch), building instructions can be found at this link.
-
-Next, we need to set up the larch inputs.
-Make sure you have activated the `larach-data-gen` environment for this.
+To set up input for `larch-usher`, make sure that the `larch-data` environment is activated.
 First, we need to run the snakefile in `setup_larch_inputs` on our dataset.
-We assume here that our alignment is named `input.fasta` and is located in the directory `/path/to/disambiguated/fasta`.
-Then we can set up larch inputs by running:
+We assume here that our alignment is named `input.fasta` and is located in the directory `/path/to/disambiguated/`.
+We can then set up larch inputs by running:
 
 ```bash
 cd setup_larch_inputs
-snakemake --snakefile convert_fasta_to_larch_input.snakefile -d /path/to/disambiguated/fasta --cores <num_cores>
+snakemake --snakefile convert_fasta_to_larch_input.snakefile -d /path/to/disambiguated/input.fasta --cores <num_cores>
 ```
 
 Note that we need to specify the number of cores `<num_cores>` here.
@@ -59,7 +60,7 @@ The log will be written to the directory `/path/to/log/directory/`.
 ## Extracting hDAG trees as training data
 
 We extract trees from the given hDAG to get ete3 trees for training our dpvt models.
-This can be done by executing 
+Make sure to navigate back into the `larch` folder of this repo before executing:
 
 ```bash
 python extract_data_from_hdag.py /path/to/protobuf /path/to/dpvt/training/data

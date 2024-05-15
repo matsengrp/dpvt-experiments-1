@@ -1,4 +1,4 @@
-name: larch-data-gen
+name: larch-data
 channels:
   - conda-forge
   - bioconda

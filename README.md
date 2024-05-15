@@ -19,10 +19,6 @@ pip install -e .
 ```
 
 ## Setup
-Create the conda environment from file: `conda env create --file environment.yml`.
-Install `dpvtex` as a python package with pip: `pip install -e .`. 
-
-## Setup
 Create the conda environment from file: `conda create env --file environment.yml`.
 Install `dpvtex` as a python package with pip: `pip install -e .`. 
 
@@ -100,5 +96,3 @@ example of generating random perfect phylogenies and perturbing them to obtain a
 phylogeny, but with worse parsimony score.
 
 To generate data for training the neural network, see `perfect_phylogenies/examples/make_datasets.py`.
-This repo allows testing models from [dpvt](https://github.com/matsengrp/dpvt) on datasets generated in various ways.
-The code for generating this data is also contained in this repo.

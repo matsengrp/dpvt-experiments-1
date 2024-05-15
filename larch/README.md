@@ -51,4 +51,22 @@ cd your-local-larch-dir/larch/build
 ./larch-usher -i  /path/to/disambiguated/fasta/output.pb -r /path/to/disambiguated/fasta/output.txt -v /path/to/disambiguated/fasta/output.vcf -o /path/to/output/protobuf -c <number of larch-usher iterations you want to run> -l /path/to/log/directory/
 ```
 
-This produces an output protobuf, which we can then read with the python [historydag](https://matsengrp.github.io/historydag/) package!
+
+## Extracting hDAG trees as training data
+
+We extract trees from the given hDAG to get ete3 trees for training our dpvt models.
+This can be done by executing 
+
+```bash
+python extract_data_from_hdag.py /path/to/protobuf /path/to/dpvt/training/data
+```
+
+This script will read the hDAG in the protobuf in `/path/to/protobuf` and pickles trees and edge labels as training/testing/validation data as required by `dpvt` in `/path/to/dpvt/training/data`.
+The following steps are executed by this script:
+- read the (compact genome) hDAG
+- trim the hDAG to only contain MP trees
+- convert the hDAG to a sequence dag
+- sample from the hDAG without replacement -- currently samples as many trees are in the hDAG
+- perturbs the sampled trees by replacing a subtree with depth `tree_depth/3` by a random tree
+- labels edges by whether they are MP edges are not
+- pickle trees and edge labels and safe to `/path/to/dpvt/training/data`

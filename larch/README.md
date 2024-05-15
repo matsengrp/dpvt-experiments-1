@@ -51,6 +51,10 @@ cd your-local-larch-dir/larch/build
 ./larch-usher -i  /path/to/disambiguated/fasta/output.pb -r /path/to/disambiguated/fasta/output.txt -v /path/to/disambiguated/fasta/output.vcf -o /path/to/output/protobuf -c <number of larch-usher iterations you want to run> -l /path/to/log/directory/
 ```
 
+This generates a protobuf `/path/to/output/protobuf` containing an hDAG that can then be used in the following to extract trees as training data for dpvt models.
+The log will be written to the directory `/path/to/log/directory/`.
+
+
 
 ## Extracting hDAG trees as training data
 
@@ -61,7 +65,7 @@ This can be done by executing
 python extract_data_from_hdag.py /path/to/protobuf /path/to/dpvt/training/data
 ```
 
-This script will read the hDAG in the protobuf in `/path/to/protobuf` and pickles trees and edge labels as training/testing/validation data as required by `dpvt` in `/path/to/dpvt/training/data`.
+This script will read the hDAG in the protobuf in `/path/to/protobuf` that was output by larch-usher and pickles trees and edge labels as training/testing/validation data as required by `dpvt` in `/path/to/dpvt/training/data`.
 The following steps are executed by this script:
 - read the (compact genome) hDAG
 - trim the hDAG to only contain MP trees

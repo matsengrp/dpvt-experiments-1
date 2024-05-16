@@ -10,6 +10,4 @@ dependencies:
   - snakemake
   - pandas
   - pytest
-  - pip
-  - pip:
-    - historydag
+  - historydag

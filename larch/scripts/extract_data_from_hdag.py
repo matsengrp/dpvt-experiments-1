@@ -74,7 +74,8 @@ def edge_labels_for_split_set(tree, taxon_set, split_set):
     # preorder traversal needed for correct assignment of edge labels
     clades = [frozenset(node.get_leaf_names()) for node in tree.traverse("preorder")]
     splits = [frozenset({clade, taxon_set - clade}) for clade in clades]
-    # TODO Need to update edge label assignment -- hDAG is not binary!
+    # Note that hDAG is not binary, so there could be MP edges that are in binary tree
+    # and not in hDAG
     edge_labels = [0 if split in split_set else 1 for split in splits]
     return edge_labels
 

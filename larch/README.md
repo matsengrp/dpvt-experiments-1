@@ -32,8 +32,7 @@ We later require the fasta file on which we run `larch-usher` to be called `inpu
 
 ## Constructing an hDAG
 
-To set up input for `larch-usher`, make sure that the `larch-data` environment is activated.
-First, we need to run the snakefile in `setup_larch_inputs` on our dataset.
+To set up input for `larch-usher`, we first need to run the snakefile in `setup_larch_inputs` on our dataset.
 We assume here that our alignment is named `input.fasta` and is located in the directory `/path/to/disambiguated/`.
 We can then set up larch inputs by running:
 

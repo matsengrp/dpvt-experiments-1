@@ -22,6 +22,10 @@ pip install -e .
 Create the conda environment from file: `conda env create --file environment.yml`.
 Install `dpvtex` as a python package with pip: `pip install -e .`. 
 
+## Setup
+Create the conda environment from file: `conda create env --file environment.yml`.
+Install `dpvtex` as a python package with pip: `pip install -e .`. 
+
 ## Training Workflow
 
 We have a workflow implemented in Snakemake (`Snakefile`), which takes as input in `config.yaml` names of models (see *Neural Network Model*) and datasets (see *Training Data*) and trains and evaluates the given models on all given datasets.

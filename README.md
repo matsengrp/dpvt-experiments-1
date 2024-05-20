@@ -19,7 +19,6 @@ Alternatively, run `snakemake --snakefile train/Snakefile -c[num_cores]` in the 
 - `dpvtex`: contains `dpvt_data.py`, which implements functions to get datasets for a given nickname and `dpvt_zoo.py`, which creates models for a given nickname. These nicknames are provided to the `Snakefile` in `config.yaml`.
 
 
-
 ## Training Data
 
 ### Generating Perfect Phylogenies
@@ -68,5 +67,3 @@ example of generating random perfect phylogenies and perturbing them to obtain a
 phylogeny, but with worse parsimony score.
 
 To generate data for training the neural network, see `perfect_phylogenies/examples/make_datasets.py`.
-This repo allows testing models from [dpvt](https://github.com/matsengrp/dpvt) on datasets generated in various ways.
-The code for generating this data is also contained in this repo.

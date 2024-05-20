@@ -1,12 +1,9 @@
-import sys
-
-sys.path.append("..")
 import pickle
 import torch
 from ete3 import Tree
-from utils import populate
-from random_perfect_phylogeny import RandomPerfectPhylogeny
-from perturb_phylogeny import (
+from dpvtex.perfect_phylogenies.utils import populate
+from dpvtex.perfect_phylogenies.random_perfect_phylogeny import RandomPerfectPhylogeny
+from dpvtex.perfect_phylogenies.perturb_phylogeny import (
     perturb_tree,
     make_worse_tree,
     sankoff_for_missing_sequences,

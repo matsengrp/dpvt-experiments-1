@@ -10,16 +10,18 @@ dependencies:
   - git-lfs
   - historydag
   - ipykernel
+  - lightning
   - matplotlib
   - notebook
   - numpy
+  - optuna
   - pandas
   - pytest
   - python=3.9
   - pytorch
-  - lightning
-  - tensorboard
-  - snakemake
   - pytorch-lightning
-  - optuna
   - scikit-learn
+  - snakemake
+  - tensorboard
+#  - usher #currently broken for osx-arm64...
+

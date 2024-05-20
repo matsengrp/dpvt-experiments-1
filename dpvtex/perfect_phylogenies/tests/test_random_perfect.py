@@ -1,14 +1,11 @@
-import sys
-
-sys.path.append("..")
 from ete3 import Tree
-from utils import newick_seq, populate
-from random_perfect_phylogeny import RandomPerfectPhylogeny
-from perfect_phylogeny import PerfectPhylogeny
 from time import time
 from itertools import permutations, product
 import re
 import pandas as pd
+from dpvtex.perfect_phylogenies.utils import newick_seq, populate
+from dpvtex.perfect_phylogenies.random_perfect_phylogeny import RandomPerfectPhylogeny
+from dpvtex.perfect_phylogenies.perfect_phylogeny import PerfectPhylogeny
 
 
 # This script checks that the perfect phylogenies from RandomPerfectPhylogeny agrees
@@ -253,6 +250,7 @@ def check_with_internal_edges():
 def check_with_all_edges():
     print("Checking runtime.")
     timing_results = []
+
     topology_reps = 3
     perfect_phylogeny_reps = 10
     for n in (*range(3, 50), *range(50, 1001, 50)):

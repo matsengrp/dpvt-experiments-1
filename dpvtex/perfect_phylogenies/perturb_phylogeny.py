@@ -1,7 +1,7 @@
 from ete3 import Tree
-from utils import populate
 from random import randrange, choice
 from historydag.parsimony import disambiguate, parsimony_score
+from dpvtex.perfect_phylogenies.utils import populate
 
 
 def perturb_tree(tree, depth, skip_root=True, exception_on_fail=False):

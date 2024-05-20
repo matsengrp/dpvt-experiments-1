@@ -1,13 +1,12 @@
-import sys
-
-sys.path.append("..")
 from ete3 import Tree
 from historydag.parsimony import parsimony_score
-from perfect_phylogeny import PerfectPhylogeny
-from perturb_phylogeny import make_worse_tree
-from utils import newick_seq, newick_seq_random, populate
 import pandas as pd
 import numpy as np
+
+from dpvtex.perfect_phylogenies.perfect_phylogeny import PerfectPhylogeny
+from dpvtex.perfect_phylogenies.perturb_phylogeny import make_worse_tree
+from dpvtex.perfect_phylogenies.utils import newick_seq, newick_seq_random, populate
+
 
 # A basic example of generating random topologies, assigning a perfect phylogeny,
 # and perturbing to get a higher parsimony score.

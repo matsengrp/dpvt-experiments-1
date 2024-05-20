@@ -5,8 +5,8 @@ from itertools import (
     product as prod,
     chain,
 )
-from minimal_covers import MinimalCovers
 from math import ceil
+from dpvtex.perfect_phylogenies.minimal_covers import MinimalCovers
 
 
 class PerfectPhylogeny:

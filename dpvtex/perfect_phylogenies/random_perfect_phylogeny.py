@@ -38,8 +38,7 @@ class RandomPerfectPhylogeny:
             appropriate index of mut_counts and node_indices.
         node_indices (tuple): The node indices of the nodes on which we require a 
             substitution (either all internal nodes or all non-root nodes). While node
-            indices are assigned to nodes in a specific order, this tuple is in random 
-            order.
+            indices are assigned to nodes in a specific order, this tuple of node 
         node_sequences (dict): A dictionary mapping a node index to the current sequence
             for the node.
         node_substitutions (dict): A dictionary mapping a node index to the current 
@@ -104,7 +103,7 @@ class RandomPerfectPhylogeny:
             self.node_count = self.all_node_count - 1
         else:
             raise ValueError(f"Given edges {edges}, but must be 'all' or 'internal'.")
-
+        
         return None
 
     def set_bad_root_patterns(self):

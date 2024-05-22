@@ -27,10 +27,13 @@ jobs:
           cache-environment: false
           post-cleanup: 'none'
 
+      - name: Install
+        shell: bash -l {0}
+        run: |
+          pip install -e .
+
       - name: Test
         shell: bash -l {0}
         run: |
-          which pip
-          pip install -e .
           python dpvtex/perfect_phylogenies/tests/test_random_perfect.py
 

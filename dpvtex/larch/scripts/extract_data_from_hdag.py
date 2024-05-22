@@ -174,6 +174,8 @@ def get_non_dag_edges(dag, num_trees=0):
         tree_to_label_dict[tree] = edge_list
         # Delete outgroup leaf -- root has same sequence, i.e. root is this leaf now
         del_outgroup_eq_root(tree)
+    if len(tree_to_label_dict) < num_trees:
+        print("Produced ", len(tree_to_label_dict), " trees instead of ", num_trees)
     return tree_to_label_dict
 
 

@@ -48,12 +48,17 @@ Therefore, navigate to the folder in which you built larch-usher and run larch-u
 
 ```bash
 cd your-local-larch-dir/larch/build
-./larch-usher -i  /path/to/disambiguated/fasta/output.pb -r /path/to/disambiguated/fasta/output.txt -v /path/to/disambiguated/fasta/output.vcf -o /path/to/output/protobuf -c <number of larch-usher iterations you want to run> -l /path/to/log/directory/
+./larch-usher -i  /path/to/disambiguated/fasta/output.pb -r /path/to/disambiguated/fasta/output.txt -v /path/to/disambiguated/fasta/output.vcf -o /path/to/output/protobuf -c <number of iterations> -l /path/to/log/directory/
 ```
 
 This generates a protobuf `/path/to/output/protobuf` containing an hDAG that can then be used in the following to extract trees as training data for dpvt models.
 The log will be written to the directory `/path/to/log/directory/`.
 
+If you want to extend the larch-usher run, maybe because the Parsimony score still improved in one of the last iterations of the previous runs (which you can check in the log file), you can run:
+
+```bash
+./larch-usher -i /path/to/output/protobuf -o /path/to/extended/output/protobuf -c <number of iterations> -l /path/to/log/directory/ --trim
+```
 
 
 ## Extracting hDAG trees as training data

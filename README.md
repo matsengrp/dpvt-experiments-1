@@ -4,7 +4,7 @@ This repo allows testing models from [dpvt](https://github.com/matsengrp/dpvt) o
 The code for generating this data is also contained in this repo.
 
 ## Setup
-Create the conda environment from file: `conda create env --file environment.yml`.
+Create the conda environment from file: `conda env create --file environment.yml`.
 Install `dpvtex` as a python package with pip: `pip install -e .`. 
 
 ## Training Workflow

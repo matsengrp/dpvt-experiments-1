@@ -16,6 +16,9 @@ from dpvtex.perfect_phylogenies.perfect_phylogeny import PerfectPhylogeny
 # Generating perfect phylogenies with substitutions on all edges (instead of just
 # internal edges) takes about 5 times longer.
 
+# dummy test for checking github CI
+def test_placeholder():
+    assert True
 
 def expand_by_site_permutations(newick_string):
     """

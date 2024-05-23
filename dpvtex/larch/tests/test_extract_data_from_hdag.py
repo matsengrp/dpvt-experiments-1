@@ -1,7 +1,7 @@
 import historydag as hdag
 from ete3 import Tree
 
-from extract_data_from_hdag import (
+from dpvtex.larch.scripts.extract_data_from_hdag import (
     extract_hdag_splits,
     root_and_outgroup_leaf,
     get_MP_trees_from_hdag,

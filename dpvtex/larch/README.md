@@ -1,23 +1,35 @@
 # README
 
-This is a summary of how to disambiguate an input alignment and then run larch-usher on it to produce an hDAG.
+This is a summary of how to take an input alignment and then run larch-usher on it to produce an hDAG.
+We currently simply delete sites with ambiguous characters or gaps from the alignment.
 
 
 ## Install
 
-To run this code, we need to install a conda environment:
+To run this code, you will need to install the `dpvt-experiments` environment and the `dpvtex` package (`pip install -e .` in base folder of this repo).
 
+Additionally, we use [larch](https://github.com/matsengrp/larch), which you will first need to build.
+Follow the link to get instructions on how to build larch.
+Note that this will require creating a new conda environment, so make sure that once you have installed `larch`, you activate `dpvt-experiments` again.
+
+
+## Construct historydag with larch-usher and extract trees
+
+This code allows to input an alignment in fasta format and returns a pickled file containing a dictionary with trees as keys and a list of 0s and 1s as values, which assign each edge (in preorder) value 0 if the edge is present in one of the MP trees found by larch-usher and otherwise returns 1.
+To run this code, you can either follow the all-in-one description, which uses Snakemake to run all the code, or you can follow separate steps.
+
+
+### All-in-one
+
+First, we need to specify input alignment, the directory of the larch build, the number of larch iterations we want to run, and the directory in which we want to store the final output of this pipeline in `config.yaml`. 
+
+To execute the pipeline, run:
 ```bash
-conda env create -f environment.yml
-conda activate larch-data
+snakemake --snakefile generate_dpvt_input.snakemake --cores <number of cores>
 ```
 
-Additionally, we will use [larch](https://github.com/matsengrp/larch).
-Follow this link to build larch.
-Note that this will require creating a new conda environment, so make sure that once you have installed `larch`, you deactivate that environment and activate `larch-data` again.
 
-
-## Removing ambiguities
+### Removing ambiguities
 
 Before building a historydag with `larch-usher`, we clean input alignments by deleting all sites that contain gaps or ambiguous characters.
 We use [biopython](https://biopython.org/) to delete ambiguous characters and gaps.
@@ -30,7 +42,7 @@ python scripts/remove_ambiguities.py /path/to/input/fasta /path/to/disambiguated
 We later require the fasta file on which we run `larch-usher` to be called `input.fasta`, so it might be a good idea to call the output file for `input.fasta`.
 
 
-## Constructing an hDAG
+### Constructing an hDAG
 
 To set up input for `larch-usher`, we first need to run the snakefile in `setup_larch_inputs` on our dataset.
 We assume here that our alignment is named `input.fasta` and is located in the directory `/path/to/disambiguated/`.
@@ -61,7 +73,7 @@ If you want to extend the larch-usher run, maybe because the Parsimony score sti
 ```
 
 
-## Extracting hDAG trees as training data
+### Extracting hDAG trees as training data
 
 We extract trees from the given hDAG to get ete3 trees for training our dpvt models.
 Make sure to navigate back into the `larch` folder of this repo before executing:

@@ -35,5 +35,6 @@ jobs:
       - name: Test
         shell: bash -l {0}
         run: |
-          python dpvtex/perfect_phylogenies/tests/test_random_perfect.py
+          pytest
+          # python dpvtex/perfect_phylogenies/tests/test_random_perfect.py
 

@@ -1,4 +1,4 @@
 input_data: "larch-data"
 larch_build: "../../../larch/build"
 output_data: "../data"
-num_iterations: 5
+num_iterations: 20

@@ -20,7 +20,8 @@ def get_subdirs(data_dir):
 
 rule all:
     input:
-        expand(output_data+"/{subdir}/{subdir}.p", subdir=get_subdirs(input_data))
+        expand(output_data+"/{subdir}/{subdir}.p", subdir=get_subdirs(input_data)),
+        input_data+"/alignment_lengths.csv"
 
 
 rule clean_data:
@@ -113,5 +114,5 @@ rule summarize_algn_lengths:
         length_files=expand(input_data+"/{subdir}/cleaned_alignment_length.txt", subdir=get_subdirs(input_data))
     output:
         all_algn_lengths=input_data+"/alignment_lengths.csv"
-    run:
-        scripts/aggregate_alignment_lengths.py
+    script:
+        "scripts/aggregate_alignment_lengths.py"

@@ -1,7 +1,7 @@
 import pandas as pd
 
-input_files = snakemake.input[0]
-output_file = snakemake.output[0]
+input_files = snakemake.input.length_files
+output_file = snakemake.output.all_algn_lengths
 
 length_list = []
 for file in input_files:
@@ -9,4 +9,4 @@ for file in input_files:
         length_list.append(int(f.readline().strip()))
 
 df = pd.DataFrame({"algn_lengths": length_list})
-pd.to_csv(df, output_file)
+df.to_csv(output_file)

@@ -5,6 +5,7 @@ from torch.utils.data import (
 )
 import numpy as np
 from pathlib import Path
+import os
 
 # Get the absolute path to the directory where the current script is located
 script_directory = Path(__file__).resolve().parent
@@ -32,6 +33,7 @@ class TreeDataset(Dataset):
 
 def train_val_data_of_nicknames(data_name):
     file_path = dataset_dict[data_name]
+    file_path = os.path.realpath(file_path)
     with open(file_path, "rb") as f:
         data_dict = pickle.load(f)
 
@@ -52,11 +54,10 @@ def train_val_data_of_nicknames(data_name):
             0 if node.is_leaf() or node.is_root() or node.up.is_root() else 1
             for node in tree.traverse("preorder")
         ]
-        print(tree, mask_list)
         masks.append(mask_list)
 
-    # stratify to get similar number of non-MP edges in all sets
-    n_bad_edges = np.sum(masks, axis=1)
+    # labels_array = np.array(labels)
+    n_bad_edges = np.array([sum(label) for label in labels])
 
     (
         train_val_data,
@@ -70,6 +71,7 @@ def train_val_data_of_nicknames(data_name):
     ) = train_test_split(
         trees, labels, masks, n_bad_edges, test_size=test_size, stratify=n_bad_edges
     )
+
     train_data, val_data, train_labels, val_labels, train_mask, val_mask = (
         train_test_split(
             train_val_data,

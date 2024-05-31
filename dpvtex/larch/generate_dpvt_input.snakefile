@@ -1,5 +1,6 @@
 import glob
 import os
+import datetime
 
 snakefile_dir = workflow.basedir
 config_path = os.path.join(snakefile_dir, "config.yaml")
@@ -12,6 +13,9 @@ larch_build=config["larch_build"]
 num_iterations=config["num_iterations"]
 
 
+current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+
+
 def get_subdirs(data_dir):
     return [
         f.path.split("/")[-1] for f in os.scandir(data_dir) if f.is_dir()
@@ -20,8 +24,7 @@ def get_subdirs(data_dir):
 
 rule all:
     input:
-        expand(output_data+"/{subdir}/{subdir}.p", subdir=get_subdirs(input_data)),
-        input_data+"/alignment_lengths.csv"
+        dpvt_data=output_data+"/larch_"+current_date+".p",
 
 
 rule clean_data:
@@ -53,19 +56,24 @@ checkpoint check_alignment:
         """
 
 
-def get_next_input(wildcards):
-    flag_path = input_data+f"/{wildcards.subdir}/checkpoint.flag"
-    with open(flag_path, "r") as flag:
-        status = flag.read().strip()
-    if status == "EMPTY":
-        return None
-    else:
-        return input_data + f"/{wildcards.subdir}/input.fasta"
+def get_non_empty_subdirs(wildcards):
+    checkpoint_output = lambda wildcards: checkpoints.check_alignment.get(subdir=wildcards.subdir).output
+    subdirs = get_subdirs(input_data)
+    non_empty_subdirs = []
+    for subdir in subdirs:
+        flag_file = os.path.join(input_data, subdir, "checkpoint.flag")
+        if os.path.exists(flag_file):
+            with open(flag_file, "r") as f:
+                if "EMPTY" not in f.read():
+                    non_empty_subdirs.append(subdir)
+        else: # otherwise, nothing would be done initially
+            non_empty_subdirs.append(subdir)                    
+    return non_empty_subdirs
 
 
 rule preprocessing:
     input:
-        input_flag=lambda wildcards: checkpoints.check_alignment.get(subdir=wildcards.subdir).output
+        lambda wildcards: f"{input_data}/{wildcards.subdir}/input.fasta",
     output:
         pb=input_data+"/{subdir}/output.pb",
         txt=input_data+"/{subdir}/output.txt",
@@ -82,9 +90,9 @@ rule preprocessing:
 
 rule run_larch:
     input:
-        pb=input_data + "/{subdir}/output.pb",
-        txt=input_data + "/{subdir}/output.txt",
-        vcf=input_data + "/{subdir}/output.vcf",
+        pb=lambda wildcards: f"{input_data}/{wildcards.subdir}/output.pb",
+        txt=lambda wildcards: f"{input_data}/{wildcards.subdir}/output.txt",
+        vcf=lambda wildcards: f"{input_data}/{wildcards.subdir}/output.vcf",
     output:
         pb=input_data+"/{subdir}/larch-output.pb"
     params:
@@ -100,7 +108,7 @@ rule run_larch:
 
 rule extract_dpvt_data:
     input:
-        pb=input_data+"/{subdir}/larch-output.pb"
+        pb=lambda wildcards: f"{input_data}/{wildcards.subdir}/larch-output.pb",
     output:
         data=output_data+"/{subdir}/{subdir}.p"
     shell:
@@ -108,11 +116,15 @@ rule extract_dpvt_data:
         python scripts/extract_data_from_hdag.py {input.pb} {output.data}
         """
 
-
-rule summarize_algn_lengths:
+rule aggregate_training_data:
     input:
-        length_files=expand(input_data+"/{subdir}/cleaned_alignment_length.txt", subdir=get_subdirs(input_data))
+        expand(output_data+"/{subdir}/{subdir}.p", subdir=get_non_empty_subdirs(input_data)),
+        length_files=expand(input_data+"/{subdir}/cleaned_alignment_length.txt", subdir=get_non_empty_subdirs(input_data)),
     output:
-        all_algn_lengths=input_data+"/alignment_lengths.csv"
-    script:
-        "scripts/aggregate_alignment_lengths.py"
+        num_trees=input_data+"/num_trees.csv",
+        dpvt_data=output_data+"/larch_"+current_date+".p",
+    shell:
+        """
+        python scripts/aggregate_training_data.py {output_data} {output.dpvt_data} {output.num_trees}
+        """
+

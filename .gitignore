@@ -182,3 +182,5 @@ hyper_checkpoints/
 **/faToVcF
 *.flag
 *.p
+*.done
+*.csv

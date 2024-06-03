@@ -9,10 +9,10 @@ def main():
     for record in SeqIO.parse(fasta_file, "fasta"):
         if len(record.seq.strip()) > 5:
             empty = False
+            with open(output_flag, 'w') as flag:
+                flag.write("EMPTY" if empty else "NOT_EMPTY")
+        else:
             break
-    
-    with open(output_flag, 'w') as flag:
-        flag.write("EMPTY" if empty else "NOT_EMPTY")
 
 
 if __name__ == "__main__":

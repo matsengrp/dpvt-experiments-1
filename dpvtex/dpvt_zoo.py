@@ -1,5 +1,5 @@
-from dpvt.neural_network import models
-from dpvt.neural_network.wrapper import Wrap, HyperWrap
+from dpvt import models
+from dpvt.wrapper import Wrap, HyperWrap
 from dpvtex.dpvt_data import train_val_data_of_nicknames
 
 

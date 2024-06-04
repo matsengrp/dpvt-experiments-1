@@ -2,11 +2,11 @@ import historydag as hdag
 from ete3 import Tree
 
 from dpvtex.larch.scripts.extract_data_from_hdag import (
-    extract_hdag_splits,
+    extract_hdag_clade_child_clades,
     root_and_outgroup_leaf,
     get_MP_trees_from_hdag,
     del_outgroup_eq_root,
-    edge_labels_for_split_set,
+    assign_edge_labels,
 )
 
 
@@ -20,6 +20,10 @@ node_to_sequence = {
     "i1": "CA",
     "i2": "CG",
     "i3": "GG",
+    "a1": "GG",
+    "a2": "CG",
+    "a3": "CG",
+    "a4": "CG",
 }
 
 
@@ -132,21 +136,19 @@ def test_get_MP_trees_from_hdag():
     )
 
 
-def test_extract_hdag_splits():
+def test_extract_hdag_clades():
     # make sure all splits from all input trees are extracted from hdag
     # this function indirectly also tests the function split()
     trees = create_test_trees()
-    expected_splits = []
+    expected_clades = {}
     for tree in trees:
-        all_taxa = frozenset(tree.get_leaf_names())
         for node in tree.traverse():
-            clade1 = frozenset(node.get_leaf_names())
-            clade2 = frozenset(all_taxa - clade1)
-            expected_splits.append(frozenset({clade1, clade2}))
-    expected_splits = frozenset(expected_splits)
+            clade = frozenset(node.get_leaf_names())
+            child_clades = frozenset(frozenset(child.get_leaf_names()) for child in node.get_children())
+            expected_clades[clade] = child_clades
     dag = create_test_hdag()
-    extracted_splits = extract_hdag_splits(dag)
-    assert extracted_splits == expected_splits
+    extracted_clades = extract_hdag_clade_child_clades(dag)
+    assert extracted_clades == expected_clades
 
 
 def test_del_outgroup_eq_root():
@@ -164,14 +166,33 @@ def test_del_outgroup_eq_root():
     )
 
 
-def test_edge_labels_for_split_set():
-    # create tree3 that has split s1s3|s2s4s5 that is not present in dag
-    tree3_nwk = "((s4,s5)a1,((s1,s3)a2,s2)a3)a4;"
-    tree3 = Tree(tree3_nwk, format=8)
-    assign_sequences([tree3], node_to_sequence, expect_internal_sequences=False)
+def create_dag_with_multifurcation():
+    trees = create_test_trees()
+    tree3_multi_nwk = "((s4,s5)a1,(s1,s3,s2)a3)a4;"
+    tree3_multi = Tree(tree3_multi_nwk, format=8)
+    trees.append(tree3_multi)
+    for tree in trees:
+        print(tree)
+    assign_sequences(trees, node_to_sequence)
+    dag = hdag.history_dag_from_trees(trees, ["sequence", "name", "node_id"])
+    return dag
+
+
+
+def test_assign_edge_labels():
+    # tree3 has clade s1,s3 that is not contained in DAG
+    MP_trees = create_test_trees()
     dag = create_test_hdag()
-    dag_splits = extract_hdag_splits(dag)
-    taxon_set = frozenset(tree3.get_leaf_names())
-    expected_edge_list = [0, 0, 0, 0, 0, 1, 0, 0, 0]
-    edge_list = edge_labels_for_split_set(tree3, taxon_set, dag_splits)
-    assert expected_edge_list == edge_list
+    dag_clades = extract_hdag_clade_child_clades(dag)
+    tree3_nwk = "((s4,s5)a1,((s1,s3)a2,s2)a3)a4;"
+    tree3 = Tree(tree3_nwk, format = 8)
+    assigned_edge_labels = assign_edge_labels(tree3, MP_trees[1], dag_clades)
+    expected_edge_labels = [0, 0, 0, 0, 0, 1, 0, 0, 0]
+    # Create DAG that contains multifurcation at s1,s2,s3, so tree3 should have
+    # all edges in DAG
+    multi_dag = create_dag_with_multifurcation()
+    multi_dag_clades = extract_hdag_clade_child_clades(multi_dag)
+    assigned_multi_edge_labels = assign_edge_labels(tree3, MP_trees[1], multi_dag_clades)
+    expected_edge_labels = [0 for i in range(9)]
+
+    assert assigned_edge_labels == expected_edge_labels and assigned_multi_edge_labels == expected_edge_labels

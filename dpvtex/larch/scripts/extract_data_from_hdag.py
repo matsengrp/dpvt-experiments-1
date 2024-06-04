@@ -55,31 +55,6 @@ def split(taxon_set, node):
     return frozenset({set1, set2})
 
 
-def edge_labels_for_split_set(tree, taxon_set, split_set):
-    """
-    Check for each edge in tree if its split is in the given list of splits.
-    Returns list of 0/1 labels indicating whether an edge is in dag or not,
-    where edges are sorted according to preorder traversal in tree
-    Args:
-        tree: ete3 tree
-        split_set: frozenset containing frozensets S_i representing splits.
-            Each S_i represents one split and contains two frozensets, one for
-            each clade of the split
-        taxon_set: frozenset containing names of all taxa of tree and split_set --
-            both are assumed to have the the same taxon set
-    Returns:
-        edge_list: list of 0/1 indicating for each edge in tree (perorder) whether
-            it is in dag or not
-    """
-    # preorder traversal needed for correct assignment of edge labels
-    clades = [frozenset(node.get_leaf_names()) for node in tree.traverse("preorder")]
-    splits = [frozenset({clade, taxon_set - clade}) for clade in clades]
-    # Note that hDAG is not binary, so there could be MP edges that are in binary tree
-    # and not in hDAG
-    edge_labels = [0 if split in split_set else 1 for split in splits]
-    return edge_labels
-
-
 def root_and_outgroup_leaf(tree, leaf):
     """
     Re-root tree by setting given leaf as outgroup, and set root's name and sequence to be
@@ -93,24 +68,27 @@ def root_and_outgroup_leaf(tree, leaf):
     tree.sequence = leaf.sequence
 
 
-def extract_hdag_splits(dag):
+def extract_hdag_clade_child_clades(dag):
     """
-    Generate frozenset containing frozensets S_1, .., S_k, each representing a split in
-    dag. S_i itself is a frozenset containing two frozenset that build bipartition of
-    leaf set of dag
+    Generate dict containing frozensets C: C_1, .., C_k where C is clade in DAG and
+        C_1, ..., C_k its child clades
     Args:
         dag: historydag.sequence_dag
     Returns:
-        frozenset: contains one frozenset for each edge in dag that contains bipartition
-            for this split in dag
+        dict: contains for each clade in dag a list ofits child clades
     """
-    taxon_set = frozenset([n.label for n in dag.get_leaves()])
-    dag_splits = frozenset(
-        split(taxon_set, dag_node)
-        for dag_node in dag.postorder()
-        if not dag_node.is_ua_node()
-    )
-    return dag_splits
+    def get_clade(node):
+        # extract clade for node in dag
+        cu = node.clade_union()
+        clade = frozenset(node.node_id for node in cu)
+        child_clades = frozenset(frozenset(n.node_id for n in cu) for cu in node.child_clades())
+        return {clade: child_clades}
+
+    dag_clades = {}
+    for node in dag.postorder():
+        if not node.is_ua_node():
+            dag_clades.update(get_clade(node))
+    return dag_clades
 
 
 def del_outgroup_eq_root(tree):
@@ -132,6 +110,47 @@ def del_outgroup_eq_root(tree):
     root_leaf.delete()
 
 
+def assign_edge_labels(modified_tree, tree, dag_clades):
+    """
+    Assigns label 0/1 to modified tree edges, depending on whether the edges are
+    supported by dag_splits.
+    Edges that are present in tree are assigned 0, as the tree is assumed to be
+    extracted from the hdag, whlich makes the label assignment more efficient.
+    Args:
+        modified_tree: ete3 tree for which we want to get edge label list
+        tree: ete3 tree that is mostly identical to modified tree (tree before
+            make_worse)
+        dag_clades: dictionary with clades: child_clades
+    """
+    # label edges that differ between modified tree as 1, else 0
+    tree_clades = [frozenset(node.get_leaf_names()) for node in tree.traverse("preorder")]
+    edge_labels = [0 if frozenset(node.get_leaf_names()) in tree_clades else 1 for node in modified_tree.traverse("preorder")]
+    # update 1s if corresponding edge exists in dag_splits or is resolution of 
+    # a multifurcation in dag_splits.
+    i = 0
+    for node in modified_tree.traverse("preorder"):
+        if edge_labels[i] == 1:
+            clade = frozenset(node.get_leaf_names())
+            # if clade actually exists in DAG, label as 0:
+            if clade in dag_clades:
+                edge_labels[i] = 0
+            # if edge is resolution of multifurcation in dag, we also label as 0
+            # (MP edge with 0 mutations)
+            else:
+                for dag_clade in dag_clades:
+                    if clade.issubset(dag_clade):
+                        at_edge_resolution = True # we assume we are at multifurcation that supports edge
+                        for child_clade in dag_clades[dag_clade]:
+                            if clade.intersection(child_clade) not in [frozenset(), child_clade, clade]:
+                                at_edge_resolution = False
+                                break
+                        if at_edge_resolution:
+                            edge_labels[i] = 0
+                            break
+        i += 1      
+    return edge_labels
+
+
 def get_non_dag_edges(dag, num_trees=0):
     """
     Perturbs trees in tree_list to create num_trees perturbed trees containing
@@ -146,7 +165,9 @@ def get_non_dag_edges(dag, num_trees=0):
         MP (0) vs non-MP (1) edges, sorted by preorder traversal
     """
     mp_trees = get_MP_trees_from_hdag(dag, num_trees, unlabel=True)
-    output_trees = []
+    tree_to_label_dict = {}  # output dict
+    dag_clades = extract_hdag_clade_child_clades(dag)
+
     for tree in mp_trees:
         # delete sequences on internal nodes - can probably be done more efficiently
         for node in tree.traverse():
@@ -161,19 +182,13 @@ def get_non_dag_edges(dag, num_trees=0):
         sankoff_for_missing_sequences(tree)
         # introduce non-MP edges, if possible
         td = tree_depth(tree)
-        modified_tree = make_worse_tree(tree, td // 3)  # NOTE: This is slow
-        output_trees.append(modified_tree if modified_tree is not None else tree)
-
-    dag_splits = extract_hdag_splits(dag)
-
-    # extract splits from tree and compare with hDAG splits
-    tree_to_label_dict = {}  # output dict
-    taxon_names = frozenset(output_trees[0].get_leaf_names())
-    for tree in output_trees:
-        edge_list = edge_labels_for_split_set(tree, taxon_names, dag_splits)
-        tree_to_label_dict[tree] = edge_list
-        # Delete outgroup leaf -- root has same sequence, i.e. root is this leaf now
-        del_outgroup_eq_root(tree)
+        modified_tree = make_worse_tree(tree, td // 3)
+        if modified_tree is None:
+            modified_tree = tree
+        del_outgroup_eq_root(modified_tree)
+        # assign edge labels
+        edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
+        tree_to_label_dict[modified_tree] = edge_labels
     if len(tree_to_label_dict) < num_trees:
         print("Produced ", len(tree_to_label_dict), " trees instead of ", num_trees)
     return tree_to_label_dict

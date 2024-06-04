@@ -51,7 +51,7 @@ def train_val_data_of_nicknames(data_name):
         # mask leaves, root (which is leaf) and root (which contains data for edge
         # leading to root leaf)
         mask_list = [
-            0 if node.is_leaf() or node.is_root() or node.up.is_root() else 1
+            not (node.is_leaf() or node.is_root() or node.up.is_root())
             for node in tree.traverse("preorder")
         ]
         masks.append(mask_list)

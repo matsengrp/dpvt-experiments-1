@@ -32,4 +32,4 @@ if __name__ == '__main__':
     clean_alignment = remove_ambiguous_or_uninformative_sites(alignment)
     AlignIO.write(clean_alignment, output_filename, 'fasta')
     with open(algn_length_filename, "w") as f:
-        f.write(str(len(alignment)))
+        f.write(str(clean_alignment.get_alignment_length()))

@@ -73,10 +73,11 @@ rule extract_dpvt_data:
     input:
         pb=input_data+"/{subdir}/larch-output.pb",
     output:
-        data=output_data+"/{subdir}/{subdir}.p"
+        data=output_data+"/{subdir}/{subdir}.p",
+        num_children_file=output_data+"/{subdir}/num_children_dag_trees.csv"
     shell:
         """
-        python scripts/extract_data_from_hdag.py {input.pb} {output.data}
+        python scripts/extract_data_from_hdag.py {input.pb} {output.data} {output.num_children_file}
         """
 
 

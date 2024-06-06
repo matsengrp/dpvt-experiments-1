@@ -5,7 +5,6 @@ from dpvtex.larch.scripts.extract_data_from_hdag import (
     extract_hdag_clade_child_clades,
     root_and_outgroup_leaf,
     get_MP_trees_from_hdag,
-    del_outgroup_eq_root,
     assign_edge_labels,
 )
 
@@ -57,12 +56,10 @@ def create_test_trees():
 
 
 def trees_rooted_at_outgroup():
-    # Trees identical to those in create_test_trees(), but with outgroup s5
-    tree1_expected_nwk = "((((s1,s2)i1,s3)i2,s4)i3,s5)s5;"
-    tree2_expected_nwk = "((((s1,s2)i1,s3)i2,s4)i3,s5)s5;"
-    tree1_expected = Tree(tree1_expected_nwk, format=8)
-    tree2_expected = Tree(tree2_expected_nwk, format=8)
-    trees = [tree1_expected, tree2_expected]
+    # Tree identical to those in create_test_trees(), but with outgroup s5
+    tree_expected_nwk = "((((s1,s2)i1,s3)i2,s4)s5)s5;"
+    tree_expected = Tree(tree_expected_nwk, format=8)
+    trees = [tree_expected, tree_expected]
     assign_sequences(trees, node_to_sequence)
     return trees
 
@@ -144,26 +141,13 @@ def test_extract_hdag_clades():
     for tree in trees:
         for node in tree.traverse():
             clade = frozenset(node.get_leaf_names())
-            child_clades = frozenset(frozenset(child.get_leaf_names()) for child in node.get_children())
+            child_clades = frozenset(
+                frozenset(child.get_leaf_names()) for child in node.get_children()
+            )
             expected_clades[clade] = child_clades
     dag = create_test_hdag()
     extracted_clades = extract_hdag_clade_child_clades(dag)
     assert extracted_clades == expected_clades
-
-
-def test_del_outgroup_eq_root():
-    trees = trees_rooted_at_outgroup()
-    # expected trees are rooted in leaf s5 that was outgroup in original trees
-    tree1_expected_nwk = "((((s1,s2)i1,s3)i2,s4)i3)s5;"
-    tree2_expected_nwk = "((((s1,s2)i1,s3)i2,s4)i3)s5;"
-    tree1_expected = Tree(tree1_expected_nwk, format=8)
-    tree2_expected = Tree(tree2_expected_nwk, format=8)
-    assign_sequences([tree1_expected, tree2_expected], node_to_sequence)
-    for tree in trees:
-        del_outgroup_eq_root(tree)
-    assert compare_trees(trees[0], tree1_expected) and compare_trees(
-        trees[1], tree2_expected
-    )
 
 
 def create_dag_with_multifurcation():
@@ -178,21 +162,25 @@ def create_dag_with_multifurcation():
     return dag
 
 
-
 def test_assign_edge_labels():
     # tree3 has clade s1,s3 that is not contained in DAG
     MP_trees = create_test_trees()
     dag = create_test_hdag()
     dag_clades = extract_hdag_clade_child_clades(dag)
     tree3_nwk = "((s4,s5)a1,((s1,s3)a2,s2)a3)a4;"
-    tree3 = Tree(tree3_nwk, format = 8)
+    tree3 = Tree(tree3_nwk, format=8)
     assigned_edge_labels = assign_edge_labels(tree3, MP_trees[1], dag_clades)
     expected_edge_labels = [0, 0, 0, 0, 0, 1, 0, 0, 0]
     # Create DAG that contains multifurcation at s1,s2,s3, so tree3 should have
     # all edges in DAG
     multi_dag = create_dag_with_multifurcation()
     multi_dag_clades = extract_hdag_clade_child_clades(multi_dag)
-    assigned_multi_edge_labels = assign_edge_labels(tree3, MP_trees[1], multi_dag_clades)
+    assigned_multi_edge_labels = assign_edge_labels(
+        tree3, MP_trees[1], multi_dag_clades
+    )
     expected_edge_labels = [0 for i in range(9)]
 
-    assert assigned_edge_labels == expected_edge_labels and assigned_multi_edge_labels == expected_edge_labels
+    assert (
+        assigned_edge_labels == expected_edge_labels
+        and assigned_multi_edge_labels == expected_edge_labels
+    )

@@ -39,7 +39,8 @@ rule clean_data:
 
 checkpoint check_alignment_length:
     input:
-        fasta=input_data+"/{subdir}/input.fasta"
+        fasta=input_data+"/{subdir}/input.fasta",
+        algn_length=input_data+"/{subdir}/cleaned_alignment_length.txt"
     output:
         touch(input_data+"/{subdir}/checkpoint.done"),
     params:

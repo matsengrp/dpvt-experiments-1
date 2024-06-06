@@ -11,6 +11,7 @@ input_data=os.path.realpath(config["input_data"])
 output_data=config["output_data"]
 larch_build=config["larch_build"]
 num_larch_iterations=config["num_larch_iterations"]
+dataset_name=config["dataset_name"]
 
 
 current_date = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -29,7 +30,8 @@ def get_subdirs(data_dir):
 
 rule all:
     input:
-        dpvt_data=output_data+"/larch_"+current_date+".p",
+        input_data+"/data_properties_"+dataset_name+"_"+current_date+".csv",
+        dpvt_data=output_data+"/larch_"+dataset_name+"_"+current_date+".p",
 
 
 rule preprocessing:
@@ -83,10 +85,10 @@ rule aggregate_training_data:
         expand(output_data+"/{subdir}/{subdir}.p", subdir=get_subdirs(input_data)),
         length_files=expand(input_data+"/{subdir}/cleaned_alignment_length.txt", subdir=get_subdirs(input_data)),
     output:
-        num_trees=input_data+"/num_trees.csv",
-        dpvt_data=output_data+"/larch_"+current_date+".p",
+        data_props=input_data+"/data_properties_"+dataset_name+"_"+current_date+".csv",
+        dpvt_data=output_data+"/larch_"+dataset_name+"_"+current_date+".p",
     shell:
         """
-        python scripts/aggregate_training_data.py {output_data} {output.dpvt_data} {output.num_trees}
+        python scripts/aggregate_training_data.py {output_data} {output.dpvt_data} {output.data_props} {input_data}
         """
 

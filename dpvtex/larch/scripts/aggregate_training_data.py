@@ -45,8 +45,8 @@ for root, dirs, files in os.walk(data_dir):
                     len(list(this_alignment_dict.keys())[0])
                 )  # num_leaves
                 data_props[dataset_name].append(
-                    (sum(lst.count(0) for lst in this_alignment_dict.values()) + 1)/2
-                ) # num MP edges (excluding pendant edges)
+                    sum(lst.count(0) - (len(lst))/2 for lst in this_alignment_dict.values())
+                ) # num MP edges (excluding pendant edges and root edge)
                 data_props[dataset_name].append(
                     sum(lst.count(1) for lst in this_alignment_dict.values())
                 ) # num non-MP edges

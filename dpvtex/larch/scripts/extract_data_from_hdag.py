@@ -76,10 +76,10 @@ def extract_hdag_clade_child_clades(dag):
     Args:
         dag: historydag.sequence_dag
     Returns:
-        dict: contains for each clade in dag a list ofits child clades
+        dict: contains for each clade in dag a list of its child clades
     """
 
-    def get_clade(node):
+    def get_clade_child_clades(node):
         # extract clade for node in dag
         cu = node.clade_union()
         clade = frozenset(node.node_id for node in cu)
@@ -91,8 +91,28 @@ def extract_hdag_clade_child_clades(dag):
     dag_clades = {}
     for node in dag.postorder():
         if not node.is_ua_node():
-            dag_clades.update(get_clade(node))
+            dag_clades.update(get_clade_child_clades(node))
     return dag_clades
+
+
+def exists_subset_union(S, C):
+    """
+    Find if there is a collection of subsets of frozenset S whose union is C
+    Args:
+        S: frozenset containing frozensets
+        C: frozenset
+    Returns:
+
+    """
+    union = set()
+    for subset in S:
+        if subset.issubset(C):
+            union.update(subset)
+        elif len(subset.intersection(C)) > 0:
+                return False
+    if len(subset) == len(union):
+        return True
+    return False
 
 
 def assign_edge_labels(modified_tree, tree, dag_clades):
@@ -106,6 +126,9 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
         tree: ete3 tree that is mostly identical to modified tree (tree before
             make_worse)
         dag_clades: dictionary with clades: child_clades
+    Returns:
+        list of 0/1 assigned to each node for each edge above it (preorder)
+            whether it is present in the dag with dag_clades or not
     """
     # label edges that differ between tree and  modified tree as 1, else 0
     tree_clades = [
@@ -129,16 +152,8 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
             else:
                 for dag_clade in dag_clades:
                     if clade.issubset(dag_clade):
-                        at_edge_resolution = True  # we assume we are at multifurcation that supports edge
-                        for child_clade in dag_clades[dag_clade]:
-                            if clade.intersection(child_clade) not in [
-                                frozenset(),
-                                child_clade,
-                                clade,
-                            ]:
-                                at_edge_resolution = False
-                                break
-                        if at_edge_resolution:
+                        if exists_subset_union(dag_clades[dag_clade], clade):
+                            print("At resolution")
                             edge_labels[i] = 0
                             break
         i += 1
@@ -190,15 +205,15 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0):
                 # make tree worse until at least a third of all edges are non MP
                 print("Tree modification iteration ", i)
                 i+=1
-                modified_tree = make_worse_tree(modified_tree, td // 2)
-                if modified_tree is None:
-                    modified_tree = tree
+                new_tree = make_worse_tree(modified_tree, td // 2)
+                if new_tree is not None:
+                    modified_tree = new_tree
                 # assign edge labels
                 edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
                 tree_to_label_dict[modified_tree] = edge_labels
-                # if sum(edge_labels)/len(edge_labels) >= 1/6:
-                #     # note that len(edge_labels) is roughly 2*internal edges
-                done_modifying = True
+                if sum(edge_labels)/len(edge_labels) >= 1/6 or i > 100:
+                    # note that len(edge_labels) is roughly 2*internal edges
+                    done_modifying = True
     if len(tree_to_label_dict) < num_trees:
         print("Produced ", len(tree_to_label_dict), " trees instead of ", num_trees)
     return tree_to_label_dict

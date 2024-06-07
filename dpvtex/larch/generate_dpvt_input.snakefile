@@ -67,7 +67,7 @@ rule run_larch:
         
         # Define a function to check MaxParsimony
         check_max_parsi() {{
-            python check_max_parsimony.py {params.log}
+            python scripts/check_max_parsimony.py {params.log}
             return $?
         }}
 

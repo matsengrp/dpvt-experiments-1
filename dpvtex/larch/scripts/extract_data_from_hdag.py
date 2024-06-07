@@ -159,7 +159,6 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
                 for dag_clade in dag_clades:
                     if clade.issubset(dag_clade):
                         if exists_subset_union(dag_clades[dag_clade], clade):
-                            print("At resolution")
                             edge_labels[i] = 0
                             break
         i += 1

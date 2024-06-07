@@ -110,7 +110,7 @@ def exists_subset_union(S, C):
             union.update(subset)
         elif len(subset.intersection(C)) > 0:
                 return False
-    if len(subset) == len(union):
+    if len(union) == len(C):
         return True
     return False
 
@@ -142,6 +142,12 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
     # a multifurcation in dag_splits.
     i = 0
     for node in modified_tree.traverse("preorder"):
+        if i in [0,1]:
+            # Root leaf and node below root are assigned 0 by default
+            # This doesn't change anything, as they will be masked in training
+            edge_labels[i] = 0
+            i+=1
+            continue
         if edge_labels[i] == 1:
             clade = frozenset(node.get_leaf_names())
             # if clade actually exists in DAG, label as 0:

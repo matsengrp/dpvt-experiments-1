@@ -116,12 +116,6 @@ def test_get_MP_trees_from_hdag():
     dag = create_test_hdag()
     [tree1, tree2] = create_test_trees()
     trees_from_dag = get_MP_trees_from_hdag(dag, 3, unlabel=True)
-    print("hdag trees:")
-    for tree in trees_from_dag:
-        print(tree)
-    print("input trees:")
-    print(tree1)
-    print(tree2)
     if len(trees_from_dag) != 2:
         raise ValueError("DAG contains more than 2 trees")
     assert (
@@ -155,8 +149,6 @@ def create_dag_with_multifurcation():
     tree3_multi_nwk = "((s4,s5)a1,(s1,s3,s2)a3)a4;"
     tree3_multi = Tree(tree3_multi_nwk, format=8)
     trees.append(tree3_multi)
-    for tree in trees:
-        print(tree)
     assign_sequences(trees, node_to_sequence)
     dag = hdag.history_dag_from_trees(trees, ["sequence", "name", "node_id"])
     return dag
@@ -171,6 +163,7 @@ def test_assign_edge_labels():
     tree3 = Tree(tree3_nwk, format=8)
     assigned_edge_labels = assign_edge_labels(tree3, MP_trees[1], dag_clades)
     expected_edge_labels = [0, 0, 0, 0, 0, 1, 0, 0, 0]
+
     # Create DAG that contains multifurcation at s1,s2,s3, so tree3 should have
     # all edges in DAG
     multi_dag = create_dag_with_multifurcation()
@@ -178,9 +171,18 @@ def test_assign_edge_labels():
     assigned_multi_edge_labels = assign_edge_labels(
         tree3, MP_trees[1], multi_dag_clades
     )
-    expected_edge_labels = [0 for i in range(9)]
+    expected_multi_edge_labels = [0 for i in range(9)]
+
+    # One more tree to check that edges labelled 1 are assigned correctly
+    # This one is rooted in leaf s3
+    tree4_nwk = "(((s1,s4),(s2,s5)))s3;"
+    tree4 = Tree(tree4_nwk, format=8)
+    tree4_expected_labels = [0, 0, 1, 0, 0, 1, 0, 0]
+    tree4_assigned_labels = assign_edge_labels(tree4, MP_trees[1], multi_dag_clades)
+    print(tree4_assigned_labels)
 
     assert (
         assigned_edge_labels == expected_edge_labels
-        and assigned_multi_edge_labels == expected_edge_labels
+        and assigned_multi_edge_labels == expected_multi_edge_labels
+        and tree4_expected_labels == tree4_assigned_labels
     )

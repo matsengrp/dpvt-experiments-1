@@ -66,10 +66,12 @@ rule run_larch:
         cd {larch_build}
         
         # Define a function to check MaxParsimony
+        cd {snakefile_dir}
         check_max_parsi() {{
             python scripts/check_max_parsimony.py {params.log}
             return $?
         }}
+        cd {larch_build}
 
         # Run larch-usher
         ./larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -c {num_larch_iterations}

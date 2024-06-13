@@ -1,9 +1,12 @@
+import pandas as pd
+import os
+
 from dpvt import models
 from dpvt.wrapper import Wrap, HyperWrap
 from dpvtex.dpvt_data import train_val_data_of_nicknames
 
 
-def create_model(model_name):
+def get_model(model_name):
     if model_name == "TraverseNN":
         model = models.TraverseNN
     elif model_name == "TraverseMaxPooling":
@@ -39,7 +42,7 @@ def train_model(
     # Update default parameters with any provided keyword arguments
     wrap_params = {**default_params, **wrap_kwargs}
     train_data, val_data, test_data = train_val_data_of_nicknames(data_name)
-    model = create_model(model_name)
+    model = get_model(model_name)
     model_str = trained_model_str(model_name, data_name)
     wrap = Wrap(train_data, val_data, test_data, model, model_str, **wrap_params)
     wrap.train(final_checkpoint)
@@ -49,10 +52,35 @@ def train_model(
 
 def optimize_hyperparameters(model_name, data_name, best_model_hparams_filepath):
     train_data, val_data, _ = train_val_data_of_nicknames(data_name)
-    model = create_model(model_name)
+    model = get_model(model_name)
     model_str = trained_model_str(model_name, data_name)
     hyper_wrap = HyperWrap(
         model, train_data, val_data, model_str, n_trials=1
     )  # n_trials chosen small for testing
     hyper_wrap.optuna_optimize(best_model_hparams_filepath)
     return model
+
+
+def validate_model(model_name, data_name, directory="."):
+    # load trained model
+    path = trained_model_path(model_name, data_name) + ".ckpt"
+    model = get_model(model_name).load_from_checkpoint(path)
+    # load dataset
+    val_burrito = validation_burrito_of(model_name, data_name, None)
+    val_burrito.standardize_and_optimize_branch_lengths()
+
+    # evaluate model
+    bce_loss = val_burrito.evaluate()
+    crepe_basename = os.path.basename(model_name)
+    df = pd.DataFrame(
+        {
+            "crepe_prefix": [model_name],
+            "crepe_basename": [crepe_basename],
+            "dataset_name": [data_name],
+            "bce_loss": [bce_loss],
+        }
+    )
+    df.to_csv(
+        f"{directory}/{crepe_basename}-ON-{data_name}.csv",
+        index=False,
+    )

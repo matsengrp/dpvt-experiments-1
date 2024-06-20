@@ -6,6 +6,8 @@ from torch.utils.data import (
 import numpy as np
 from pathlib import Path
 import os
+import pandas as pd
+from collections import Counter
 
 # Get the absolute path to the directory where the current script is located
 script_directory = Path(__file__).resolve().parent
@@ -18,6 +20,9 @@ dataset_dict = {
     "TenLeaf": script_directory.parent / "data/10leaf_perfect.p",
     "TenLeafTest": script_directory.parent / "data/10leaf_test.p",
     "ThirtyLeaf": script_directory.parent / "data/30leaf_perfect.p",
+    "ThirtyLeafDistinct": script_directory.parent / "data/30leaf_perfect_distinct_trees.p",
+    "harrington_small": script_directory.parent
+    / "data/larch_harrington-small_2024-06-10.p",
 }
 
 
@@ -77,10 +82,6 @@ def train_val_data_of_nicknames(data_name):
     with open(file_path, "rb") as f:
         data_dict = pickle.load(f)
 
-    # split into 80% training, 20% validation
-    train_size = int(0.8 * len(data_dict))
-    val_size = len(data_dict) - train_size
-
     # Split into balanced training, validation, and test data using sklearn
     labels = list(data_dict.values())
     trees = list(data_dict.keys())
@@ -95,18 +96,34 @@ def train_val_data_of_nicknames(data_name):
         ]
         masks.append(mask_list)
 
-    # use number of bad edges to stratify dataset
-    n_bad_edges = np.array([sum(label) for label in labels])
+    sum_of_ones = [sum(label) for label in labels]
+    counter = Counter(sum_of_ones)
+
+    # Convert sums to a categorical variable for balancing number of non-MP edges in train/test/val
+    categories = pd.qcut(
+        sum_of_ones, q=min(len(counter), 4), labels=False, duplicates="drop"
+    )
+
+    (
+        train_val_data,
+        test_data,
+        train_val_labels,
+        test_labels,
+        train_val_mask,
+        test_mask,
+        cat_train_val,
+        _,
+    ) = train_test_split(
+        trees, labels, masks, categories, test_size=0.2, stratify=categories
+    )
 
     train_data, val_data, train_labels, val_labels, train_mask, val_mask = (
         train_test_split(
-            trees,
-            labels,
-            masks,
-            train_size=0.8,
-            test_size=0.2,
-            stratify=n_bad_edges,
-            random_state=42,
+            train_val_data,
+            train_val_labels,
+            train_val_mask,
+            test_size=0.25,
+            stratify=cat_train_val,
         )
     )
 

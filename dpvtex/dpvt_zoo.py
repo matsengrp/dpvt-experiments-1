@@ -61,16 +61,36 @@ def optimize_hyperparameters(model_name, data_name, best_model_hparams_filepath)
     return model
 
 
-def validate_model(model_name, data_name, directory="."):
+def validate_model(model_name, data_name, directory=".", **wrap_kwargs):
+    # hyperparameters (only used if no hyperparameter testing done)
+    default_params = {
+        # "learning_rate": 0.01,
+        # "batch_size": 1024,
+        # "epochs": 2,
+    }
+    # Update default parameters with any provided keyword arguments
+    wrap_params = {**default_params, **wrap_kwargs}
     # load trained model
-    path = trained_model_path(model_name, data_name) + ".ckpt"
+    path = "../train/" + trained_model_path(model_name, data_name) + ".ckpt"
     model = get_model(model_name).load_from_checkpoint(path)
     # load dataset
-    val_burrito = validation_burrito_of(model_name, data_name, None)
-    val_burrito.standardize_and_optimize_branch_lengths()
+    train_data, val_data, test_data = train_val_data_of_nicknames(data_name)
+    val_wrap = HyperWrap(
+        train_data=train_data,
+        val_data=val_data,
+        # test_data=test_data,
+        model=model,
+        log_path = "",
+        **wrap_params,
+    )
 
     # evaluate model
-    bce_loss = val_burrito.evaluate()
+    results = val_wrap.trainer.validate(val_wrap.model, val_wrap.val_loader)
+    val_loss = results[0]["val_loss"]
+
+    return val_loss
+
+    bce_loss = val_wrap.evaluate()
     crepe_basename = os.path.basename(model_name)
     df = pd.DataFrame(
         {

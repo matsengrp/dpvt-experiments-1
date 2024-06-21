@@ -3,6 +3,8 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import (
     Dataset,
 )
+from dpvt.wrapper import TreeDataset, TraversalDataset
+import numpy as np
 from pathlib import Path
 import os
 import pandas as pd
@@ -17,27 +19,24 @@ data_dir = dataset_dict.pop("data_dir")
 
 dataset_dict = {key: data_dir + "/" + dataset_dict[key] for key in dataset_dict}
 
-class TreeDataset(Dataset):
-    def __init__(self, data, labels, mask):
-        self.data = data
-        self.labels = labels
-        self.mask = mask
+def mask_pendant_edges(trees):
+    """
+    Compute list of 0s and 1s indicating whether a node is the "lower end",
+    i.e. the node furthest away from the root, of a pendant edge or not.
+    The order of the list follows a preorder traversal of the tree.
+    Returns list of these lists, one for each tree in input trees.
+    """
 
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        return self.data[idx], self.labels[idx], self.mask[idx]
-
-    def __str__(self):
-        n_leaves = 1 + len(self.data[0])  # number of leaves in `self.data[0]`
-        n_unmasked = sum(self.mask[0])
-        return (
-            f"TreeDataset\n"
-            f"Number of samples: {len(self.data)}\n"
-            f"Leaves per tree: {n_leaves}\n"
-            f"Unmasked edges per tree: {n_unmasked}"
-        )
+    masks = []
+    for tree in trees:
+        # mask leaves, root (which is leaf) and root (which contains data for edge
+        # leading to root leaf)
+        mask_list = [
+            not (node.is_leaf() or node.is_root() or node.up.is_root())
+            for node in tree.traverse("postorder")
+        ]
+        masks.append(mask_list)
+    return masks
 
 
 def data_of_nicknames(data_name):
@@ -106,6 +105,11 @@ def train_val_data_of_nicknames(data_name):
         )
     )
 
-    train_data = TreeDataset(train_data, train_labels, train_mask)
-    val_data = TreeDataset(val_data, val_labels, val_mask)
-    return train_data, val_data
+    # train_data = TreeDataset(train_data, train_labels, train_mask)
+    # test_data = TreeDataset(test_data, test_labels, test_mask)
+    # val_data = TreeDataset(val_data, val_labels, val_mask)
+    train_data = TraversalDataset(train_data, train_labels, train_mask)
+    test_data = TraversalDataset(test_data, test_labels, test_mask)
+    val_data = TraversalDataset(val_data, val_labels, val_mask)
+
+    return train_data, val_data, test_data

@@ -44,7 +44,7 @@ def train_model(
     train_data, val_data, test_data = train_val_data_of_nicknames(data_name)
     model = get_model(model_name)
     model_str = trained_model_str(model_name, data_name)
-    wrap = Wrap(train_data, val_data, test_data, model, model_str, **wrap_params)
+    wrap = Wrap(train_data, val_data, test_data, model, log_path=model_str, **wrap_params)
     wrap.train(final_checkpoint)
     wrap.test(test_checkpoint)
     return model
@@ -61,7 +61,17 @@ def optimize_hyperparameters(model_name, data_name, best_model_hparams_filepath)
     return model
 
 
-def validate_model(model_name, data_name, directory=".", **wrap_kwargs):
+def validate_model(
+    model_name, 
+    trained_data_name, 
+    val_data_name,
+    directory=".", 
+    **wrap_kwargs
+):
+    """
+    Loads a trained model, specified by `model_name` and `trained_data_name`, and 
+    validates the model on the dataset `val_data_name`
+    """
     # hyperparameters (only used if no hyperparameter testing done)
     default_params = {
         # "learning_rate": 0.01,
@@ -71,14 +81,14 @@ def validate_model(model_name, data_name, directory=".", **wrap_kwargs):
     # Update default parameters with any provided keyword arguments
     wrap_params = {**default_params, **wrap_kwargs}
     # load trained model
-    path = "../train/" + trained_model_path(model_name, data_name) + ".ckpt"
+    path = "../train/" + trained_model_path(model_name, trained_data_name) + ".ckpt"
     model = get_model(model_name).load_from_checkpoint(path)
     # load dataset
-    train_data, val_data, test_data = train_val_data_of_nicknames(data_name)
-    val_wrap = HyperWrap(
+    train_data, val_data, test_data = train_val_data_of_nicknames(val_data_name)
+    val_wrap = Wrap(
         train_data=train_data,
         val_data=val_data,
-        # test_data=test_data,
+        test_data=test_data,
         model=model,
         log_path = "",
         **wrap_params,

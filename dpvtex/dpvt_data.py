@@ -1,8 +1,5 @@
 import pickle
 from sklearn.model_selection import train_test_split
-from torch.utils.data import (
-    Dataset,
-)
 from dpvt.wrapper import TreeDataset, TraversalDataset
 import numpy as np
 from pathlib import Path
@@ -19,27 +16,8 @@ dataset_dict = {
     "TenLeaf": script_directory.parent / "data/10leaf_perfect.p",
     "TenLeafTest": script_directory.parent / "data/10leaf_test.p",
     "ThirtyLeaf": script_directory.parent / "data/30leaf_perfect.p",
+    "ThirtyLeafDistinct": script_directory.parent / "data/30leaf_perfect_distinct_trees.p",
 }
-
-
-def mask_pendant_edges(trees):
-    """
-    Compute list of 0s and 1s indicating whether a node is the "lower end",
-    i.e. the node furthest away from the root, of a pendant edge or not.
-    The order of the list follows a preorder traversal of the tree.
-    Returns list of these lists, one for each tree in input trees.
-    """
-
-    masks = []
-    for tree in trees:
-        # mask leaves, root (which is leaf) and root (which contains data for edge
-        # leading to root leaf)
-        mask_list = [
-            not (node.is_leaf() or node.is_root() or node.up.is_root())
-            for node in tree.traverse("postorder")
-        ]
-        masks.append(mask_list)
-    return masks
 
 
 def data_of_nicknames(data_name):
@@ -107,24 +85,13 @@ def train_val_data_of_nicknames(data_name):
     labels = list(data_dict.values())
     trees = list(data_dict.keys())
 
-    masks = []
-    for tree in trees:
-        # mask leaves, root (which is leaf) and root (which contains data for edge
-        # leading to root leaf)
-        mask_list = [
-            not (node.is_leaf() or node.is_root() or node.up.is_root())
-            for node in tree.traverse("preorder")
-        ]
-        masks.append(mask_list)
-
     # use number of bad edges to stratify dataset
     n_bad_edges = np.array([sum(label) for label in labels])
 
-    train_data, val_data, train_labels, val_labels, train_mask, val_mask = (
+    train_data, val_data, train_labels, val_labels = (
         train_test_split(
             trees,
             labels,
-            masks,
             train_size=0.8,
             test_size=0.2,
             stratify=n_bad_edges,
@@ -132,11 +99,10 @@ def train_val_data_of_nicknames(data_name):
         )
     )
 
-    # train_data = TreeDataset(train_data, train_labels, train_mask)
-    # test_data = TreeDataset(test_data, test_labels, test_mask)
-    # val_data = TreeDataset(val_data, val_labels, val_mask)
-    train_data = TraversalDataset(train_data, train_labels, train_mask)
-    test_data = TraversalDataset(test_data, test_labels, test_mask)
-    val_data = TraversalDataset(val_data, val_labels, val_mask)
+    # train_data = TreeDataset(train_data, train_labels)
+    # test_data = TreeDataset(test_data, test_labels)
+    # val_data = TreeDataset(val_data, val_labels)
+    train_data = TraversalDataset(train_data, train_labels)
+    val_data = TraversalDataset(val_data, val_labels)
 
-    return train_data, val_data, test_data
+    return train_data, val_data

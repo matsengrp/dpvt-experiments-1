@@ -1,0 +1,27 @@
+name: dpvt-experiments
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - biopython
+  - click
+  - ete3
+  - git-lfs
+  - historydag
+  - ipykernel
+  - lightning
+  - matplotlib
+  - notebook
+  - numpy
+  - optuna
+  - pandas
+  - pytest
+  - python=3.9
+  - pytorch
+  - pytorch-lightning
+  - scikit-learn
+  - snakemake
+  - tensorboard
+#  - usher #currently broken for osx-arm64...
+

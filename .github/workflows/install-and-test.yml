@@ -1,0 +1,40 @@
+name: install and test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Conda Setup
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          micromamba-version: '1.5.6-0' # any version from https://github.com/mamba-org/micromamba-releases
+          environment-file: environment.yml
+          init-shell: bash
+          cache-environment: false
+          post-cleanup: 'none'
+
+      - name: Install
+        shell: bash -l {0}
+        run: |
+          pip install -e .
+
+      - name: Test
+        shell: bash -l {0}
+        run: |
+          pytest
+          # python dpvtex/perfect_phylogenies/tests/test_random_perfect.py
+

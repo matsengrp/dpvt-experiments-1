@@ -7,17 +7,19 @@ from dpvtex.dpvt_data import (
 
 import torch
 torch.set_num_threads(1)
+
+device = "cuda"
 torch.set_default_dtype(torch.float64)  # Set default to float64 for higher precision
 
 def get_model(model_name):
     if model_name == "TraverseNN":
-        model = models.TraverseNN()
+        model = models.TraverseNN
     elif model_name == "TraverseMaxPooling":
-        model = models.TraverseMaxPooling()
+        model = models.TraverseMaxPooling
     elif model_name == "TraverseAvgPooling":
-        model = models.TraverseAvgPooling()
+        model = models.TraverseAvgPooling
     elif model_name == "TransformerEncoderTraversal":
-        model = models.TransformerEncoderTraversal()
+        model = models.TransformerEncoderTraversal
     return model
 
 
@@ -52,7 +54,9 @@ def train_model(model_name, data_name, train_checkpoint=None, **wrap_kwargs):
     }
     # Update default parameters with any provided keyword arguments
     wrap_params = {**default_params, **wrap_kwargs}
-    train_data, val_data = train_val_data_of_nicknames(data_name)
+    train_data, val_data = train_val_data_of_nicknames(data_name, device)
+    model = get_model(model_name)
+    train_data, val_data = train_val_data_of_nicknames(data_name, device)
     model = get_model(model_name)
     model_str = trained_model_str(model_name, data_name)
     wrap = Wrap(
@@ -61,6 +65,7 @@ def train_model(model_name, data_name, train_checkpoint=None, **wrap_kwargs):
         test_data=None,
         model=model,
         log_path=model_str,
+        device=device,
         **wrap_params,
     )
     wrap.train(train_checkpoint)
@@ -100,6 +105,7 @@ def continue_train_model(model_name, data_name, train_checkpoint=None, **wrap_kw
         test_data=None,
         model=model,
         log_path=model_str,
+        device=device,
         **wrap_params,
     )
     wrap.train(train_checkpoint)
@@ -107,11 +113,11 @@ def continue_train_model(model_name, data_name, train_checkpoint=None, **wrap_kw
 
 
 def optimize_hyperparameters(model_name, data_name, best_model_hparams_filepath):
-    train_data, val_data, = train_val_data_of_nicknames(data_name)
+    train_data, val_data = train_val_data_of_nicknames(data_name, device)
     model = get_model(model_name)
     model_str = trained_model_str(model_name, data_name)
     hyper_wrap = HyperWrap(
-        model, train_data, val_data, model_str, epochs=100, n_trials=1
+        model, train_data, val_data, model_str, device = device, epochs=100, n_trials=1
     )  # n_trials chosen small for testing
     hyper_wrap.optuna_optimize(best_model_hparams_filepath)
     return model
@@ -137,6 +143,7 @@ def test_model(
         test_data=test_data,
         model=model,
         log_path=model_str,
+        device=device,
         **wrap_params,
     )
 

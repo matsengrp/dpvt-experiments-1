@@ -5,6 +5,7 @@ import numpy as np
 from pathlib import Path
 import os
 
+
 # Get the absolute path to the directory where the current script is located
 script_directory = Path(__file__).resolve().parent
 
@@ -20,7 +21,7 @@ dataset_dict = {
 }
 
 
-def data_of_nicknames(data_name):
+def data_of_nicknames(data_name, device):
     """
     Takes a dataset nickname string, which is a key in `dataset_dict`, and returns the
     corresponding data as a `TreeDataset` object.
@@ -33,49 +34,12 @@ def data_of_nicknames(data_name):
     labels = list(data_dict.values())
     trees = list(data_dict.keys())
 
-    masks = []
-    for tree in trees:
-        # mask leaves, root (which is leaf) and root (which contains data for edge
-        # leading to root leaf)
-        mask_list = [
-            not (node.is_leaf() or node.is_root() or node.up.is_root())
-            for node in tree.traverse("preorder")
-        ]
-        masks.append(mask_list)
-
-    tree_data = TreeDataset(trees, labels, masks)
+    tree_data = TreeDataset(trees, labels, device)
     return tree_data
 
 
 
-def data_of_nicknames(data_name):
-    """
-    Takes a dataset nickname string, which is a key in `dataset_dict`, and returns the
-    corresponding data as a `TreeDataset` object.
-    """
-    file_path = dataset_dict[data_name]
-    file_path = os.path.realpath(file_path)
-    with open(file_path, "rb") as f:
-        data_dict = pickle.load(f)
-
-    labels = list(data_dict.values())
-    trees = list(data_dict.keys())
-
-    masks = []
-    for tree in trees:
-        # mask leaves, root (which is leaf) and root (which contains data for edge
-        # leading to root leaf)
-        mask_list = [
-            not (node.is_leaf() or node.is_root() or node.up.is_root())
-            for node in tree.traverse("preorder")
-        ]
-        masks.append(mask_list)
-
-    tree_data = TreeDataset(trees, labels, masks)
-    return tree_data
-
-
-def train_val_data_of_nicknames(data_name):
+def train_val_data_of_nicknames(data_name, device):
     file_path = dataset_dict[data_name]
     file_path = os.path.realpath(file_path)
     with open(file_path, "rb") as f:
@@ -102,7 +66,7 @@ def train_val_data_of_nicknames(data_name):
     # train_data = TreeDataset(train_data, train_labels)
     # test_data = TreeDataset(test_data, test_labels)
     # val_data = TreeDataset(val_data, val_labels)
-    train_data = TraversalDataset(train_data, train_labels)
-    val_data = TraversalDataset(val_data, val_labels)
+    train_data = TraversalDataset(train_data, train_labels, device)
+    val_data = TraversalDataset(val_data, val_labels, device)
 
     return train_data, val_data

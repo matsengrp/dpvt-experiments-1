@@ -8,7 +8,6 @@ from dpvtex.dpvt_data import (
 import torch
 torch.set_num_threads(1)
 
-device = "cuda"
 torch.set_default_dtype(torch.float64)  # Set default to float64 for higher precision
 
 def get_model(model_name):
@@ -39,7 +38,7 @@ def best_model_params_path(model_name, data_name):
     return f"hyper_checkpoints/{trained_model_str(model_name, data_name)}"
 
 
-def train_model(model_name, data_name, train_checkpoint=None, **wrap_kwargs):
+def train_model(model_name, data_name, device, train_checkpoint=None, **wrap_kwargs):
     """
     Creates a model in class `model_name` and trains it on data `data_name`.
     """
@@ -72,7 +71,7 @@ def train_model(model_name, data_name, train_checkpoint=None, **wrap_kwargs):
     return model
 
 
-def continue_train_model(model_name, data_name, train_checkpoint=None, **wrap_kwargs):
+def continue_train_model(model_name, data_name, device, train_checkpoint=None, **wrap_kwargs):
     """
     Loads a model in class `model_name` that was previously trained on `data_name`, and
     continue training it.
@@ -112,7 +111,7 @@ def continue_train_model(model_name, data_name, train_checkpoint=None, **wrap_kw
     return model
 
 
-def optimize_hyperparameters(model_name, data_name, best_model_hparams_filepath):
+def optimize_hyperparameters(model_name, data_name, best_model_hparams_filepath, device):
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
     model = get_model(model_name)
     model_str = trained_model_str(model_name, data_name)

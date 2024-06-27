@@ -41,7 +41,12 @@ rule train_model:
         trained_model=trained_model_ckpt("{model_name}", "{data_name}"),
         test_checkpoint=tested_model_ckpt("{model_name}", "{data_name}")
     run:
-        train_model(wildcards.model_name, wildcards.data_name, output.trained_model, output.test_checkpoint)
+        train_model(
+            wildcards.model_name, 
+            wildcards.data_name, 
+            output.trained_model, 
+            output.test_checkpoint
+        )
 
 
 rule hyperparameter_optimization:

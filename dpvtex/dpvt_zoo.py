@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from pathlib import Path
 
 from dpvt import models
 from dpvt.wrapper import Wrap, HyperWrap
@@ -33,6 +34,9 @@ def best_model_params_path(model_name, data_name):
 def train_model(
     model_name, data_name, final_checkpoint, test_checkpoint, **wrap_kwargs
 ):
+    """
+    Creates a model in class `model_name` and trains it on data `data_name`.
+    """
     # hyperparameters (only used if no hyperparameter testing done)
     default_params = {
         "learning_rate": 0.01,
@@ -44,10 +48,59 @@ def train_model(
     train_data, val_data, test_data = train_val_data_of_nicknames(data_name)
     model = get_model(model_name)
     model_str = trained_model_str(model_name, data_name)
-    wrap = Wrap(train_data, val_data, test_data, model, log_path=model_str, **wrap_params)
+    wrap = Wrap(
+        train_data, val_data, test_data, model, log_path=model_str, **wrap_params
+    )
     wrap.train(final_checkpoint)
     wrap.test(test_checkpoint)
     return model
+
+
+def continue_train_model(
+    model_name, data_name, final_checkpoint=None, test_checkpoint=None, **wrap_kwargs
+):
+    """
+    Loads a model in class `model_name` that was previously trained on `data_name`, and
+    continue training it.
+    """
+    # set final and test checkpoint strings
+    if final_checkpoint is None:
+        final_checkpoint = trained_model_path(model_name, data_name) + ".ckpt"
+    if test_checkpoint is None:
+        test_checkpoint = trained_model_path(model_name, data_name) + "_test.ckpt"
+    # hyperparameters (only used if no hyperparameter testing done)
+    default_params = {
+        "learning_rate": 0.01,
+        "batch_size": 1024,
+        "epochs": 2,
+    }
+    # Update default parameters with any provided keyword arguments
+    wrap_params = {**default_params, **wrap_kwargs}
+    # load trained model
+    script_directory = Path(__file__)
+    path = script_directory.parent.parent / "train"
+    path = path / (trained_model_path(model_name, data_name) + ".ckpt")
+    try:
+        model = get_model(model_name).load_from_checkpoint(path)
+    except FileNotFoundError as e:
+        # print(f"Model {model_name} trained on {data_name} does not have saved checkpoint.")
+        raise ValueError(
+            f"Model {model_name} trained on data {data_name} does not have saved checkpoint."
+        ) from e
+    model_str = trained_model_str(model_name, data_name)
+    # load dataset
+    train_data, val_data, test_data = train_val_data_of_nicknames(data_name)
+    wrap = Wrap(
+        train_data=train_data,
+        val_data=val_data,
+        test_data=test_data,
+        model=model,
+        log_path=model_str,
+        **wrap_params,
+    )
+    wrap.train(final_checkpoint)
+    results = wrap.test(test_checkpoint)
+    return results
 
 
 def optimize_hyperparameters(model_name, data_name, best_model_hparams_filepath):
@@ -62,14 +115,10 @@ def optimize_hyperparameters(model_name, data_name, best_model_hparams_filepath)
 
 
 def validate_model(
-    model_name, 
-    trained_data_name, 
-    val_data_name,
-    directory=".", 
-    **wrap_kwargs
+    model_name, trained_data_name, val_data_name, directory=".", **wrap_kwargs
 ):
     """
-    Loads a trained model, specified by `model_name` and `trained_data_name`, and 
+    Loads a trained model, specified by `model_name` and `trained_data_name`, and
     validates the model on the dataset `val_data_name`
     """
     # hyperparameters (only used if no hyperparameter testing done)
@@ -85,12 +134,15 @@ def validate_model(
     model = get_model(model_name).load_from_checkpoint(path)
     # load dataset
     train_data, val_data, test_data = train_val_data_of_nicknames(val_data_name)
+    # create string for logging
+    model_str = trained_model_str(model_name, trained_data_name)
+    model_str = model_str + "-ON-" + val_data_name
     val_wrap = Wrap(
         train_data=train_data,
         val_data=val_data,
         test_data=test_data,
         model=model,
-        log_path = "",
+        log_path=model_str,
         **wrap_params,
     )
 

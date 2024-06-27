@@ -156,18 +156,4 @@ def validate_model(
     val_loss = results[0]["val_loss"]
 
     return val_loss
-
-    bce_loss = val_wrap.evaluate()
-    crepe_basename = os.path.basename(model_name)
-    df = pd.DataFrame(
-        {
-            "crepe_prefix": [model_name],
-            "crepe_basename": [crepe_basename],
-            "dataset_name": [data_name],
-            "bce_loss": [bce_loss],
-        }
-    )
-    df.to_csv(
-        f"{directory}/{crepe_basename}-ON-{data_name}.csv",
-        index=False,
-    )
+    # write result to csv file?

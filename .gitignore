@@ -184,3 +184,6 @@ hyper_checkpoints/
 *.p
 *.done
 *.csv
+*.nex
+*.pdf
+*.ckpt

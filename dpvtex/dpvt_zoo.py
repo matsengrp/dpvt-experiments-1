@@ -11,13 +11,13 @@ torch.set_default_dtype(torch.float64)  # Set default to float64 for higher prec
 
 def get_model(model_name):
     if model_name == "TraverseNN":
-        model = models.TraverseNN
+        model = models.TraverseNN()
     elif model_name == "TraverseMaxPooling":
-        model = models.TraverseMaxPooling
+        model = models.TraverseMaxPooling()
     elif model_name == "TraverseAvgPooling":
-        model = models.TraverseAvgPooling
+        model = models.TraverseAvgPooling()
     elif model_name == "TransformerEncoderTraversal":
-        model = models.TransformerEncoderTraversal
+        model = models.TransformerEncoderTraversal()
     return model
 
 

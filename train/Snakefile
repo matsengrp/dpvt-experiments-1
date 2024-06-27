@@ -21,6 +21,7 @@ configfile: config_path
 model_names = config["models"]
 train_data_names = config["train_data"]
 test_data_names = config["test_data"]
+device = config["device"]
 
 
 data_pairs = list(zip(train_data_names, test_data_names))
@@ -78,6 +79,7 @@ rule test_models:
             input.trained_model,
             wildcards.test_data_name,
             output.tested_model,
+            device,
         )
 
 
@@ -86,5 +88,8 @@ rule hyperparameter_optimization:
         best_model_params=best_model_params("{model_name}", "{train_data_name}"),
     run:
         optimize_hyperparameters(
-            wildcards.model_name, wildcards.train_data_name, output.best_model_params
+            wildcards.model_name,
+            wildcards.train_data_name,
+            output.best_model_params,
+            device,
         )

@@ -17,3 +17,4 @@ test_data: [
     # "TenLeafTest",
     # "ThirtyLeafTest",
   ]
+device: "cpu"

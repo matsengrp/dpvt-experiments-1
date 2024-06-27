@@ -32,11 +32,16 @@ def best_model_params_path(model_name, data_name):
 
 
 def train_model(
-    model_name, data_name, final_checkpoint, test_checkpoint, **wrap_kwargs
+    model_name, data_name, final_checkpoint=None, test_checkpoint=None, **wrap_kwargs
 ):
     """
     Creates a model in class `model_name` and trains it on data `data_name`.
     """
+    # set final and test checkpoint strings
+    if final_checkpoint is None:
+        final_checkpoint = trained_model_path(model_name, data_name) + ".ckpt"
+    if test_checkpoint is None:
+        test_checkpoint = trained_model_path(model_name, data_name) + "_test.ckpt"
     # hyperparameters (only used if no hyperparameter testing done)
     default_params = {
         "learning_rate": 0.01,

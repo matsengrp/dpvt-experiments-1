@@ -17,7 +17,8 @@ dataset_dict = {
     "TenLeaf": script_directory.parent / "data/10leaf_perfect.p",
     "TenLeafTest": script_directory.parent / "data/10leaf_test.p",
     "ThirtyLeaf": script_directory.parent / "data/30leaf_perfect.p",
-    "ThirtyLeafDistinct": script_directory.parent / "data/30leaf_perfect_distinct_trees.p",
+    "ThirtyLeafDistinct": script_directory.parent
+    / "data/30leaf_perfect_distinct_trees.p",
 }
 
 
@@ -34,7 +35,10 @@ def data_of_nicknames(data_name, device):
     labels = list(data_dict.values())
     trees = list(data_dict.keys())
 
-    tree_data = TreeDataset(trees, labels, device)
+    if device == "cpu":
+        tree_data = TreeDataset(trees, labels, device)
+    else:
+        tree_data = TraversalDataset(trees, labels, device)
     return tree_data
 
 
@@ -63,10 +67,13 @@ def train_val_data_of_nicknames(data_name, device):
         )
     )
 
-    # train_data = TreeDataset(train_data, train_labels)
-    # test_data = TreeDataset(test_data, test_labels)
-    # val_data = TreeDataset(val_data, val_labels)
-    train_data = TraversalDataset(train_data, train_labels, device)
-    val_data = TraversalDataset(val_data, val_labels, device)
+    if device == "cpu":
+        # no need to convert to traversal data structure, as this would add
+        # one more traversal, hence increase runtime
+        train_data = TreeDataset(train_data, train_labels)
+        val_data = TreeDataset(val_data, val_labels)
+    else:
+        train_data = TraversalDataset(train_data, train_labels, device)
+        val_data = TraversalDataset(val_data, val_labels, device)
 
     return train_data, val_data

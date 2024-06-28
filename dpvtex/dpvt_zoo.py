@@ -127,13 +127,13 @@ def validate_model(
     validates the model on the dataset `val_data_name`
     """
     # hyperparameters (only used if no hyperparameter testing done)
-    default_params = {
-        # "learning_rate": 0.01,
-        # "batch_size": 1024,
-        # "epochs": 2,
-    }
+    # default_params = {
+    #     "learning_rate": 0.01,
+    #     "batch_size": 1024,
+    #     "epochs": 2,
+    # }
     # Update default parameters with any provided keyword arguments
-    wrap_params = {**default_params, **wrap_kwargs}
+    wrap_params = {**wrap_kwargs}
     # load trained model
     path = "../train/" + trained_model_path(model_name, trained_data_name) + ".ckpt"
     model = get_model(model_name).load_from_checkpoint(path)

@@ -30,6 +30,29 @@ class TreeDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx], self.mask[idx]
 
+def data_of_nicknames(data_name):
+    """
+    """
+    file_path = dataset_dict[data_name]
+    file_path = os.path.realpath(file_path)
+    with open(file_path, "rb") as f:
+        data_dict = pickle.load(f)
+
+    labels = list(data_dict.values())
+    trees = list(data_dict.keys())
+
+    masks = []
+    for tree in trees:
+        # mask leaves, root (which is leaf) and root (which contains data for edge
+        # leading to root leaf)
+        mask_list = [
+            not (node.is_leaf() or node.is_root() or node.up.is_root())
+            for node in tree.traverse("preorder")
+        ]
+        masks.append(mask_list)
+
+    tree_data = TreeDataset(trees, labels, masks)
+    return tree_data
 
 def train_val_data_of_nicknames(data_name):
     file_path = dataset_dict[data_name]

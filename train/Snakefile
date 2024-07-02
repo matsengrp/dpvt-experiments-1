@@ -72,6 +72,8 @@ rule test_models:
         tested_model=tested_model_ckpt(
             "{model_name}", "{train_data_name}", "{test_data_name}"
         ),
+    benchmark:
+        "benchmarks/train_model/{model_name}_{data_name}_" + device + "_.tsv"
     run:
         test_model(
             wildcards.model_name,

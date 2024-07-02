@@ -4,7 +4,10 @@ from pathlib import Path
 
 from dpvt import models
 from dpvt.wrapper import Wrap, HyperWrap
-from dpvtex.dpvt_data import train_val_data_of_nicknames
+from dpvtex.dpvt_data import (
+    data_of_nicknames,
+    train_val_data_of_nicknames,
+)
 
 
 def get_model(model_name):
@@ -119,12 +122,12 @@ def optimize_hyperparameters(model_name, data_name, best_model_hparams_filepath)
     return model
 
 
-def validate_model(
-    model_name, trained_data_name, val_data_name, directory=".", **wrap_kwargs
+def test_trained_model(
+    model_name, trained_data_name, test_data_name, **wrap_kwargs
 ):
     """
     Loads a trained model, specified by `model_name` and `trained_data_name`, and
-    validates the model on the dataset `val_data_name`
+    tests the model on the dataset `test_data_name`
     """
     # hyperparameters (only used if no hyperparameter testing done)
     # default_params = {
@@ -138,13 +141,13 @@ def validate_model(
     path = "../train/" + trained_model_path(model_name, trained_data_name) + ".ckpt"
     model = get_model(model_name).load_from_checkpoint(path)
     # load dataset
-    train_data, val_data, test_data = train_val_data_of_nicknames(val_data_name)
+    test_data = data_of_nicknames(test_data_name)
     # create string for logging
     model_str = trained_model_str(model_name, trained_data_name)
-    model_str = model_str + "-ON-" + val_data_name
-    val_wrap = Wrap(
-        train_data=train_data,
-        val_data=val_data,
+    model_str = model_str + "-ON-" + test_data_name
+    test_wrap = Wrap(
+        train_data=None,
+        val_data=None,
         test_data=test_data,
         model=model,
         log_path=model_str,
@@ -152,8 +155,10 @@ def validate_model(
     )
 
     # evaluate model
-    results = val_wrap.trainer.validate(val_wrap.model, val_wrap.val_loader)
-    val_loss = results[0]["val_loss"]
+    results = test_wrap.trainer.test(test_wrap.model, test_wrap.test_loader)
+    ## debug
+    print(results[0])
+    test_loss = results[0]["test_loss"]
 
-    return val_loss
+    return test_loss
     # write result to csv file?

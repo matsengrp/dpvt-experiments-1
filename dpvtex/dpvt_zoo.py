@@ -34,17 +34,15 @@ def best_model_params_path(model_name, data_name):
     return f"hyper_checkpoints/{trained_model_str(model_name, data_name)}"
 
 
-def train_model(
-    model_name, data_name, final_checkpoint=None, test_checkpoint=None, **wrap_kwargs
-):
+def train_model(model_name, data_name, final_checkpoint=None, **wrap_kwargs):
     """
     Creates a model in class `model_name` and trains it on data `data_name`.
     """
     # set final and test checkpoint strings
     if final_checkpoint is None:
         final_checkpoint = trained_model_path(model_name, data_name) + ".ckpt"
-    if test_checkpoint is None:
-        test_checkpoint = trained_model_path(model_name, data_name) + "_test.ckpt"
+    # if test_checkpoint is None:
+    #     test_checkpoint = trained_model_path(model_name, data_name) + "_test.ckpt"
     # hyperparameters (only used if no hyperparameter testing done)
     default_params = {
         "learning_rate": 0.01,
@@ -60,7 +58,7 @@ def train_model(
         train_data, val_data, test_data, model, log_path=model_str, **wrap_params
     )
     wrap.train(final_checkpoint)
-    wrap.test(test_checkpoint)
+    # wrap.test(test_checkpoint)
     return model
 
 
@@ -122,12 +120,17 @@ def optimize_hyperparameters(model_name, data_name, best_model_hparams_filepath)
 
 
 def test_trained_model(
-    model_name, trained_data_name, test_data_name, **wrap_kwargs
+    model_name, trained_data_name, test_data_name, test_checkpoint=None, **wrap_kwargs
 ):
     """
     Loads a trained model, specified by `model_name` and `trained_data_name`, and
     tests the model on the dataset `test_data_name`
     """
+    # set test checkpoint string
+    if test_checkpoint is None:
+        test_checkpoint = (
+            trained_model_path(model_name, trained_data_name) + "_test.ckpt"
+        )
     # hyperparameters (only used if no hyperparameter testing done)
     # default_params = {
     #     "learning_rate": 0.01,
@@ -154,8 +157,9 @@ def test_trained_model(
     )
 
     # evaluate model
-    results = test_wrap.trainer.test(test_wrap.model, test_wrap.test_loader)
+    # results = test_wrap.trainer.test(test_wrap.model, test_wrap.test_loader)
+    result = test_wrap.test(test_checkpoint)
 
-    test_auroc = results[0]["test_auroc"]
+    test_auroc = result[0]["test_auroc"]
     return test_auroc
     # write result to csv file?

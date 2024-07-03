@@ -91,7 +91,6 @@ def continue_train_model(
     try:
         model = get_model(model_name).load_from_checkpoint(path)
     except FileNotFoundError as e:
-        # print(f"Model {model_name} trained on {data_name} does not have saved checkpoint.")
         raise ValueError(
             f"Model {model_name} trained on data {data_name} does not have saved checkpoint."
         ) from e
@@ -156,9 +155,7 @@ def test_trained_model(
 
     # evaluate model
     results = test_wrap.trainer.test(test_wrap.model, test_wrap.test_loader)
-    ## debug
-    print(results[0])
-    test_loss = results[0]["test_loss"]
 
-    return test_loss
+    test_auroc = results[0]["test_auroc"]
+    return test_auroc
     # write result to csv file?

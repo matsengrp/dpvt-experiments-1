@@ -73,7 +73,7 @@ rule test_models:
             "{model_name}", "{train_data_name}", "{test_data_name}"
         ),
     benchmark:
-        "benchmarks/train_model/{model_name}_{data_name}_" + device + "_.tsv"
+        "benchmarks/train_model/{model_name}_{data_name}_" + device + ".tsv"
     run:
         test_model(
             wildcards.model_name,

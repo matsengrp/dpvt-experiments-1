@@ -24,7 +24,7 @@ Install `dpvtex` as a python package with pip: `pip install -e .`.
 
 ## Training Workflow
 
-We have a workflow implemented in Snakemake (`Snakefile`), which takes as input in `config.yaml` names of models (see *Neural Network Model*) and datasets (see *Training Data*) and trains and evaluates the given models on all given datasets.
+We have a workflow implemented in Snakemake (`Snakefile`), which takes as input in `config.yaml` names of models (see *Neural Network Model*), datasets (see *Training Data*), and the device on which we want to train (e.g. cpu or gpu, see *Device*), and trains and evaluates the given models on all given datasets.
 
 The input data is expected to be located in a `data` folder in the root directory of this repo.
 Two lists `train_data` and `test_data` containing names of datasets need to be specified, so that the *i*th dataset in `train_data` is the training data for a model that is then tested on the *i*th dataset of `test_data`.
@@ -35,6 +35,34 @@ The data shall be made of dictionaries where trees are keys and their values are
 
 To execute the workflow, run `snakemake -c[num_cores]` in the directory `train`, where `[num_cores]` should be replaced with the number of cores you want to use.
 Alternatively, run `snakemake --snakefile train/Snakefile -c[num_cores]` in the root directory, or from any directory with the `--snakefile` path argument replaced as appropriate.
+
+
+### Neural Network models
+
+We have four different models:
+- `TraverseNN`
+- `TraverseAvgPooling`
+- `TraverseMaxPooling`
+- `TransformerEncoderTraversal`
+
+Details about these models can be foung in [dpvt](https://github.com/matsengrp/dpvt)
+
+### Training data
+
+[TODO: explain how to generate this data, when those files are merged in.]
+
+Nicknames for the datasets and paths to those datasets must be provided in a `dpvt_zoo.py`.
+We assume that each dataset is given by one file that contains a pickled dictionary.
+The keys of this dictionary shall be trees and their values lists of `0`s and `1`s indicating if an edge (indexed in pre-order) is present in a MP tree or not.
+Trees are allowed to have varying lengths.
+The current implementation reads such a dictionary and splits it into training, validation, and test set.
+Training set is used to train our models, validation set is used for hyperparameter optimization and to assess overfitting, and the test set is used for evaluating the trained models.
+
+### Device
+
+By default, we train on CPUs.
+If the device is changed to `gpu` or `cuda` in the config file, we use the TraversalDataset structure and convert trees to tensors representing traversals on the trees.
+A detailed explanation of this can be found in [dpvt](https://github.com/matsengrp/dpvt).
 
 
 ## Logging training

@@ -1,10 +1,10 @@
 import pickle
 from sklearn.model_selection import train_test_split
 from dpvt.wrapper import TreeDataset, TraversalDataset
-import numpy as np
 from pathlib import Path
 import os
-
+import pandas as pd
+from collections import Counter
 
 # Get the absolute path to the directory where the current script is located
 script_directory = Path(__file__).resolve().parent
@@ -40,7 +40,7 @@ def data_of_nicknames(data_name, device):
     else:
         tree_data = TraversalDataset(trees, labels, device)
     return tree_data
-
+ 
 
 
 def train_val_data_of_nicknames(data_name, device):
@@ -53,8 +53,13 @@ def train_val_data_of_nicknames(data_name, device):
     labels = list(data_dict.values())
     trees = list(data_dict.keys())
 
-    # use number of bad edges to stratify dataset
-    n_bad_edges = np.array([sum(label) for label in labels])
+    sum_of_ones = [sum(label) for label in labels]
+    counter = Counter(sum_of_ones)
+
+    # Convert sums to a categorical variable for balancing number of non-MP edges in train/test/val
+    categories = pd.qcut(
+        sum_of_ones, q=min(len(counter), 4), labels=False, duplicates="drop"
+    )
 
     train_data, val_data, train_labels, val_labels = (
         train_test_split(
@@ -62,7 +67,7 @@ def train_val_data_of_nicknames(data_name, device):
             labels,
             train_size=0.8,
             test_size=0.2,
-            stratify=n_bad_edges,
+            stratify=categories,
             random_state=42,
         )
     )

@@ -1,7 +1,6 @@
 import pickle
 from sklearn.model_selection import train_test_split
 from dpvt.wrapper import TreeDataset, TraversalDataset
-import numpy as np
 from pathlib import Path
 import os
 import pandas as pd
@@ -35,7 +34,7 @@ def data_of_nicknames(data_name, device):
     else:
         tree_data = TraversalDataset(trees, labels, device)
     return tree_data
-
+ 
 
 def train_val_data_of_nicknames(data_name, device):
     file_path = dataset_dict[data_name]

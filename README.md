@@ -41,6 +41,7 @@ pickled dictionaries where trees are keys and their values are lists that assign
 `0` or `1` to edges in the tree, ordered by pre-order traversal, where `0` means
 this edge is in a Maximum Parsimony tree and `1` indicates that it is not.
 
+
 ## Training Workflow
 
 We have a workflow implemented in Snakemake (`Snakefile`), which takes as input
@@ -57,6 +58,34 @@ where `[num_cores]` should be replaced with the number of cores you want to use.
 Alternatively, run `snakemake --snakefile train/Snakefile -c[num_cores]` in the
 root directory, or from any directory with the `--snakefile` path argument
 replaced as appropriate.
+
+### Neural Network models
+
+We have four different models:
+- `TraverseNN`
+- `TraverseAvgPooling`
+- `TraverseMaxPooling`
+- `TransformerEncoderTraversal`
+
+Details about these models can be foung in [dpvt](https://github.com/matsengrp/dpvt)
+
+### Training data
+
+[TODO: explain how to generate this data, when those files are merged in.]
+
+Nicknames for the datasets and paths to those datasets must be provided in a `dpvt_zoo.py`.
+We assume that each dataset is given by one file that contains a pickled dictionary.
+The keys of this dictionary shall be trees and their values lists of `0`s and `1`s indicating if an edge (indexed in pre-order) is present in a MP tree or not.
+Trees are allowed to have varying lengths.
+The current implementation reads such a dictionary and splits it into training, validation, and test set.
+Training set is used to train our models, validation set is used for hyperparameter optimization and to assess overfitting, and the test set is used for evaluating the trained models.
+
+### Device
+
+By default, we train on CPUs.
+If the device is changed to `gpu` or `cuda` in the config file, we use the TraversalDataset structure and convert trees to tensors representing traversals on the trees.
+A detailed explanation of this can be found in [dpvt](https://github.com/matsengrp/dpvt).
+
 
 ## Logging training
 

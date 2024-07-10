@@ -62,6 +62,7 @@ rule train_models:
             wildcards.model_name,
             wildcards.train_data_name,
             output.trained_model,
+            device
         )
 
 

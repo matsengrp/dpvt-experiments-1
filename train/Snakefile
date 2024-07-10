@@ -83,6 +83,7 @@ rule test_models:
             wildcards.test_data_name,
             output.tested_model,
             device,
+            profiling=False
         )
 
 

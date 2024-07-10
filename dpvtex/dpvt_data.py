@@ -64,7 +64,7 @@ def train_val_data_of_nicknames(data_name, device):
         )
     )
 
-    if device == "cpu":
+    if device == "cpu-tree-dataset":
         # no need to convert to traversal data structure, as this would add
         # one more traversal, hence increase runtime
         train_data = TreeDataset(train_data, train_labels)

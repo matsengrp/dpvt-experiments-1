@@ -37,8 +37,14 @@ def tested_model_path(model_name, train_data_name, test_data_name):
 def best_model_params_path(model_name, data_name):
     return f"hyper_checkpoints/{trained_model_str(model_name, data_name)}"
 
-
-def train_model(model_name, data_name, device, train_checkpoint=None, **wrap_kwargs):
+def train_model(
+    model_name,
+    data_name,
+    train_checkpoint,
+    device,
+    profiling=False,
+    **wrap_kwargs,
+):
     """
     Creates a model in class `model_name` and trains it on data `data_name`.
     """
@@ -49,7 +55,7 @@ def train_model(model_name, data_name, device, train_checkpoint=None, **wrap_kwa
     default_params = {
         "learning_rate": 0.01,
         "batch_size": 1024,
-        "epochs": 200,
+        "epochs": 10,
     }
     # Update default parameters with any provided keyword arguments
     wrap_params = {**default_params, **wrap_kwargs}
@@ -64,6 +70,7 @@ def train_model(model_name, data_name, device, train_checkpoint=None, **wrap_kwa
         test_data=None,
         model=model,
         log_path=model_str,
+        profiling=profiling,
         device=device,
         **wrap_params,
     )
@@ -111,12 +118,19 @@ def continue_train_model(model_name, data_name, device, train_checkpoint=None, *
     return model
 
 
-def optimize_hyperparameters(model_name, data_name, best_model_hparams_filepath, device):
+def optimize_hyperparameters(model_name, data_name, best_model_hparams_filepath, device, profiling=False):
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
     model = get_model(model_name)
     model_str = trained_model_str(model_name, data_name)
     hyper_wrap = HyperWrap(
-        model, train_data, val_data, model_str, device = device, epochs=100, n_trials=10
+        model,
+        train_data,
+        val_data,
+        model_str,
+        profiling=profiling,
+        device=device,
+        epochs=100,
+        n_trials=10,
     )  # n_trials chosen small for testing
     hyper_wrap.optuna_optimize(best_model_hparams_filepath)
     return model

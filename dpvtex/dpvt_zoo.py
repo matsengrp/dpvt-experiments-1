@@ -27,7 +27,7 @@ def trained_model_str(model_name, data_name):
 
 
 def trained_model_path(model_name, data_name):
-    return f"trained_models/{trained_model_str(model_name, data_name)}"
+    return "trained_models/" + trained_model_str(model_name, data_name)
 
 
 def best_model_params_path(model_name, data_name):
@@ -126,10 +126,13 @@ def test_trained_model(
     Loads a trained model, specified by `model_name` and `trained_data_name`, and
     tests the model on the dataset `test_data_name`
     """
+    # create string for logging
+    model_str = trained_model_str(model_name, trained_data_name)
+    model_str = model_str + "-ON-" + test_data_name
     # set test checkpoint string
     if test_checkpoint is None:
         test_checkpoint = (
-            trained_model_path(model_name, trained_data_name) + "_test.ckpt"
+            "trained_models/" + model_str + "_test.ckpt"
         )
     # hyperparameters (only used if no hyperparameter testing done)
     # default_params = {
@@ -144,9 +147,6 @@ def test_trained_model(
     model = get_model(model_name).load_from_checkpoint(path)
     # load dataset
     test_data = data_of_nicknames(test_data_name)
-    # create string for logging
-    model_str = trained_model_str(model_name, trained_data_name)
-    model_str = model_str + "-ON-" + test_data_name
     test_wrap = Wrap(
         train_data=None,
         val_data=None,
@@ -157,7 +157,6 @@ def test_trained_model(
     )
 
     # evaluate model
-    # results = test_wrap.trainer.test(test_wrap.model, test_wrap.test_loader)
     result = test_wrap.test(test_checkpoint)
 
     test_auroc = result[0]["test_auroc"]

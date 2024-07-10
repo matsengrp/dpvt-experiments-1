@@ -128,6 +128,6 @@ def train_val_data_of_nicknames(data_name):
     )
 
     train_data = TreeDataset(train_data, train_labels, train_mask)
-    test_data = TreeDataset(test_data, test_labels, test_mask)
     val_data = TreeDataset(val_data, val_labels, val_mask)
+    test_data = TreeDataset(test_data, test_labels, test_mask)
     return train_data, val_data, test_data

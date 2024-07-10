@@ -171,3 +171,19 @@ hyper_checkpoints/
 
 # snakemake workflow
 .snakemake
+
+# data
+*.p
+*.csv
+**faToVcf
+*.fasta
+*.txt
+*.done
+*.flag
+*.pb
+*.nh
+*.vcf
+*.nex
+*.tsv
+*.pdf
+*.ckpt

@@ -75,10 +75,9 @@ def train_val_data_of_nicknames(data_name):
     with open(file_path, "rb") as f:
         data_dict = pickle.load(f)
 
-    # split into 60% training, 20% validation, 20% testing
-    train_size = int(0.6 * len(data_dict))
-    val_size = int(0.2 * len(data_dict))
-    test_size = len(data_dict) - train_size - val_size
+    # split into 80% training, 20% validation
+    train_size = int(0.8 * len(data_dict))
+    val_size = len(data_dict) - train_size
 
     # Split into balanced training, validation, and test data using sklearn
     labels = list(data_dict.values())
@@ -97,37 +96,19 @@ def train_val_data_of_nicknames(data_name):
     # use number of bad edges to stratify dataset
     n_bad_edges = np.array([sum(label) for label in labels])
 
-    (
-        train_val_data,
-        test_data,
-        train_val_labels,
-        test_labels,
-        train_val_mask,
-        test_mask,
-        sum_train_val,
-        _,
-    ) = train_test_split(
-        trees,
-        labels,
-        masks,
-        n_bad_edges,
-        test_size=test_size,
-        stratify=n_bad_edges,
-        random_state=42,
-    )
-
     train_data, val_data, train_labels, val_labels, train_mask, val_mask = (
         train_test_split(
-            train_val_data,
-            train_val_labels,
-            train_val_mask,
-            test_size=val_size / (train_size + val_size),
-            stratify=sum_train_val,
+            trees,
+            labels,
+            masks,
+            n_bad_edges,
+            train_size=train_size,
+            test_size=val_size,
+            stratify=n_bad_edges,
             random_state=42,
         )
     )
 
     train_data = TreeDataset(train_data, train_labels, train_mask)
     val_data = TreeDataset(val_data, val_labels, val_mask)
-    test_data = TreeDataset(test_data, test_labels, test_mask)
-    return train_data, val_data, test_data
+    return train_data, val_data

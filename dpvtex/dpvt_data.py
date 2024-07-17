@@ -13,6 +13,8 @@ script_directory = Path(__file__).resolve().parent
 dataset_dict = {
     "FourLeafFourSite": script_directory.parent / "data/4leaf4site.p",
     "FourLeaf": script_directory.parent / "data/4leaf.p",
+    "FourLeafFourSiteTest": script_directory.parent / "data/4leaf4site_test.p",
+    "FourLeafTest": script_directory.parent / "data/4leaf_test.p",
     "TenLeaf": script_directory.parent / "data/10leaf_perfect.p",
     "TenLeafTest": script_directory.parent / "data/10leaf_test.p",
     "ThirtyLeaf": script_directory.parent / "data/30leaf_perfect.p",

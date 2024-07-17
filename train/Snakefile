@@ -1,56 +1,91 @@
 import sys
+from pytorch_lightning import seed_everything
+seed_everything(42, workers=True)
+
 
 snakefile_dir = workflow.basedir
 sys.path.append(snakefile_dir + "/..")
 
 from dpvtex.dpvt_zoo import (
-    train_model, 
-    trained_model_path, 
-    best_model_params_path, 
+    train_model,
+    test_model,
+    trained_model_path,
+    tested_model_path,
+    best_model_params_path,
     optimize_hyperparameters,
 )
 
 config_path = os.path.join(snakefile_dir, "config.yaml")
+
+
 configfile: config_path
 
+
 model_names = config["models"]
-data_names = config["data"]
+train_data_names = config["train_data"]
+test_data_names = config["test_data"]
 
 
-def trained_model_ckpt(model_name, data_name):
-    return f"{trained_model_path(model_name, data_name)}.ckpt"
+data_pairs = list(zip(train_data_names, test_data_names))
 
-def tested_model_ckpt(model_name, data_name):
-    return f"{trained_model_path(model_name, data_name)}_test.ckpt"
 
-def best_model_params(model_name, data_name):
-    return f"{best_model_params_path(model_name, data_name)}.json"
+
+def trained_model_ckpt(model, data):
+    return f"{trained_model_path(model, data)}.ckpt"
+
+
+def tested_model_ckpt(model, train_data, test_data):
+    return f"{tested_model_path(model, train_data, test_data)}.ckpt"
+
+
+def best_model_params(model, data):
+    return f"{best_model_params_path(model, data)}.json"
 
 
 rule all:
     input:
-        expand(trained_model_ckpt("{model_name}", "{data_name}"),
+        expand(
+            tested_model_ckpt("{model_name}", "{train_data_name}", "{test_data_name}"),
             model_name=model_names,
-            data_name=data_names)
+            train_data_name=[data[0] for data in data_pairs],
+            test_data_name=[data[1] for data in data_pairs],
+        )
 
 
-rule train_model:
+rule train_models:
     input:
-        best_model_params("{model_name}", "{data_name}")
+        best_model_params("{model_name}", "{train_data_name}")
     output:
-        trained_model=trained_model_ckpt("{model_name}", "{data_name}"),
-        test_checkpoint=tested_model_ckpt("{model_name}", "{data_name}")
+        trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
     run:
         train_model(
-            wildcards.model_name, 
-            wildcards.data_name, 
-            output.trained_model, 
-            output.test_checkpoint
+            wildcards.model_name,
+            wildcards.train_data_name,
+            output.trained_model,
+        )
+
+
+rule test_models:
+    input:
+        trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
+    output:
+        tested_model=tested_model_ckpt(
+            "{model_name}", "{train_data_name}", "{test_data_name}"
+        )
+    run:
+        test_model(
+            wildcards.model_name,
+            wildcards.train_data_name,
+            input.trained_model,
+            wildcards.test_data_name,
+            output.tested_model,
         )
 
 
 rule hyperparameter_optimization:
     output:
-        best_model_params=best_model_params("{model_name}", "{data_name}")
+        best_model_params=best_model_params("{model_name}", "{train_data_name}"),
     run:
-        optimize_hyperparameters(wildcards.model_name, wildcards.data_name, output.best_model_params)
+        optimize_hyperparameters(
+            wildcards.model_name, wildcards.train_data_name, output.best_model_params
+        )

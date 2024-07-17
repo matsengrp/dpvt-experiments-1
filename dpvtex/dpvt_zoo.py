@@ -48,7 +48,7 @@ def train_model(model_name, data_name, train_checkpoint=None, **wrap_kwargs):
     default_params = {
         "learning_rate": 0.01,
         "batch_size": 1024,
-        "epochs": 2,
+        "epochs": 200,
     }
     # Update default parameters with any provided keyword arguments
     wrap_params = {**default_params, **wrap_kwargs}
@@ -88,7 +88,7 @@ def continue_train_model(model_name, data_name, train_checkpoint=None, **wrap_kw
     default_params = {
         "learning_rate": 0.01,
         "batch_size": 1024,
-        "epochs": 2,
+        "epochs": 100,
     }
     # Update default parameters with any provided keyword arguments
     wrap_params = {**default_params, **wrap_kwargs}

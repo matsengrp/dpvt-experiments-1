@@ -1,7 +1,4 @@
 import sys
-from pytorch_lightning import seed_everything
-seed_everything(42, workers=True)
-
 
 snakefile_dir = workflow.basedir
 sys.path.append(snakefile_dir + "/..")
@@ -29,6 +26,13 @@ test_data_names = config["test_data"]
 data_pairs = list(zip(train_data_names, test_data_names))
 
 
+def generate_tested_model_ckpts(model_names, data_pairs):
+    return [
+        tested_model_ckpt(model_name, train_data_name, test_data_name)
+        for model_name in model_names
+        for train_data_name, test_data_name in data_pairs
+    ]
+
 
 def trained_model_ckpt(model, data):
     return f"{trained_model_path(model, data)}.ckpt"
@@ -44,17 +48,12 @@ def best_model_params(model, data):
 
 rule all:
     input:
-        expand(
-            tested_model_ckpt("{model_name}", "{train_data_name}", "{test_data_name}"),
-            model_name=model_names,
-            train_data_name=[data[0] for data in data_pairs],
-            test_data_name=[data[1] for data in data_pairs],
-        )
+        generate_tested_model_ckpts(model_names, data_pairs),
 
 
 rule train_models:
     input:
-        best_model_params("{model_name}", "{train_data_name}")
+        best_model_params("{model_name}", "{train_data_name}"),
     output:
         trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
     run:
@@ -71,7 +70,7 @@ rule test_models:
     output:
         tested_model=tested_model_ckpt(
             "{model_name}", "{train_data_name}", "{test_data_name}"
-        )
+        ),
     run:
         test_model(
             wildcards.model_name,

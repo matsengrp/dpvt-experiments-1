@@ -98,7 +98,6 @@ def train_val_data_of_nicknames(data_name):
     # use number of bad edges to stratify dataset
     n_bad_edges = np.array([sum(label) for label in labels])
 
-    # TODO: Replace with just taking last 20% as validation set!
     train_data, val_data, train_labels, val_labels, train_mask, val_mask = (
         train_test_split(
             trees,

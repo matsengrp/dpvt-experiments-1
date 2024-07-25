@@ -15,15 +15,15 @@ def setup(no_perms=False):
         random_seed=0,
     )
     # The tree with labelled node indices is:
-    #      /-4
-    #   /1|
-    #  |   \-5
+    #       /-4
+    #    /1|
+    #   |   \-5
     # -0|
-    #  |     /-6
-    #  |  /3|
-    #  \2|   \-7
-    #    |
-    #    \-8
+    #   |      /-6
+    #   |   /3|
+    #    \2|   \-7
+    #      |
+    #       \-8
     return rpp
 
 

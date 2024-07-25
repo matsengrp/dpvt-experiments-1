@@ -1,7 +1,13 @@
 models: ["TransformerEncoderTraversal", "TraverseNN", "TraverseMaxPooling", "TraverseAvgPooling"]
-data: [
+train_data: [
   "FourLeaf", 
   "FourLeafFourSite", 
   # "TenLeaf", 
   # "ThirtyLeaf",
+]
+test_data: [
+  "FourLeafTest",
+  "FourLeafFourSiteTest",
+  # "TenLeafTest", 
+  # "ThirtyLeafTest",
 ]

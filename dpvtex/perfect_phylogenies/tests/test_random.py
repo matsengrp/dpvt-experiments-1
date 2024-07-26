@@ -125,8 +125,8 @@ def test_superfluous():
 def test_labelling():
     rpp = setup(True)
 
-    m1, m2 = {1, 3}, {2, 3}
-    rpp.mut_selections = [m1, m2]
+    m0, m1 = {1, 3}, {2, 3}
+    rpp.mut_selections = [m0, m1]
     rpp.set_sequence_data()
     # By turning off the permutations, we can determine sequences from the mutation
     # sets. Specifically, m1 gives site 0 by assigning A to the root, G to node 1, and C

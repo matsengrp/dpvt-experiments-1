@@ -30,7 +30,7 @@ def data_of_nicknames(data_name, device):
     trees = list(data_dict.keys())
 
     if device == "cpu":
-        tree_data = TreeDataset(trees, labels, device)
+        tree_data = TreeDataset(trees, labels)
     else:
         tree_data = TraversalDataset(trees, labels, device)
     return tree_data

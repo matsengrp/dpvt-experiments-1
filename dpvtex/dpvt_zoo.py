@@ -68,7 +68,7 @@ def train_model(
     default_params = {
         "learning_rate": 0.01,
         "batch_size": 1024,
-        "epochs": 10,
+        "epochs": 100,
     }
     # Update default parameters with any provided keyword arguments
     wrap_params = {**default_params, **wrap_kwargs}
@@ -119,7 +119,7 @@ def continue_train_model(
     # Update default parameters with any provided keyword arguments
     wrap_params = {**default_params, **wrap_kwargs}
     # load dataset
-    train_data, val_data = train_val_data_of_nicknames(data_name)
+    train_data, val_data = train_val_data_of_nicknames(data_name, device)
     wrap = Wrap(
         train_data=train_data,
         val_data=val_data,
@@ -159,6 +159,7 @@ def test_model(
     trained_model_ckpt,
     test_data_name,
     test_checkpoint,
+    device,
     **wrap_kwargs,
 ):
     """
@@ -171,7 +172,7 @@ def test_model(
     model = get_model(trained_model_name).load_from_checkpoint(trained_model_ckpt)
     model_str = tested_model_str(trained_model_name, train_data_name, test_data_name)
     # load dataset
-    test_data = data_of_nicknames(test_data_name)
+    test_data = data_of_nicknames(test_data_name, device)
     test_wrap = Wrap(
         train_data=None,
         val_data=None,
@@ -183,7 +184,4 @@ def test_model(
     )
 
     # evaluate model
-    result = test_wrap.test(test_checkpoint)
-
-    test_auroc = result[0]["test_auroc"]
-    return test_auroc
+    test_wrap.test(test_checkpoint)

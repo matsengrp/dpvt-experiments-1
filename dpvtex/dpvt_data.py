@@ -14,8 +14,8 @@ dataset_dict = {
     "FourLeaf": script_directory.parent / "data/4leaf.p",
     "FourLeafFourSiteTest": script_directory.parent / "data/4leaf4site_test.p",
     "FourLeafTest": script_directory.parent / "data/4leaf_test.p",
-    "TenLeaf": script_directory.parent / "data/10leaf_perfect.p",
-    "TenLeafTest": script_directory.parent / "data/10leaf_test.p",
+    "TenLeafTest": script_directory.parent / "data/10leaf_perfect_distinct_trees_test.p",
+    "TenLeafTrain": script_directory.parent / "data/10leaf_perfect_distinct_trees_train.p",
     "ThirtyLeaf": script_directory.parent / "data/30leaf_perfect.p",
     "ThirtyLeafDistinct": script_directory.parent
     / "data/30leaf_perfect_distinct_trees.p",
@@ -36,7 +36,7 @@ def data_of_nicknames(data_name, device):
     trees = list(data_dict.keys())
 
     if device == "cpu":
-        tree_data = TreeDataset(trees, labels, device)
+        tree_data = TreeDataset(trees, labels)
     else:
         tree_data = TraversalDataset(trees, labels, device)
     return tree_data

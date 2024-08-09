@@ -11,8 +11,6 @@ torch.set_num_threads(1)
 from pytorch_lightning import seed_everything
 
 # seed_everything(42, workers=True)
-torch.set_default_dtype(torch.float64)
-
 torch.set_default_dtype(torch.float64)  # Set default to float64 for higher precision
 
 
@@ -72,8 +70,6 @@ def train_model(
     }
     # Update default parameters with any provided keyword arguments
     wrap_params = {**default_params, **wrap_kwargs}
-    train_data, val_data = train_val_data_of_nicknames(data_name, device)
-    model = get_model(model_name)
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
     model = get_model(model_name)
     model_str = trained_model_str(model_name, data_name)

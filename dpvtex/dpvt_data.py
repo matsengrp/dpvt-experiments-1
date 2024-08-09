@@ -17,8 +17,12 @@ dataset_dict = {
     "TenLeafTest": script_directory.parent / "data/10leaf_perfect_distinct_trees_test.p",
     "TenLeafTrain": script_directory.parent / "data/10leaf_perfect_distinct_trees_train.p",
     "ThirtyLeaf": script_directory.parent / "data/30leaf_perfect.p",
+    "ThirtyLeafTest": script_directory.parent / "data/30leaf_perfect_distinct_trees_test.p",
+    "ThirtyLeafTrain": script_directory.parent / "data/30leaf_perfect_distinct_trees_train.p",
     "ThirtyLeafDistinct": script_directory.parent
     / "data/30leaf_perfect_distinct_trees.p",
+    "HarringtonSmallTest": script_directory.parent / "data/harrington-small_2024-06-10_test.p",
+    "HarringtonSmallTrain": script_directory.parent / "data/harrington-small_2024-06-10_train.p",
 }
 
 

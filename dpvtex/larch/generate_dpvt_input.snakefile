@@ -64,7 +64,7 @@ rule run_larch:
         """
         echo "All input files are present, processing..."
         cd {larch_build}
-        
+
         # Define a function to check MaxParsimony
         cd {snakefile_dir}
         check_max_parsi() {{
@@ -75,7 +75,7 @@ rule run_larch:
 
         # Run larch-usher
         ./larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -c {num_larch_iterations}
-        
+
         # Initialize retry count
         retries=0
         # Maximum of 10 additional runs -- that adds 100 iterations!
@@ -89,7 +89,6 @@ rule run_larch:
             fi
             retries=$((retries + 1))
         done
-        
         cd {snakefile_dir}
         """
 

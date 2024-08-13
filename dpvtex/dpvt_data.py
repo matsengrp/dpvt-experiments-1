@@ -104,26 +104,15 @@ def train_val_data_of_nicknames(data_name):
         sum_of_ones, q=min(len(counter), 4), labels=False, duplicates="drop"
     )
 
-    (
-        train_val_data,
-        test_data,
-        train_val_labels,
-        test_labels,
-        train_val_mask,
-        test_mask,
-        cat_train_val,
-        _,
-    ) = train_test_split(
-        trees, labels, masks, categories, test_size=0.2, stratify=categories
-    )
 
     train_data, val_data, train_labels, val_labels, train_mask, val_mask = (
         train_test_split(
-            train_val_data,
-            train_val_labels,
-            train_val_mask,
-            test_size=0.25,
-            stratify=cat_train_val,
+            trees,
+            labels,
+            masks,
+            train_size=0.8,
+            test_size=0.2,
+            stratify=categories,
         )
     )
 

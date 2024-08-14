@@ -46,9 +46,7 @@ def make_phylogeny_data(n_leaves, n_phylos_per_tree, depth):
     return data_pairs
 
 
-def create_training_data(
-    n_trees, n_phylos_per_tree, n_leaves, depth=4, n_threads=1
-):
+def create_training_data(n_trees, n_phylos_per_tree, n_leaves, depth=4, n_threads=1):
     """
     Create a collection of random trees and phylogenies obtained by randomly mixing a
     subtree of a perfect phylogeny.
@@ -72,7 +70,6 @@ def create_training_data(
     return tree_data_dict
 
 
-
 N_LEAVES = 100
 
 
@@ -83,10 +80,9 @@ def main():
         n_leaves=N_LEAVES,
         n_threads=4,
     )
-    file_path=f"{N_LEAVES}leaf_perfect.p"
+    file_path = f"{N_LEAVES}leaf_perfect.p"
     with open(file_path, "wb") as fh:
         pickle.dump(data_dict, file=fh)
-
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ def remove_ambiguous_or_uninformative_sites(alignment):
     # Iterate over each column in the alignment
     for i in range(alignment.get_alignment_length()):
         column = alignment[:, i].upper()
-        if all(char in 'ACGT' for char in column):
+        if all(char in 'ACGTacgt' for char in column):
             counter = Counter(column)
             if len(counter) > 1 and not (len(counter) == 2 and 1 in counter.values()):
                 # exclude uninformative sites (conserved/conserved except for one sequence)

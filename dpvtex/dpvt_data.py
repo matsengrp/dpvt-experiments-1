@@ -13,16 +13,22 @@ from collections import Counter
 script_directory = Path(__file__).resolve().parent
 
 dataset_dict = {
-    "FourLeafFourSite": script_directory.parent / "data/4leaf4site.p",
-    "FourLeaf": script_directory.parent / "data/4leaf.p",
+    "FourLeafFourSiteTrain": script_directory.parent / "data/4leaf4site_train.p",
     "FourLeafFourSiteTest": script_directory.parent / "data/4leaf4site_test.p",
+    "FourLeafTrain": script_directory.parent / "data/4leaf_train.p",
     "FourLeafTest": script_directory.parent / "data/4leaf_test.p",
-    "TenLeaf": script_directory.parent / "data/10leaf_perfect.p",
-    "TenLeafTest": script_directory.parent / "data/10leaf_test.p",
-    "ThirtyLeaf": script_directory.parent / "data/30leaf_perfect.p",
-    "ThirtyLeafDistinct": script_directory.parent / "data/30leaf_perfect_distinct_trees.p",
-    "harrington_small": script_directory.parent
-    / "data/larch_harrington-small_2024-06-10.p",
+    "TenLeafTrain": script_directory.parent
+    / "data/10leaf_perfect_distinct_trees_train.p",
+    "TenLeafTest": script_directory.parent
+    / "data/10leaf_perfect_distinct_trees_test.p",
+    "ThirtyLeafTest": script_directory.parent
+    / "data/30leaf_perfect_distinct_trees_test.p",
+    "ThirtyLeafTrain": script_directory.parent
+    / "data/30leaf_perfect_distinct_trees_train.p",
+    "harrington_small_train": script_directory.parent
+    / "data/larch_harrington-small_2024-06-10_train.p",
+    "harrington_small_test": script_directory.parent
+    / "data/larch_harrington-small_2024-06-10_test.p",
 }
 
 
@@ -103,7 +109,6 @@ def train_val_data_of_nicknames(data_name):
     categories = pd.qcut(
         sum_of_ones, q=min(len(counter), 4), labels=False, duplicates="drop"
     )
-
 
     train_data, val_data, train_labels, val_labels, train_mask, val_mask = (
         train_test_split(

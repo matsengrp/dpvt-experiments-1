@@ -7,9 +7,8 @@ alignment.
 
 ## Install
 
-To run this code, you will need to install the `dpvt-experiments` environment
-and the `dpvtex` package. This can be done by running the following in the base
-folder of this repo:
+To run this code, you will need to install the `larch-data` environment. This
+can be done by running the following in the base folder of this repo:
 
 ```bash
     conda create env --file environment.yml
@@ -19,8 +18,8 @@ folder of this repo:
 Additionally, we use [larch](https://github.com/matsengrp/larch), which first
 needs to be built. Follow the link to get instructions on how to build larch.
 Note that this will require creating a new conda environment, so make sure that
-once you are done installing `larch`, you activate `dpvt-experiments` again to
-run the code in this repo.
+once you are done installing `larch`, you activate `larch-data` again to run the
+code in this repo.
 
 ## Construct historydag with larch-usher and extract trees
 
@@ -46,6 +45,9 @@ to be stored, and some parameters for the run in `config.yaml`:
 - `ouput_data`: path to directory in which output, which is a pickled file
   containing trees and corresponding edge vectors containing MP edge labels,
   should be saved
+- `dataset_name`: name for the dataset that will be used for the output files
+  containing training and testing data. The output files will be named
+  `{dataset_name}_YYYY-MM-DD_train.p` and `{dataset_name}_YYYY-MM-DD_test.p`
 - `num_larch_iterations`: number of iterations we want to run larch, defaults to
   `20` _This default might not be suitable for all datasets, looking at the log
   output might help determine if larch should be run longer (e.g. if the

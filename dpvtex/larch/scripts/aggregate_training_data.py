@@ -2,16 +2,18 @@ import os
 import pickle
 import pandas as pd
 import sys
-from ete3 import Tree
+from sklearn.model_selection import train_test_split
+from collections import Counter
 
 
 data_dir = sys.argv[1]  # directory containing subdirs with .p pickle files
-dpvt_data = sys.argv[2]  # output pickle file that will contain aggregated data
+dpvt_train_data = sys.argv[2]  # output pickle file that will contain aggregated data
+dpvt_test_data = sys.argv[3]
 data_props_file = sys.argv[
-    3
+    4
 ]  # output csv that contains for each dataset the number of MP trees extracted,
 # the number of leaves in those trees, and the length of the corresponding alignment
-larch_data_dir = sys.argv[4]
+larch_data_dir = sys.argv[5]
 
 
 # Function to read a .p file and return the length of the dictionary it contains
@@ -45,19 +47,44 @@ for root, dirs, files in os.walk(data_dir):
                     len(list(this_alignment_dict.keys())[0])
                 )  # num_leaves
                 data_props[dataset_name].append(
-                    sum(lst.count(0) - (len(lst))/2 for lst in this_alignment_dict.values())
-                ) # num MP edges (excluding pendant edges and root edge)
+                    sum(
+                        lst.count(0) - (len(lst)) / 2
+                        for lst in this_alignment_dict.values()
+                    )
+                )  # num MP edges (excluding pendant edges and root edge)
                 data_props[dataset_name].append(
                     sum(lst.count(1) for lst in this_alignment_dict.values())
-                ) # num non-MP edges
+                )  # num non-MP edges
 
                 all_trees_dict.update(this_alignment_dict)
 
+# split data into training/validation and testing set.
+# We split 80/20
+trees = list(all_trees_dict.keys())
+labels = list(all_trees_dict.values())
 
-# Write data to file
-with open(dpvt_data, "wb") as f:
-    pickle.dump(all_trees_dict, f)
 
+# For Stratifying
+sum_of_ones = [sum(label) for label in labels]
+counter = Counter(sum_of_ones)
+
+# Convert sums to a categorical variable for balancing number of non-MP edges in train/test/val
+categories = pd.qcut(
+    sum_of_ones, q=min(len(counter), 4), labels=False, duplicates="drop"
+)
+
+train_trees, test_trees, train_labels, test_labels = train_test_split(
+    trees, labels, train_size=0.8, stratify=categories
+)
+
+train_dict = {i: j for (i, j) in zip(train_trees, train_labels)}
+test_dict = {i: j for (i, j) in zip(test_trees, test_labels)}
+
+with open(dpvt_train_data, "wb") as f:
+    pickle.dump(train_dict, f)
+
+with open(dpvt_test_data, "wb") as f:
+    pickle.dump(test_dict, f)
 
 for root, dirs, files in os.walk(larch_data_dir):
     if "cleaned_alignment_length.txt" in files:

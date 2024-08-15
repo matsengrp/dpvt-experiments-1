@@ -101,7 +101,7 @@ rule extract_dpvt_data:
         num_children_file=output_data+"/{subdir}/num_children_dag_trees.csv"
     shell:
         """
-        python scripts/extract_data_from_hdag.py {input.pb} {output.data} {output.num_children_file}
+        python {snakefile_dir}/scripts/extract_data_from_hdag.py {input.pb} {output.data} {output.num_children_file}
         """
 
 
@@ -111,9 +111,10 @@ rule aggregate_training_data:
         length_files=expand(input_data+"/{subdir}/cleaned_alignment_length.txt", subdir=get_subdirs(input_data)),
     output:
         data_props=input_data+"/data_properties_"+dataset_name+"_"+current_date+".csv",
-        dpvt_data=output_data+"/larch_"+dataset_name+"_"+current_date+".p",
+        dpvt_train_data=output_data+"/larch_"+dataset_name+"_"+current_date+"_train.p",
+        dpvt_test_data=output_data+"/larch_"+dataset_name+"_"+current_date+"_test.p",
     shell:
         """
-        python scripts/aggregate_training_data.py {output_data} {output.dpvt_data} {output.data_props} {input_data}
+        python {snakefile_dir}/scripts/aggregate_training_data.py {output_data} {output.dpvt_train_data} {output.dpvt_test_data} {output.data_props} {input_data}
         """
 

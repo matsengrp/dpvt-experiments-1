@@ -156,7 +156,7 @@ for running the code.
 In `dpvtex/larch`:
 
 - `README.md`: Explains in detail how to run the code to create training data
-  from alignments using larche
+  from alignments using larch
 - `preprocess_alignments.snakefile`: Delete sites with gaps and ambiguous (i.e.
   non- ACGTacgt characters) from alignments. Additionally flags all directories
   with alignments have more than 5 characters to be included in further

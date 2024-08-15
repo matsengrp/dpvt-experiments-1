@@ -145,3 +145,81 @@ this script:
   a random tree
 - labels edges by whether they are MP edges are not
 - pickle trees and edge labels and safe to `/path/to/dpvt/training/data`
+
+## More Details and file structure
+
+Here we describe the purpose of each file in the `larch/` directory. Some of
+this is already mentioned above, here we just present a more thorough summary
+that this is mostly interesting for code development and should not be needed
+for running the code.
+
+In `dpvtex/larch`:
+
+- `README.md`: Explains in detail how to run the code to create training data
+  from alignments using larche
+- `preprocess_alignments.snakefile`: Delete sites with gaps and ambiguous (i.e.
+  non- ACGTacgt characters) from alignments. Additionally flags all directories
+  with alignments have more than 5 characters to be included in further
+  analysis. Alignments with less than 5 characters will be ignored.
+- `generate_dpvt_input.snakefile`: inferring MP hDAG with larch, extracting MP
+  trees, and perturbing them, creating pickled files of training and testing
+  data that can be used as for `dpvt`.
+- `Snakefile`: brings together `preprocess_alignments.snakefile` and
+  `generate_dpvt_input.snakefile` for data as specified in `config.yaml`. This
+  snakefile is required as some filtering of data happens in
+  `preprocess_alignments.snakefile` results in wildcards changing: alignments
+  with less than 5 sites after removing ambiguous characters and gaps will not
+  be used.
+- `config.yaml`: specifying input and output files and additional parameters
+  needed in Snakefile. Description can be found in README
+- `environment.yml`: larch-data environment required for running code
+
+In `dpvtex/larch/scripts`: scripts called from snakefiles:
+
+- Called from `preprocess_alignments.snakefile`:
+
+  - `clean_data.py`: Removes all sites from alignments that contain characters
+    that are not in {A,C,G,T,a,c,g,t}
+  - `check_size_fasta.py`: Checks whether the alignment after removing gaps and
+    ambiguous sites contains more than 5 sites. If it does, it creates a flag
+    file in the directory containing the alignment.
+
+- Called from `generate_dpvt_input.snakefile`:
+  - `check_max_parsimony.py`: Checks if the smallest parsimony score of the hDAG
+    produced by larch decreased in the last 5 iterations. If it did, we want to
+    run larch for more iterations
+  - `extract_data_from_hdag.py`: Reads hDAGs produced by larch and extracts MP
+    trees:
+    - read hDAG from larch output and trim to only contain MP trees + unlabel
+      hDAG (i.e. remove internal sequences)
+    - MP trees are sampled uniformly from hDAG without replacement -- we sample
+      from topologies, not trees, to get as much variety in topology as possible
+    - chooses random leaf of MP tree as root leaf
+    - randomly resolve polytomies (using `resolve_polytomy()` function from
+      ete3)
+    - runs Sankoff to get sequences for internal nodes
+    - use `make_worse_tree()` function from
+      `dpvtex/perfect_phylogenies/perturb_phylogeny.py` to create non-MP edges
+    - assigns `0`/`1` labels to edges of tree depending on whether the split
+      represented by that edge is in the larch hDAG or not
+    - if more than $\frac{1}{6}$ of the edges are non-MP or we tried more than
+      100 times to create non-MP edges, stop and add tree and edge labels to
+      dictionary
+  - `aggregate_training_data.py`: Aggregate all training data saved separately
+    for each input alignment in one dictionary, split training and testing set
+    to have the same ratio of MP to non-MP edges and save training and testing
+    data as pickled dictionaries. This will be the data for `dpvt`. Additionally
+    creates csv file with properties of data: number of trees, number of leaves,
+    number of MP edges, number of non-MP edges and alignment length (for
+    training and testing set together).
+
+In `dpvtex/larch/setup_larch_inputs`:
+
+- `convert_fasta_to_larch_input.snakefile`: Read fasta file and create input
+  files in format required to run larch -- called from
+  `generate_dpvt_input.snakefile`
+
+In `dpvtex/larch/tests`:
+
+- testing functions from `clean_data.py` and `extract_data_from_hdag.py`. Can be
+  run with `pytest`.

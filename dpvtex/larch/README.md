@@ -193,10 +193,11 @@ In `dpvtex/larch/scripts`: scripts called from snakefiles:
     - read hDAG from larch output and trim to only contain MP trees + unlabel
       hDAG (i.e. remove internal sequences)
     - MP trees are sampled uniformly from hDAG without replacement -- we sample
-      from topologies, not trees, to get as much variety in topology as possible
+      from trees, not histories, to not sample the same tree multiple times with
+      different ancestral sequences
     - chooses random leaf of MP tree as root leaf
     - randomly resolve polytomies (using `resolve_polytomy()` function from
-      ete3)
+      ete3) **Note:** this function resolves multifurcations to a ladder tree
     - runs Sankoff to get sequences for internal nodes
     - use `make_worse_tree()` function from
       `dpvtex/perfect_phylogenies/perturb_phylogeny.py` to create non-MP edges

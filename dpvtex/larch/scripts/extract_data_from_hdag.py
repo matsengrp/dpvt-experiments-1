@@ -109,7 +109,7 @@ def exists_subset_union(S, C):
         if subset.issubset(C):
             union.update(subset)
         elif len(subset.intersection(C)) > 0:
-                return False
+            return False
     if len(union) == len(C):
         return True
     return False
@@ -117,10 +117,11 @@ def exists_subset_union(S, C):
 
 def assign_edge_labels(modified_tree, tree, dag_clades):
     """
-    Assigns label 0/1 to modified tree edges, depending on whether the edges are
-    supported by dag_splits.
-    Edges that are present in tree are assigned 0, as the tree is assumed to be
-    extracted from the hdag, whlich makes the label assignment more efficient.
+    Assigns label 0/1 to modified_tree edges, depending on whether the edges are
+    supported by dag_clades. `modified_tree' is assumed to be received from
+    changing some edges in tree, so that a lot of edges are still shared between
+    then two. `tree' is assumed to be extracted from the hdag, and is used to
+    make the label assignment more efficient.
     Args:
         modified_tree: ete3 tree for which we want to get edge label list
         tree: ete3 tree that is mostly identical to modified tree (tree before
@@ -142,11 +143,11 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
     # a multifurcation in dag_splits.
     i = 0
     for node in modified_tree.traverse("preorder"):
-        if i in [0,1]:
+        if i in [0, 1]:
             # Root leaf and node below root are assigned 0 by default
             # This doesn't change anything, as they will be masked in training
             edge_labels[i] = 0
-            i+=1
+            i += 1
             continue
         if edge_labels[i] == 1:
             clade = frozenset(node.get_leaf_names())
@@ -197,26 +198,26 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0):
             for node in tree.traverse():
                 if not node.is_leaf():
                     num_children_list.append(len(node.get_children()))
-            line = ','.join(str(i) for i in num_children_list)
+            line = ",".join(str(i) for i in num_children_list)
             nc_file.write(line + "\n")
             tree.resolve_polytomy()
             sankoff_for_missing_sequences(tree)
             # introduce non-MP edges, if possible
             td = tree_depth(tree)
-            done_modifying=False
+            done_modifying = False
             modified_tree = tree.copy()
-            i=0
+            i = 0
             while not done_modifying:
                 # make tree worse until at least a third of all edges are non MP
                 print("Tree modification iteration ", i)
-                i+=1
+                i += 1
                 new_tree = make_worse_tree(modified_tree, td // 2)
                 if new_tree is not None:
                     modified_tree = new_tree
                 # assign edge labels
                 edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
                 tree_to_label_dict[modified_tree] = edge_labels
-                if sum(edge_labels)/len(edge_labels) >= 1/6 or i > 100:
+                if sum(edge_labels) / len(edge_labels) >= 1 / 6 or i > 100:
                     # note that len(edge_labels) is roughly 2*internal edges
                     done_modifying = True
     if len(tree_to_label_dict) < num_trees:

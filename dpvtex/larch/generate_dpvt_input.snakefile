@@ -31,7 +31,8 @@ def get_subdirs(data_dir):
 rule all:
     input:
         input_data+"/data_properties_"+dataset_name+"_"+current_date+".csv",
-        dpvt_data=output_data+"/larch_"+dataset_name+"_"+current_date+".p",
+        output_data+"/larch_"+dataset_name+"_"+current_date+"_train.p",
+        output_data+"/larch_"+dataset_name+"_"+current_date+"_test.p",
 
 
 rule preprocessing:

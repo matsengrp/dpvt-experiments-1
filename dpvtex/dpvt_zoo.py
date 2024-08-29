@@ -4,6 +4,11 @@ from dpvtex.dpvt_data import (
     data_of_nicknames,
     train_val_data_of_nicknames,
 )
+from memory_profiler import profile
+from datetime import datetime
+import os
+# Get the current date in the desired format
+timestamp = datetime.now().strftime("%Y-%m-%d")
 
 import torch
 
@@ -48,11 +53,15 @@ def best_model_params_path(model_name, data_name):
     return f"hyper_checkpoints/{trained_model_str(model_name, data_name)}"
 
 
+output_file = open(f'memory_profile_output_dpvt_data_{timestamp}.txt', 'a')
+
+@profile(stream=output_file)
 def train_model(
     model_name,
     data_name,
     train_checkpoint,
     device,
+    hyperparameter_path,
     profiling=False,
     **wrap_kwargs,
 ):
@@ -81,6 +90,7 @@ def train_model(
         log_path=model_str,
         profiling=profiling,
         device=device,
+        hyperparameter_path=hyperparameter_path,
         **wrap_params,
     )
     wrap.train(train_checkpoint)
@@ -88,7 +98,7 @@ def train_model(
 
 
 def continue_train_model(
-    model_name, data_name, device, train_checkpoint=None, **wrap_kwargs
+    model_name, data_name, device, hyperparameter_path, train_checkpoint=None, **wrap_kwargs
 ):
     """
     Loads a model in class `model_name` that was previously trained on `data_name`, and
@@ -123,6 +133,7 @@ def continue_train_model(
         model=model,
         log_path=model_str,
         device=device,
+        hyperparameter_path=hyperparameter_path,
         **wrap_params,
     )
     wrap.train(train_checkpoint)
@@ -156,6 +167,7 @@ def test_model(
     test_data_name,
     test_checkpoint,
     device,
+    hyperparameter_path,
     **wrap_kwargs,
 ):
     """
@@ -176,8 +188,9 @@ def test_model(
         model=model,
         log_path=model_str,
         device=device,
+        hyperparameter_path=hyperparameter_path,
         **wrap_params,
     )
 
     # evaluate model
-    test_wrap.test(test_checkpoint)
+    test_wrap.test(trained_model_ckpt, test_checkpoint)

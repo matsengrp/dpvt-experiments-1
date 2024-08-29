@@ -14,15 +14,28 @@ dataset_dict = {
     "FourLeaf": script_directory.parent / "data/4leaf.p",
     "FourLeafFourSiteTest": script_directory.parent / "data/4leaf4site_test.p",
     "FourLeafTest": script_directory.parent / "data/4leaf_test.p",
-    "TenLeafTest": script_directory.parent / "data/10leaf_perfect_distinct_trees_test.p",
-    "TenLeafTrain": script_directory.parent / "data/10leaf_perfect_distinct_trees_train.p",
+    "FourLeafFourSiteTrain": script_directory.parent / "data/4leaf4site_train.p",
+    "FourLeafTest": script_directory.parent / "data/4leaf_test.p",
+    "TenLeafTest": script_directory.parent
+    / "data/10leaf_perfect_distinct_trees_test.p",
+    "TenLeafTrain": script_directory.parent
+    / "data/10leaf_perfect_distinct_trees_train.p",
+    "TenLeafTrainSmall": script_directory.parent
+    / "data/10leaf_perfect_distinct_trees_train_small.p",
     "ThirtyLeaf": script_directory.parent / "data/30leaf_perfect.p",
-    "ThirtyLeafTest": script_directory.parent / "data/30leaf_perfect_distinct_trees_test.p",
-    "ThirtyLeafTrain": script_directory.parent / "data/30leaf_perfect_distinct_trees_train.p",
+    "ThirtyLeafTest": script_directory.parent
+    / "data/30leaf_perfect_distinct_trees_test.p",
+    "ThirtyLeafTrain": script_directory.parent
+    / "data/30leaf_perfect_distinct_trees_train.p",
     "ThirtyLeafDistinct": script_directory.parent
     / "data/30leaf_perfect_distinct_trees.p",
-    "HarringtonSmallTest": script_directory.parent / "data/harrington-small_2024-06-10_test.p",
-    "HarringtonSmallTrain": script_directory.parent / "data/harrington-small_2024-06-10_train.p",
+    "HarringtonSmallTest": script_directory.parent
+    / "data/harrington-small_2024-06-10_test.p",
+    "HarringtonSmallTrain": script_directory.parent
+    / "data/harrington-small_2024-06-10_train.p",
+    "HarringtonTinyTest": script_directory.parent / "data/harrington_tiny_test.p",
+    "HarringtonBelow50": script_directory.parent / "data/harrington-small_0_to_50_taxa_subset.p",
+    "HarringtonShortSequences": script_directory.parent / "data/harrington-small_0_to_30_sites_subset.p"
 }
 
 
@@ -44,7 +57,6 @@ def data_of_nicknames(data_name, device):
     else:
         tree_data = TraversalDataset(trees, labels, device)
     return tree_data
- 
 
 
 def train_val_data_of_nicknames(data_name, device):
@@ -65,15 +77,13 @@ def train_val_data_of_nicknames(data_name, device):
         sum_of_ones, q=min(len(counter), 4), labels=False, duplicates="drop"
     )
 
-    train_data, val_data, train_labels, val_labels = (
-        train_test_split(
-            trees,
-            labels,
-            train_size=0.8,
-            test_size=0.2,
-            stratify=categories,
-            random_state=42,
-        )
+    train_data, val_data, train_labels, val_labels = train_test_split(
+        trees,
+        labels,
+        train_size=0.8,
+        test_size=0.2,
+        stratify=categories,
+        random_state=42,
     )
 
     if device == "cpu-tree-dataset":

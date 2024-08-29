@@ -26,7 +26,6 @@ device = config["device"]
 
 data_pairs = list(zip(train_data_names, test_data_names))
 
-
 def generate_tested_model_ckpts(model_names, data_pairs):
     return [
         tested_model_ckpt(model_name, train_data_name, test_data_name)
@@ -46,7 +45,6 @@ def tested_model_ckpt(model, train_data, test_data):
 def best_model_params(model, data):
     return f"{best_model_params_path(model, data)}.json"
 
-
 rule all:
     input:
         generate_tested_model_ckpts(model_names, data_pairs),
@@ -54,7 +52,7 @@ rule all:
 
 rule train_models:
     input:
-        best_model_params("{model_name}", "{train_data_name}"),
+        hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
     output:
         trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
     benchmark:
@@ -65,6 +63,7 @@ rule train_models:
             wildcards.train_data_name,
             output.trained_model,
             device,
+            input.hyperparameter_path,
             profiling=False,
         )
 
@@ -72,6 +71,7 @@ rule train_models:
 rule test_models:
     input:
         trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
+        hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
     output:
         tested_model=tested_model_ckpt(
             "{model_name}", "{train_data_name}", "{test_data_name}"
@@ -84,6 +84,7 @@ rule test_models:
             wildcards.test_data_name,
             output.tested_model,
             device,
+            input.hyperparameter_path,
         )
 
 

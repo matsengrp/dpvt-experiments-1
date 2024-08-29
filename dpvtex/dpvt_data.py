@@ -34,7 +34,6 @@ def data_of_nicknames(data_name, device):
     else:
         tree_data = TraversalDataset(trees, labels, device)
     return tree_data
- 
 
 def train_val_data_of_nicknames(data_name, device):
     file_path = dataset_dict[data_name]
@@ -54,14 +53,13 @@ def train_val_data_of_nicknames(data_name, device):
         sum_of_ones, q=min(len(counter), 4), labels=False, duplicates="drop"
     )
 
-    train_data, val_data, train_labels, val_labels = (
-        train_test_split(
-            trees,
-            labels,
-            train_size=0.8,
-            test_size=0.2,
-            stratify=categories,
-        )
+    train_data, val_data, train_labels, val_labels = train_test_split(
+        trees,
+        labels,
+        train_size=0.8,
+        test_size=0.2,
+        stratify=categories,
+        random_state=42,
     )
 
     if device == "cpu-tree-dataset":

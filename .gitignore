@@ -180,6 +180,8 @@ hyper_checkpoints/
 *.tsv
 *.vcf
 **/faToVcF
+*.treefile
+*.intermediate
 *.flag
 *.p
 *.done

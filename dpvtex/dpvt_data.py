@@ -29,6 +29,8 @@ dataset_dict = {
     / "data/larch_harrington-small_2024-06-10_train.p",
     "harrington_small_test": script_directory.parent
     / "data/larch_harrington-small_2024-06-10_test.p",
+    "Alisim10leaf_100sites_50algnmnts_test": script_directory.parent / "data/larch_alisim_10_seq_100_sites_50_algnmnts_2024-09-27_test.p",
+    "Alisim10leaf_100sites_50algnmnts_train": script_directory.parent / "data/larch_alisim_10_seq_100_sites_50_algnmnts_2024-09-27_train.p",
 }
 
 

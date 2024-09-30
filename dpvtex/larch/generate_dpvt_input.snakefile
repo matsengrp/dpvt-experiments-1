@@ -67,12 +67,11 @@ rule run_larch:
         cd {larch_build}
 
         # Define a function to check MaxParsimony
-        cd {snakefile_dir}
         check_max_parsi() {{
-            python scripts/check_max_parsimony.py {params.log}
-            return $?
+            cd {snakefile_dir}
+            python scripts/check_max_parsimony.py {params.log}/logfile.csv
+            echo $?
         }}
-        cd {larch_build}
 
         # Run larch-usher
         ./larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -c {num_larch_iterations}
@@ -81,8 +80,11 @@ rule run_larch:
         retries=0
         # Maximum of 10 additional runs -- that adds 100 iterations!
         while [ $retries -lt 10 ]; do
-            if [ $(check_max_parsi) -eq 1 ]; then
-                echo "MaxParsimony changed. Rerunning larch-usher..."
+            exit_status=$(check_max_parsi)
+            echo FinishedFunction
+            echo $exit_status
+            if [ $exit_status -eq 1 ]; then
+                echo "MaxParsimony changed. Continue running larch-usher..."
                 ./larch-usher -i {output.pb} -o {output.pb} -l {params.log} -c 10
             else
                 echo "MaxParsimony remains the same. Exiting loop."
@@ -98,8 +100,8 @@ rule extract_dpvt_data:
     input:
         pb=input_data+"/{subdir}/larch-output.pb",
     output:
-        data=output_data+"/{subdir}/{subdir}.p",
-        num_children_file=output_data+"/{subdir}/num_children_dag_trees.csv"
+        data=input_data+"/{subdir}/{subdir}.p",
+        num_children_file=input_data+"/{subdir}/num_children_dag_trees.csv"
     shell:
         """
         python {snakefile_dir}/scripts/extract_data_from_hdag.py {input.pb} {output.data} {output.num_children_file}
@@ -108,7 +110,7 @@ rule extract_dpvt_data:
 
 rule aggregate_training_data:
     input:
-        expand(output_data+"/{subdir}/{subdir}.p", subdir=get_subdirs(input_data)),
+        expand(input_data+"/{subdir}/{subdir}.p", subdir=get_subdirs(input_data)),
         length_files=expand(input_data+"/{subdir}/cleaned_alignment_length.txt", subdir=get_subdirs(input_data)),
     output:
         data_props=input_data+"/data_properties_"+dataset_name+"_"+current_date+".csv",
@@ -116,6 +118,6 @@ rule aggregate_training_data:
         dpvt_test_data=output_data+"/larch_"+dataset_name+"_"+current_date+"_test.p",
     shell:
         """
-        python {snakefile_dir}/scripts/aggregate_training_data.py {output_data} {output.dpvt_train_data} {output.dpvt_test_data} {output.data_props} {input_data}
+        python {snakefile_dir}/scripts/aggregate_training_data.py {input_data} {output.dpvt_train_data} {output.dpvt_test_data} {output.data_props}
         """
 

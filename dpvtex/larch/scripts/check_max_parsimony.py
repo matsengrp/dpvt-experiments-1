@@ -5,14 +5,20 @@ import sys
 log_file = sys.argv[1]  # Assumes log file path is passed as argument
 df = pd.read_csv(log_file, sep='\t')
 
-# Get the last 5 rows of the DataFrame
-last_5_rows = df.tail(5)
+# print("logfile: ", log_file)
 
+num_rows = 10
+
+# Get the last num_rows rows of the DataFrame
+last_rows = df.tail(num_rows)
+
+# print(last_rows)
 # Check if MaxParsimony remains the same in the last 5 rows
-max_parsi_last_5 = last_5_rows['MaxParsimony'].values
-if len(set(max_parsi_last_5)) == 1:
-    print("MaxParsimony remains the same in the last 5 rows.")
+max_parsi_last_rows = last_rows['MaxParsimony'].values
+# print(max_parsi_last_rows)
+if len(set(max_parsi_last_rows)) == 1:
+    # print(f"MaxParsimony remains the same in the last {num_rows} rows.")
     sys.exit(0)  # Exit with code 0 (no change)
 else:
-    print("MaxParsimony changed in the last 5 rows. Rerun the program.")
+    # print(f"MaxParsimony changed in the last {num_rows} rows. Rerun the program.")
     sys.exit(1)  # Exit with code 1 (change detected)

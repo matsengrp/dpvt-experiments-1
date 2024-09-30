@@ -7,8 +7,10 @@ from collections import Counter
 def remove_ambiguous_or_uninformative_sites(alignment):
     # Initialize a new alignment with the same sequences but empty sequences
     clean_alignment = MultipleSeqAlignment([
-        SeqRecord(Seq(""), id=record.id) for record in alignment
+        SeqRecord(Seq(""), id=record.id.split(" ")[0]) for record in alignment
     ])
+    unique_sequences = []
+    seen_sequences = set()
 
     # Iterate over each column in the alignment
     for i in range(alignment.get_alignment_length()):
@@ -17,10 +19,17 @@ def remove_ambiguous_or_uninformative_sites(alignment):
             counter = Counter(column)
             if len(counter) > 1 and not (len(counter) == 2 and 1 in counter.values()):
                 # exclude uninformative sites (conserved/conserved except for one sequence)
-                for j, record in enumerate(clean_alignment):
+                for j, record in enumerate(clean_alignment):                    
                     record.seq += Seq(column[j])
-
-    return clean_alignment
+                    new_sequence = record.seq
+                    # Check if the new sequence is already added
+                    if str(new_sequence) not in seen_sequences:
+                        seen_sequences.add(str(new_sequence))
+                        record.name = ""
+                        record.description = ""
+                        unique_sequences.append(record)
+    output_alignment = MultipleSeqAlignment(unique_sequences)
+    return output_alignment
 
 
 if __name__ == '__main__':

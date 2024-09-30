@@ -13,7 +13,6 @@ data_props_file = sys.argv[
     4
 ]  # output csv that contains for each dataset the number of MP trees extracted,
 # the number of leaves in those trees, and the length of the corresponding alignment
-larch_data_dir = sys.argv[5]
 
 
 # Function to read a .p file and return the length of the dictionary it contains
@@ -39,7 +38,6 @@ for root, dirs, files in os.walk(data_dir):
         ):
             file_path = os.path.join(root, file_name)
             dataset_name = file_name[:-2]
-            print(dataset_name)
             this_alignment_dict = get_dict(file_path)
             if this_alignment_dict is not None:
                 data_props[dataset_name] = [len(this_alignment_dict)]  # num_trees
@@ -86,14 +84,13 @@ with open(dpvt_train_data, "wb") as f:
 with open(dpvt_test_data, "wb") as f:
     pickle.dump(test_dict, f)
 
-for root, dirs, files in os.walk(larch_data_dir):
+for root, dirs, files in os.walk(data_dir):
     if "cleaned_alignment_length.txt" in files:
-        subdir = os.path.relpath(root, larch_data_dir)
-        data_subdir = os.path.join(data_dir, subdir)
+        subdir = os.path.relpath(root, data_dir)
+        data_subdir = root
         if os.path.isdir(data_subdir):
             alignment_length_file = os.path.join(root, "cleaned_alignment_length.txt")
             dataset_name = alignment_length_file.split("/")[-2]
-            print(dataset_name)
             with open(alignment_length_file, "r") as f:
                 data_props[dataset_name].append(int(f.read().strip()))
 

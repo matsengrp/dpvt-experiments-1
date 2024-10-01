@@ -7,7 +7,7 @@ def main():
     output_flag = sys.argv[2]
     empty = True
     for record in SeqIO.parse(fasta_file, "fasta"):
-        if len(record.seq.strip()) > 10:
+        if len(record.seq.strip()) > 5:
             empty = False
             with open(output_flag, 'w') as flag:
                 flag.write("EMPTY" if empty else "NOT_EMPTY")

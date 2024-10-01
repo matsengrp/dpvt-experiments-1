@@ -91,8 +91,11 @@ for root, dirs, files in os.walk(data_dir):
         if os.path.isdir(data_subdir):
             alignment_length_file = os.path.join(root, "cleaned_alignment_length.txt")
             dataset_name = alignment_length_file.split("/")[-2]
-            with open(alignment_length_file, "r") as f:
-                data_props[dataset_name].append(int(f.read().strip()))
+            if dataset_name in data_props:
+                # only take those datasets for which we actually have pickled
+                # tree dictionaries
+                with open(alignment_length_file, "r") as f:
+                    data_props[dataset_name].append(int(f.read().strip()))
 
 data_props_df = pd.DataFrame.from_dict(
     data_props,

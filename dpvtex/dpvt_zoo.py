@@ -62,6 +62,7 @@ def train_model(
     train_checkpoint,
     device,
     hyperparameter_path,
+    accum_grad_batches=1,
     profiling=False,
     **wrap_kwargs,
 ):
@@ -90,6 +91,7 @@ def train_model(
         log_path=model_str,
         profiling=profiling,
         device=device,
+        accum_grad_batches=accum_grad_batches,
         hyperparameter_path=hyperparameter_path,
         **wrap_params,
     )
@@ -98,7 +100,7 @@ def train_model(
 
 
 def continue_train_model(
-    model_name, data_name, device, hyperparameter_path, train_checkpoint=None, **wrap_kwargs
+    model_name, data_name, device, hyperparameter_path, accum_grad_batches=1, train_checkpoint=None, **wrap_kwargs
 ):
     """
     Loads a model in class `model_name` that was previously trained on `data_name`, and
@@ -133,6 +135,7 @@ def continue_train_model(
         model=model,
         log_path=model_str,
         device=device,
+        accum_grad_batches=accum_grad_batches,
         hyperparameter_path=hyperparameter_path,
         **wrap_params,
     )
@@ -168,6 +171,7 @@ def test_model(
     test_checkpoint,
     device,
     hyperparameter_path,
+    accum_grad_batches=1,
     **wrap_kwargs,
 ):
     """
@@ -188,6 +192,7 @@ def test_model(
         model=model,
         log_path=model_str,
         device=device,
+        accum_grad_batches=accum_grad_batches,
         hyperparameter_path=hyperparameter_path,
         **wrap_params,
     )

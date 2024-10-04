@@ -7,6 +7,7 @@ from dpvtex.dpvt_data import (
 from memory_profiler import profile
 from datetime import datetime
 import os
+
 # Get the current date in the desired format
 timestamp = datetime.now().strftime("%Y-%m-%d")
 
@@ -53,7 +54,8 @@ def best_model_params_path(model_name, data_name):
     return f"hyper_checkpoints/{trained_model_str(model_name, data_name)}"
 
 
-output_file = open(f'memory_profile_output_dpvt_data_{timestamp}.txt', 'a')
+output_file = open(f"memory_profile_output_dpvt_data_{timestamp}.txt", "a")
+
 
 @profile(stream=output_file)
 def train_model(
@@ -63,6 +65,8 @@ def train_model(
     device,
     hyperparameter_path,
     accum_grad_batches=1,
+    feature_length=32,
+    dim_mlp_layers=32,
     profiling=False,
     **wrap_kwargs,
 ):
@@ -92,6 +96,8 @@ def train_model(
         profiling=profiling,
         device=device,
         accum_grad_batches=accum_grad_batches,
+        feature_length=feature_length,
+        dim_mlp_layers=dim_mlp_layers,
         hyperparameter_path=hyperparameter_path,
         **wrap_params,
     )
@@ -100,7 +106,16 @@ def train_model(
 
 
 def continue_train_model(
-    model_name, data_name, device, hyperparameter_path, accum_grad_batches=1, train_checkpoint=None, **wrap_kwargs
+    model_name,
+    data_name,
+    device,
+    hyperparameter_path,
+    epochs=200,
+    accum_grad_batches=1,
+    feature_length=32,
+    dim_mlp_layers=32,
+    train_checkpoint=None,
+    **wrap_kwargs,
 ):
     """
     Loads a model in class `model_name` that was previously trained on `data_name`, and
@@ -118,14 +133,14 @@ def continue_train_model(
         ) from e
 
     model_str = trained_model_str(model_name, data_name)
-    # hyperparameters (only used if no hyperparameter testing done)
-    default_params = {
-        "learning_rate": 0.01,
-        "batch_size": 1024,
-        "epochs": 100,
-    }
+    # # hyperparameters (only used if no hyperparameter testing done)
+    # default_params = {
+    #     "learning_rate": 0.01,
+    #     "batch_size": 1024,
+    #     "epochs": 100,
+    # }
     # Update default parameters with any provided keyword arguments
-    wrap_params = {**default_params, **wrap_kwargs}
+    wrap_params = {**wrap_kwargs}
     # load dataset
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
     wrap = Wrap(
@@ -135,7 +150,10 @@ def continue_train_model(
         model=model,
         log_path=model_str,
         device=device,
+        epochs=epochs,
         accum_grad_batches=accum_grad_batches,
+        feature_length=feature_length,
+        dim_mlp_layers=dim_mlp_layers,
         hyperparameter_path=hyperparameter_path,
         **wrap_params,
     )
@@ -156,7 +174,6 @@ def optimize_hyperparameters(
         model_str,
         profiling=profiling,
         device=device,
-        epochs=100,
         n_trials=10,
     )  # n_trials chosen small for testing
     hyper_wrap.optuna_optimize(best_model_hparams_filepath)

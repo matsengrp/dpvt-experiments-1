@@ -36,8 +36,8 @@ dataset_dict = {
     "HarringtonTinyTest": script_directory.parent / "data/harrington_tiny_test.p",
     "HarringtonBelow50": script_directory.parent / "data/harrington-small_0_to_50_taxa_subset.p",
     "HarringtonShortSequences": script_directory.parent / "data/harrington-small_0_to_30_sites_subset.p",
-    "Alisim10leaf_10sites_50alignments_train": script_directory.parent / "data/larch_alisim_10_seq_10_site_50_alignments_2024-10-01_train.p",
-    "Alisim10leaf_10sites_50alignments_test": script_directory.parent / "data/larch_alisim_10_seq_10_site_50_alignments_2024-10-01_test.p",
+    "Alisim10leaf_10sites_500alignments_train": script_directory.parent / "data/larch_alisim_10_seq_10_site_500_alignments_2024-10-01_train.p",
+    "Alisim10leaf_10sites_500alignments_test": script_directory.parent / "data/larch_alisim_10_seq_10_site_500_alignments_2024-10-01_test.p",
 }
 
 def data_of_nicknames(data_name, device):

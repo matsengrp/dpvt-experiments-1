@@ -44,7 +44,7 @@ rule generate_dpvt_input:
     shell:
         """
         snakemake --unlock
-        snakemake --snakefile {generating_data_snakefile} --cores {num_cores}
+        snakemake --snakefile {generating_data_snakefile} --cores {num_cores} --rerun-incomplete
         """
 
 use rule * from preprocessing as preprocessing_*

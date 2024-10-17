@@ -4,6 +4,38 @@ from collections import deque
 import itertools
 
 
+def get_distance(target, target2=None, topology_only=False):
+    """
+    UPDATED VERSION OF ETE3 BUILT-IN get_distance FUNCTION.
+    Returns the distance between two nodes. If only one target is
+    specified, it returns the distance between the target and the
+    current node.
+    :argument target: a node within the same tree structure.
+    :argument target2: a node within the same tree structure. If
+        not specified, current node is used as target2.
+    :argument False topology_only: If set to True, distance will
+        refer to the number of nodes between target and target2.
+    :returns: branch length distance between target and
+        target2. If topology_only flag is True, returns the number
+        of nodes between target and target2.
+    """
+    root = target.get_tree_root()
+    ancestor = root.get_common_ancestor(target, target2)
+    dist = 0.0
+    for n in [target2, target]:
+        current = n
+        while current != ancestor:
+            if topology_only:
+                dist += 1
+            else:
+                dist += current.dist
+            current = current.up
+    if topology_only and target != target2:
+        # counted ancestor once more than needed in while loop
+        dist -= 1
+    return dist
+
+
 def newick_bare(tree):
     return tree.write(format=9)
 

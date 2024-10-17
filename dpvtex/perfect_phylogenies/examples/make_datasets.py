@@ -14,8 +14,8 @@ from dpvtex.perfect_phylogenies.perturb_phylogeny import (
 
 def make_phylogeny_data(n_leaves, n_phylos_per_tree, depth):
     """
-    Create a collection of phylogenies obtained by randomly mixing a subtree of a
-    perfect phylogeny.
+    Create a collection of phylogenies obtained by randomly mixing a subtree of
+    a perfect phylogeny.
     """
     # create a random tree
     tree = Tree()
@@ -48,8 +48,9 @@ def make_phylogeny_data(n_leaves, n_phylos_per_tree, depth):
 
 def create_training_data(n_trees, n_phylos_per_tree, n_leaves, depth=4, n_threads=1):
     """
-    Create a collection of random trees and phylogenies obtained by randomly mixing a
-    subtree of a perfect phylogeny.
+    Create a collection of random trees and phylogenies obtained by randomly
+    mixing a subtree of a perfect phylogeny.
+
     """
     if n_threads > 1:
         process_pool = Pool(n_threads)
@@ -70,7 +71,7 @@ def create_training_data(n_trees, n_phylos_per_tree, n_leaves, depth=4, n_thread
     return tree_data_dict
 
 
-N_LEAVES = 100
+N_LEAVES = 10
 
 
 def main():
@@ -78,6 +79,7 @@ def main():
         n_trees=32,
         n_phylos_per_tree=32,
         n_leaves=N_LEAVES,
+        depth=2,
         n_threads=4,
     )
     file_path = f"{N_LEAVES}leaf_perfect.p"

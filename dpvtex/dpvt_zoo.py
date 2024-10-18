@@ -54,10 +54,10 @@ def best_model_params_path(model_name, data_name):
     return f"hyper_checkpoints/{trained_model_str(model_name, data_name)}"
 
 
-output_file = open(f"memory_profile_output_dpvt_data_{timestamp}.txt", "a")
+# output_file = open(f"memory_profile_output_dpvt_data_{timestamp}.txt", "a")
 
 
-@profile(stream=output_file)
+# @profile(stream=output_file)
 def train_model(
     model_name,
     data_name,
@@ -78,8 +78,8 @@ def train_model(
         train_checkpoint = trained_model_path(model_name, data_name) + ".ckpt"
     # hyperparameters (only used if no hyperparameter testing done)
     default_params = {
-        "learning_rate": 0.01,
-        "batch_size": 1024,
+        "learning_rate": 0.0001,
+        "batch_size": 64,
         "epochs": 100,
     }
     # Update default parameters with any provided keyword arguments
@@ -174,7 +174,7 @@ def optimize_hyperparameters(
         model_str,
         profiling=profiling,
         device=device,
-        n_trials=10,
+        n_trials=100,
     )  # n_trials chosen small for testing
     hyper_wrap.optuna_optimize(best_model_hparams_filepath)
     return model

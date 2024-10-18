@@ -2,7 +2,6 @@ name: dpvt-experiments
 channels:
   - conda-forge
   - bioconda
-  - defaults
 dependencies:
   - biopython
   - click
@@ -23,5 +22,6 @@ dependencies:
   - scikit-learn
   - snakemake
   - tensorboard
-#  - usher #currently broken for osx-arm64...
+  - memory_profiler
+  - usher #currently broken for osx-arm64...
 

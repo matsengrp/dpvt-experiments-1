@@ -23,7 +23,6 @@ train_data_names = config["train_data"]
 test_data_names = config["test_data"]
 device = config["device"]
 
-
 data_pairs = list(zip(train_data_names, test_data_names))
 
 def generate_tested_model_ckpts(model_names, data_pairs):
@@ -78,13 +77,13 @@ rule test_models:
         ),
     run:
         test_model(
-            wildcards.model_name,
-            wildcards.train_data_name,
-            input.trained_model,
-            wildcards.test_data_name,
-            output.tested_model,
-            device,
-            input.hyperparameter_path,
+            trained_model_name=wildcards.model_name,
+            train_data_name=wildcards.train_data_name,
+            trained_model_ckpt=input.trained_model,
+            test_data_name=wildcards.test_data_name,
+            test_checkpoint=output.tested_model,
+            device=device,
+            hyperparameter_path=input.hyperparameter_path,
         )
 
 

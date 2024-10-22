@@ -6,7 +6,7 @@ from dpvtex.dpvt_data import (
 )
 from memory_profiler import profile
 from datetime import datetime
-import os
+import json
 
 # Get the current date in the desired format
 timestamp = datetime.now().strftime("%Y-%m-%d")
@@ -198,7 +198,10 @@ def test_model(
     """
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
-    model = get_model(trained_model_name).load_from_checkpoint(trained_model_ckpt)
+    model = get_model(trained_model_name)
+    with open(hyperparameter_path, "r") as f:
+        hparams = json.load(f)
+    model.load_from_checkpoint(trained_model_ckpt, learning_rate = hparams["learning_rate"], feature_length = hparams["feature_length"], dim_mlp_layers = hparams["dim_mlp_layers"])
     model_str = tested_model_str(trained_model_name, train_data_name, test_data_name)
     # load dataset
     test_data = data_of_nicknames(test_data_name, device)

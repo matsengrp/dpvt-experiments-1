@@ -42,6 +42,8 @@ dataset_dict = {
     "Alisim10leaf_20sites_500alignments_test": script_directory.parent / "data/larch_alisim_10_seq_20_site_500_alignments_2024-10-09_test.p",
     "Alisim10leaf_50sites_500alignments_train": script_directory.parent / "data/larch_alisim_10_seq_50_site_500_alignments_2024-10-09_train.p",
     "Alisim10leaf_50sites_500alignments_test": script_directory.parent / "data/larch_alisim_10_seq_50_site_500_alignments_2024-10-09_test.p",
+    "Alisim20leaf_100sites_500alignments_train": script_directory.parent / "data/larch_alisim_20_seq_100_site_500_alignments_2024-10-28_train.p",
+    "Alisim20leaf_100sites_500alignments_test": script_directory.parent / "data/larch_alisim_20_seq_100_site_500_alignments_2024-10-28_test.p",
 }
 
 def data_of_nicknames(data_name, device):

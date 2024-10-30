@@ -68,8 +68,6 @@ def data_of_nicknames(data_name):
 
 
 def train_val_data_of_nicknames(data_name):
-    print(data_name)
-    print(dataset_dict)
     file_path = dataset_dict[data_name]
     file_path = os.path.realpath(file_path)
     with open(file_path, "rb") as f:

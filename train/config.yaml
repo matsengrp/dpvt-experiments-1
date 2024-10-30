@@ -6,8 +6,8 @@ models:
     "TraverseAvgPooling",
   ]
 train_data: [
-    "FourLeaf",
-    "FourLeafFourSite",
+    "FourLeafTrain",
+    "FourLeafFourSiteTrain",
     # "TenLeaf",
     # "ThirtyLeaf",
   ]

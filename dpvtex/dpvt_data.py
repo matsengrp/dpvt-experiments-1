@@ -3,36 +3,19 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import (
     Dataset,
 )
-import numpy as np
 from pathlib import Path
 import os
 import pandas as pd
 from collections import Counter
+import json
 
-# Get the absolute path to the directory where the current script is located
-script_directory = Path(__file__).resolve().parent
 
-dataset_dict = {
-    "FourLeafFourSiteTrain": script_directory.parent / "data/4leaf4site_train.p",
-    "FourLeafFourSiteTest": script_directory.parent / "data/4leaf4site_test.p",
-    "FourLeafTrain": script_directory.parent / "data/4leaf_train.p",
-    "FourLeafTest": script_directory.parent / "data/4leaf_test.p",
-    "TenLeafTrain": script_directory.parent
-    / "data/10leaf_perfect_distinct_trees_train.p",
-    "TenLeafTest": script_directory.parent
-    / "data/10leaf_perfect_distinct_trees_test.p",
-    "ThirtyLeafTest": script_directory.parent
-    / "data/30leaf_perfect_distinct_trees_test.p",
-    "ThirtyLeafTrain": script_directory.parent
-    / "data/30leaf_perfect_distinct_trees_train.p",
-    "harrington_small_train": script_directory.parent
-    / "data/larch_harrington-small_2024-06-10_train.p",
-    "harrington_small_test": script_directory.parent
-    / "data/larch_harrington-small_2024-06-10_test.p",
-    "Alisim10leaf_100sites_50algnmnts_test": script_directory.parent / "data/larch_alisim_10_seq_100_sites_50_algnmnts_2024-09-27_test.p",
-    "Alisim10leaf_100sites_50algnmnts_train": script_directory.parent / "data/larch_alisim_10_seq_100_sites_50_algnmnts_2024-09-27_train.p",
-}
+with open("data_nicknames.json", "r") as f:
+    dataset_dict = json.load(f)
 
+data_dir = dataset_dict.pop("data_dir")
+
+dataset_dict = {key: data_dir + "/" + dataset_dict[key] for key in dataset_dict}
 
 class TreeDataset(Dataset):
     def __init__(self, data, labels, mask):
@@ -85,6 +68,8 @@ def data_of_nicknames(data_name):
 
 
 def train_val_data_of_nicknames(data_name):
+    print(data_name)
+    print(dataset_dict)
     file_path = dataset_dict[data_name]
     file_path = os.path.realpath(file_path)
     with open(file_path, "rb") as f:

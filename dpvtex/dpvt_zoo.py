@@ -76,14 +76,8 @@ def train_model(
     # set final and test checkpoint strings
     if train_checkpoint is None:
         train_checkpoint = trained_model_path(model_name, data_name) + ".ckpt"
-    # hyperparameters (only used if no hyperparameter testing done)
-    default_params = {
-        "learning_rate": 0.0001,
-        "batch_size": 64,
-        "epochs": 100,
-    }
     # Update default parameters with any provided keyword arguments
-    wrap_params = {**default_params, **wrap_kwargs}
+    wrap_params = {**wrap_kwargs}
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
     model = get_model(model_name)
     model_str = trained_model_str(model_name, data_name)

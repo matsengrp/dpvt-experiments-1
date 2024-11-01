@@ -38,6 +38,8 @@ dataset_dict = {
     "HarringtonShortSequences": script_directory.parent / "data/harrington-small_0_to_30_sites_subset.p",
     "Alisim10leaf_10sites_500alignments_train": script_directory.parent / "data/larch_alisim_10_seq_10_site_500_alignments_2024-10-01_train.p",
     "Alisim10leaf_10sites_500alignments_test": script_directory.parent / "data/larch_alisim_10_seq_10_site_500_alignments_2024-10-01_test.p",
+    "Alisim20leaf_10sites_500alignments_train": script_directory.parent / "data/larch_alisim_20_seq_10_site_500_alignments_2024-10-30_train.p",
+    "Alisim20leaf_10sites_500alignments_test": script_directory.parent / "data/larch_alisim_20_seq_10_site_500_alignments_2024-10-30_test.p",
     "Alisim10leaf_20sites_500alignments_train": script_directory.parent / "data/larch_alisim_10_seq_20_site_500_alignments_2024-10-09_train.p",
     "Alisim10leaf_20sites_500alignments_test": script_directory.parent / "data/larch_alisim_10_seq_20_site_500_alignments_2024-10-09_test.p",
     "Alisim10leaf_50sites_500alignments_train": script_directory.parent / "data/larch_alisim_10_seq_50_site_500_alignments_2024-10-09_train.p",

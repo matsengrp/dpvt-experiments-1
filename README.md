@@ -23,21 +23,23 @@ pip install -e .
 
 ## Training Workflow
 
-We have a workflow implemented in Snakemake (`Snakefile`), which takes as input
-in `config.yaml` names of models (see *Neural Network Model*) and datasets (see
-*Training Data*) and trains and evaluates the given models on all given
-datasets.
+We have a workflow implemented in Snakemake (`train/Snakefile`), which takes as
+input in `train/config.yaml` names of models (see *Neural Network Model*) and
+datasets (see *Training Data*) and trains and evaluates the given models on all
+given datasets.
 
-The input data is expected to be located in a `data` folder in the root
-directory of this repo. Two lists `train_data` and `test_data` containing names
+We need to provide a mapping from nicknames of data to the paths at which
+datasets can be found. Nicknames and paths are saved in the json file
+`train/data_nicknames.json`. The first line in this file is the path to the
+directory containing all datasets, which is set to `data` in the root directory
+of this repo as default. Two lists `train_data` and `test_data` containing names
 of datasets need to be specified, so that the *i*th dataset in `train_data` is
 the training data for a model that is then tested on the *i*th dataset of
-`test_data`. Note that we use nicknames for our datasets in `config.yaml`. We
-need to define the paths to the actual datasets for each nickname in
-`dpvtex/dpvt_data.py`. The data shall be made of dictionaries where trees are
-keys and their values are lists that assign `0` or `1` to edges in the tree,
-ordered by pre-order traversal, where `0` means this edge is in a Maximum
-Parsimony tree and `1` indicates that it is not.
+`test_data`. Recall that the nicknames for our datasets in `config.yaml` are
+defined in `train/data_nicknames.json`. The data files linked there shall be
+pickled dictionaries where trees are keys and their values are lists that assign
+`0` or `1` to edges in the tree, ordered by pre-order traversal, where `0` means
+this edge is in a Maximum Parsimony tree and `1` indicates that it is not.
 
 ## Training Workflow
 
@@ -69,7 +71,8 @@ performance of classification on the test set.
   for training are specified.
 - `dpvtex`: contains `dpvt_data.py`, which implements functions to get datasets
   for a given nickname and `dpvt_zoo.py`, which creates models for a given
-  nickname. These nicknames are provided to the `Snakefile` in `config.yaml`.  
+  nickname. These nicknames are provided to the `Snakefile` in `config.yaml`.
+
    Also contains directories `perfect_phylogenies` and `larch`, which provide
   code for creating datasets for training and testing dpvt models (See _Training
   Data_).

@@ -28,7 +28,7 @@ file containing a dictionary with trees as keys and lists of 0s and 1s as
 values, which assign each edge in the corresponding tree (in preorder) value 0
 if the edge is present in one of the MP trees found by larch-usher and otherwise
 returns 1. To run this code, you can either follow the all-in-one description,
-which uses Snakemake to run all the code, or you can follow separate steps.
+which uses Snakemake, or you can follow separate steps.
 
 ### All-in-one
 
@@ -49,9 +49,8 @@ to be stored, and some parameters for the run in `config.yaml`:
   containing training and testing data. The output files will be named
   `{dataset_name}_YYYY-MM-DD_train.p` and `{dataset_name}_YYYY-MM-DD_test.p`
 - `num_larch_iterations`: number of iterations we want to run larch, defaults to
-  `20` _This default might not be suitable for all datasets, looking at the log
-  output might help determine if larch should be run longer (e.g. if the
-  parsimony still kept improving over the last few generations)_
+  `20`. The number of iteration automatically increases by 5 if in the last 5
+  iteration of larch there is a decrease in parsimony score.
 - `num_cores`: number of cores used for running larch-usher and tree extraction,
   should match `num_cores` that is provided for snakemake run (see below)
 
@@ -123,7 +122,7 @@ check in the log file), you can run:
 
 #### Extracting hDAG trees as training data
 
-We extract trees from the given hDAG to get ete3 trees for training our dpvt
+We extract trees from the given hDAG to get `ete3` trees for training our dpvt
 models. Make sure to navigate back into the `larch` folder of this repo before
 executing:
 
@@ -139,8 +138,8 @@ this script:
 - read the (compact genome) hDAG
 - trim the hDAG to only contain MP trees
 - convert the hDAG to a sequence dag
-- sample from the hDAG without replacement -- currently samples as many trees
-  are in the hDAG
+- unlabel hDAG and sample from it without replacement -- currently samples as
+  many trees as there are in the hDAG
 - perturbs the sampled trees by replacing a subtree with depth `tree_depth/3` by
   a random tree
 - labels edges by whether they are MP edges are not
@@ -182,7 +181,8 @@ In `dpvtex/larch/scripts`: scripts called from snakefiles:
     that are not in {A,C,G,T,a,c,g,t}
   - `check_size_fasta.py`: Checks whether the alignment after removing gaps and
     ambiguous sites contains more than 5 sites. If it does, it creates a flag
-    file in the directory containing the alignment.
+    file in the directory containing the alignment, so it doesn't get used in
+    future steps.
 
 - Called from `generate_dpvt_input.snakefile`:
   - `check_max_parsimony.py`: Checks if the smallest parsimony score of the hDAG
@@ -201,6 +201,7 @@ In `dpvtex/larch/scripts`: scripts called from snakefiles:
     - runs Sankoff to get sequences for internal nodes
     - use `make_worse_tree()` function from
       `dpvtex/perfect_phylogenies/perturb_phylogeny.py` to create non-MP edges
+      by replacing a subtree by a random tree
     - assigns `0`/`1` labels to edges of tree depending on whether the split
       represented by that edge is in the larch hDAG or not
     - if more than $\frac{1}{6}$ of the edges are non-MP or we tried more than

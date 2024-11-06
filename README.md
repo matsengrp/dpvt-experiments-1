@@ -71,11 +71,14 @@ performance of classification on the test set.
   for training are specified.
 - `dpvtex`: contains `dpvt_data.py`, which implements functions to get datasets
   for a given nickname and `dpvt_zoo.py`, which creates models for a given
-  nickname. These nicknames are provided to the `Snakefile` in `config.yaml`.
+  nickname. The mapping from nicknames to file paths is provided in
+  `dataset_dict.json` and nicknames for datasets are given to the `Snakefile` in
+  `config.yaml`.
 
    Also contains directories `perfect_phylogenies` and `larch`, which provide
   code for creating datasets for training and testing dpvt models (See _Training
   Data_).
+
 
 ## Training Data
 

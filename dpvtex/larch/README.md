@@ -48,7 +48,7 @@ to be stored, and some parameters for the run in `config.yaml`:
   in the input alignment get deleted in our pipeline._
 - `larch_build`: path to the `build` directory created when building `larch`
   (see instructions in `larch` repo)
-- `ouput_data`: path to directory in which output, which is a pickled file
+- `output_data`: path to directory in which output, which is a pickled file
   containing trees and corresponding edge vectors containing MP edge labels,
   should be saved
 - `dataset_name`: name for the dataset that will be used for the output files

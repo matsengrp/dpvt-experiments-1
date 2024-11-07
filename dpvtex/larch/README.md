@@ -30,6 +30,12 @@ if the edge is present in one of the MP trees found by larch-usher and otherwise
 returns 1. To run this code, you can either follow the all-in-one description,
 which uses Snakemake, or you can follow separate steps.
 
+### Simulating alignments
+
+If you want to simulate alignmnents for generating the training data, you can use the script `create_alisim_alignments.sh`, which uses IQ-TREE's alisim to simulate alignments ([http://www.iqtree.org/doc/AliSim](http://www.iqtree.org/doc/AliSim)).
+At the beginning of this script you can specify the number of alignments you want to simulate and the number of sequences as well as the sequence length.
+Additionally, you'll need to provide the path to a directory in which you want the alignment to be saved.
+
 ### All-in-one
 
 First, we need to specify where we store input data, where we want output data

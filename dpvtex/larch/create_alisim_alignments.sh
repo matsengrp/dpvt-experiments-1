@@ -2,8 +2,8 @@
 
 # Parameters
 num_alignments=500
-num_sequences=20
-alignment_length=100
+num_sequences=10
+alignment_length=10
 base_directory="../data/alisim_alignment_${num_sequences}_seq_${alignment_length}_sites_${num_alignments}_algnmnts"
 
 # Create base directory for alignments

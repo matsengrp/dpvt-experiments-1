@@ -71,7 +71,7 @@ Details about these models can be foung in [dpvt](https://github.com/matsengrp/d
 
 ### Training data
 
-[TODO: explain how to generate this data, when those files are merged in.]
+Training data can be generated either from empirical or simulated alignments using `larch` to construct Maximum Parsimony trees (see `dpvtex/larch/README.md`) or by generating perfect phylogenies (see `dpvtex/perfect_phylogenies/README.md`).
 
 Nicknames for the datasets and paths to those datasets must be provided in a `dpvt_zoo.py`.
 We assume that each dataset is given by one file that contains a pickled dictionary.
@@ -108,6 +108,7 @@ performance of classification on the test set.
   code for creating datasets for training and testing dpvt models (See _Training
   Data_).
 
+<<<<<<< HEAD
 
 ## Training Data
 
@@ -168,3 +169,5 @@ trees for a given alignment. We set up a pipeline that uses larch to create such
 trees and then perturbs them to create training and testing sets for dpvt. We
 describe how to do this in more detail in this
 [README.md](dpvtex/larch/README.md)
+=======
+>>>>>>> explanation for perfect phylogenies data generation in separate README

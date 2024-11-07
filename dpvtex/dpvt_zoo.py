@@ -23,8 +23,6 @@ def get_model(model_name):
         model = models.TraverseMaxPooling
     elif model_name == "TraverseAvgPooling":
         model = models.TraverseAvgPooling
-    elif model_name == "TransformerEncoderTraversal":
-        model = models.TransformerEncoderTraversal
     return model
 
 

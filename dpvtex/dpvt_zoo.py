@@ -4,12 +4,8 @@ from dpvtex.dpvt_data import (
     data_of_nicknames,
     train_val_data_of_nicknames,
 )
-from memory_profiler import profile
-from datetime import datetime
 import json
 
-# Get the current date in the desired format
-timestamp = datetime.now().strftime("%Y-%m-%d")
 
 import torch
 
@@ -54,10 +50,6 @@ def best_model_params_path(model_name, data_name):
     return f"hyper_checkpoints/{trained_model_str(model_name, data_name)}"
 
 
-# output_file = open(f"memory_profile_output_dpvt_data_{timestamp}.txt", "a")
-
-
-# @profile(stream=output_file)
 def train_model(
     model_name,
     data_name,
@@ -127,12 +119,6 @@ def continue_train_model(
         ) from e
 
     model_str = trained_model_str(model_name, data_name)
-    # # hyperparameters (only used if no hyperparameter testing done)
-    # default_params = {
-    #     "learning_rate": 0.01,
-    #     "batch_size": 1024,
-    #     "epochs": 100,
-    # }
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
     # load dataset
@@ -169,7 +155,7 @@ def optimize_hyperparameters(
         profiling=profiling,
         device=device,
         n_trials=100,
-    )  # n_trials chosen small for testing
+    )
     hyper_wrap.optuna_optimize(best_model_hparams_filepath)
     return model
 

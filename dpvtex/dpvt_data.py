@@ -20,20 +20,12 @@ dataset_dict = {
     / "data/10leaf_perfect_distinct_trees_test.p",
     "TenLeafTrain": script_directory.parent
     / "data/10leaf_perfect_distinct_trees_train.p",
-    "TenLeafTrainSmall": script_directory.parent
-    / "data/10leaf_perfect_distinct_trees_train_small.p",
-    "ThirtyLeaf": script_directory.parent / "data/30leaf_perfect.p",
     "ThirtyLeafTest": script_directory.parent
     / "data/30leaf_perfect_distinct_trees_test.p",
     "ThirtyLeafTrain": script_directory.parent
     / "data/30leaf_perfect_distinct_trees_train.p",
     "ThirtyLeafDistinct": script_directory.parent
     / "data/30leaf_perfect_distinct_trees.p",
-    "HarringtonSmallTest": script_directory.parent
-    / "data/harrington-small_2024-06-10_test.p",
-    "HarringtonSmallTrain": script_directory.parent
-    / "data/harrington-small_2024-06-10_train.p",
-    "HarringtonTinyTest": script_directory.parent / "data/harrington_tiny_test.p",
     "HarringtonBelow50": script_directory.parent / "data/harrington-small_0_to_50_taxa_subset.p",
     "HarringtonShortSequences": script_directory.parent / "data/harrington-small_0_to_30_sites_subset.p",
     "Alisim10leaf_10sites_500alignments_train": script_directory.parent / "data/larch_alisim_10_seq_10_site_500_alignments_2024-10-01_train.p",

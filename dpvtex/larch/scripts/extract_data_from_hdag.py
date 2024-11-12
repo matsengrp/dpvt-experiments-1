@@ -14,9 +14,9 @@ def get_MP_trees_from_hdag(dag, num_trees, unlabel=False):
     """
     Samples num_trees uniformly from input historydag dag without replacement
     Args:
-        dag: compact genome historydag without ambiguous sequences
-        num_trees: int - number of trees to sample
-        unlabel: if true, we unlabel the DAG and then only sample each topology
+        dag: compact genome historydag without ambiguous sequences num_trees:
+        int - number of trees to sample unlabel: if true, we unlabel the DAG and
+        then only sample each topology
             once. This needs to be used with care if the input dag has ambiguous
             sequences.
     Returns:
@@ -57,11 +57,10 @@ def split(taxon_set, node):
 
 def root_and_outgroup_leaf(tree, leaf):
     """
-    Re-root tree by setting given leaf as root with its only child being the previous
-    root.
+    Re-root tree by setting given leaf as root with its only child being the
+    previous root.
     Args:
-        tree: ete3 tree
-        leaf: leaf in given tree
+        tree: ete3 tree leaf: leaf in given tree
     """
     tree.set_outgroup(leaf)
     leaf.detach()
@@ -71,7 +70,8 @@ def root_and_outgroup_leaf(tree, leaf):
 
 def extract_hdag_clade_child_clades(dag):
     """
-    Generate dict containing frozensets C: C_1, .., C_k where C is clade in DAG and
+    Generate dict containing frozensets C: C_1, .., C_k where C is clade in DAG
+    and
         C_1, ..., C_k its child clades
     Args:
         dag: historydag.sequence_dag
@@ -95,20 +95,27 @@ def extract_hdag_clade_child_clades(dag):
     return dag_clades
 
 
-def exists_subset_union(S, C):
+def exists_subset_union(S, C): 
     """
-    Find if there is a collection of subsets of frozenset S whose union is C
+    Find if there is a collection S_1, ..., S_k of sets in frozenset S = {S_1,
+    ..., S_N} (k <= N) whose union is exactly C. We assume that |S| = |S_1| +
+    ... + |S_N|, i.e. no element is present in more than one S_i
     Args:
         S: frozenset containing frozensets
         C: frozenset
     Returns:
-
+        True if there are sets S_1, ..., S_k with union C
+        Else otherwise
     """
-    union = set()
+    union = set() # we aim to create a union of subsets of S that equals C
     for subset in S:
         if subset.issubset(C):
             union.update(subset)
         elif len(subset.intersection(C)) > 0:
+            # if subset intersects C but is not a subset of C, there is no union
+            # of sets in S that results in C, as the elements in subset\C cannot
+            # be added without adding elements in C\subset and we assume that no
+            # element appears in more than one set in S 
             return False
     if len(union) == len(C):
         return True
@@ -123,8 +130,8 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
     then two. `tree' is assumed to be extracted from the hdag, and is used to
     make the label assignment more efficient.
     Args:
-        modified_tree: ete3 tree for which we want to get edge label list
-        tree: ete3 tree that is mostly identical to modified tree (tree before
+        modified_tree: ete3 tree for which we want to get edge label list tree:
+        ete3 tree that is mostly identical to modified tree (tree before
             make_worse)
         dag_clades: dictionary with clades: child_clades
     Returns:
@@ -139,13 +146,13 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
         0 if frozenset(node.get_leaf_names()) in tree_clades else 1
         for node in modified_tree.traverse("preorder")
     ]
-    # update 1s if corresponding edge exists in dag_splits or is resolution of
-    # a multifurcation in dag_splits.
+    # update 1s if corresponding edge exists in dag_splits or is resolution of a
+    # multifurcation in dag_splits.
     i = 0
     for node in modified_tree.traverse("preorder"):
         if i in [0, 1]:
-            # Root leaf and node below root are assigned 0 by default
-            # This doesn't change anything, as they will be masked in training
+            # Root leaf and node below root are assigned 0 by default This
+            # doesn't change anything, as they will be masked in training
             edge_labels[i] = 0
             i += 1
             continue
@@ -159,6 +166,9 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
             else:
                 for dag_clade in dag_clades:
                     if clade.issubset(dag_clade):
+                        # If there is a union of clades that are children of
+                        # dag_clade, then there is a multifurcation at dag_clade
+                        # that could be resolved so that clade is in a DAG tree
                         if exists_subset_union(dag_clades[dag_clade], clade):
                             edge_labels[i] = 0
                             break
@@ -171,13 +181,12 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0):
     Perturbs trees in tree_list to create num_trees perturbed trees containing
     edges that are not present in the given dag
     Args:
-        tree_list: list of ete trees
-        dag: sequence_dag
-        num_trees: number of trees to return. If 0, returns as many trees as
+        tree_list: list of ete trees dag: sequence_dag num_trees: number of
+        trees to return. If 0, returns as many trees as
             there are in tree_list
     Returns:
-        dictionary with keys ete3 trees and values list of edge labels indicating
-        MP (0) vs non-MP (1) edges, sorted by preorder traversal
+        dictionary with keys ete3 trees and values list of edge labels
+        indicating MP (0) vs non-MP (1) edges, sorted by preorder traversal
     """
     mp_trees = get_MP_trees_from_hdag(dag, num_trees, unlabel=True)
     tree_to_label_dict = {}  # output dict
@@ -185,12 +194,14 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0):
 
     with open(num_children_file, "w") as nc_file:
         for tree in mp_trees:
-            # delete sequences on internal nodes - can probably be done more efficiently
+            # delete sequences on internal nodes - can probably be done more
+            # efficiently
             for node in tree.traverse():
                 if not node.is_leaf():
                     node.del_feature("sequence")
-            # random leaf 'root_leaf' chosen as outgroup -- only delete leaf when we have
-            # edge labels MP/non-MP to be able to compare tree edges to hDAG edges
+            # random leaf 'root_leaf' chosen as outgroup -- only delete leaf
+            # when we have edge labels MP/non-MP to be able to compare tree
+            # edges to hDAG edges
             root_leaf = tree.get_leaves()[0]
             root_and_outgroup_leaf(tree, root_leaf)
             # make tree binary + disambiguate (Sankoff)

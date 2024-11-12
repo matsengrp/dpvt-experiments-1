@@ -65,33 +65,8 @@ rule run_larch:
         """
         echo "All input files are present, processing..."
         cd {larch_build}
-
-        # Define a function to check MaxParsimony
-        check_max_parsi() {{
-            cd {snakefile_dir}
-            python scripts/check_max_parsimony.py {params.log}/logfile.csv
-            echo $?
-        }}
-
         # Run larch-usher
-        ./larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -c {num_larch_iterations}
-
-        # Initialize retry count
-        retries=0
-        # Maximum of 10 additional runs -- that adds 100 iterations!
-        while [ $retries -lt 10 ]; do
-            exit_status=$(check_max_parsi)
-            echo FinishedFunction
-            echo $exit_status
-            if [ $exit_status -eq 1 ]; then
-                echo "MaxParsimony changed. Continue running larch-usher..."
-                ./larch-usher -i {output.pb} -o {output.pb} -l {params.log} -c 10
-            else
-                echo "MaxParsimony remains the same. Exiting loop."
-                break
-            fi
-            retries=$((retries + 1))
-        done
+        ./larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -c {num_larch_iterations} -S
         cd {snakefile_dir}
         """
 

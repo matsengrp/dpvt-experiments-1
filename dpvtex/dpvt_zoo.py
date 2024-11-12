@@ -5,8 +5,6 @@ from dpvtex.dpvt_data import (
     train_val_data_of_nicknames,
 )
 import json
-
-
 import torch
 
 torch.set_num_threads(1)

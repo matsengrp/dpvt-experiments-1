@@ -10,3 +10,4 @@ dependencies:
   - pandas
   - pytest
   - historydag
+  - scikit-learn

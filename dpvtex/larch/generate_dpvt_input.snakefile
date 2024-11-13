@@ -10,7 +10,6 @@ configfile: config_path
 input_data=os.path.realpath(config["input_data"])
 output_data=config["output_data"]
 larch_build=config["larch_build"]
-num_larch_iterations=config["num_larch_iterations"]
 dataset_name=config["dataset_name"]
 
 
@@ -66,7 +65,7 @@ rule run_larch:
         echo "All input files are present, processing..."
         cd {larch_build}
         # Run larch-usher
-        ./larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -c {num_larch_iterations} -S
+        ./larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
         cd {snakefile_dir}
         """
 

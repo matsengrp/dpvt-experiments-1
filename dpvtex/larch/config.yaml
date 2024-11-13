@@ -1,6 +1,5 @@
-input_data: "larch-data"
+input_data: "../data/larch-data"
 larch_build: "../../../larch/build"
 output_data: "../data"
-dataset_name: "harrington"
-num_larch_iterations: 20
+dataset_name: "test-dataset"
 num_cores: 1

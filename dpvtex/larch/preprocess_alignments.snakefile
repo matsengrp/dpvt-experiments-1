@@ -39,7 +39,6 @@ rule clean_data:
 
 checkpoint check_alignment_length:
     input:
-        fasta=input_data+"/{subdir}/input.fasta",
         algn_length=input_data+"/{subdir}/cleaned_alignment_length.txt"
     output:
         touch(input_data+"/{subdir}/checkpoint.done"),
@@ -47,5 +46,5 @@ checkpoint check_alignment_length:
         fasta=input_data+"/{subdir}/checkpoint.flag",
     shell:
         """
-        python scripts/check_size_fasta.py "{input.fasta}" "{params.fasta}"
+        python scripts/check_size_fasta.py "{input.algn_length}" "{params.fasta}"
         """

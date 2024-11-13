@@ -32,7 +32,7 @@ def remove_duplicate_sequences(multiple_seq_alignment):
             seen_sequences.add(seq_str)
             unique_alignments.append(record)
     # Create a new MultipleSeqAlignment with unique sequences
-    return MultipleSeqAlignment(unique_alignments)
+    return MultipleSeqAlignment(unique_alignments), len(unique_alignments)
 
 
 if __name__ == '__main__':
@@ -42,7 +42,7 @@ if __name__ == '__main__':
     algn_length_filename = sys.argv[3]
     alignment = AlignIO.read(input_filename, 'fasta')
     clean_alignment = remove_ambiguous_or_uninformative_sites(alignment)
-    clean_alignment = remove_duplicate_sequences(clean_alignment)
+    clean_alignment, num_unique_seqs = remove_duplicate_sequences(clean_alignment)
     AlignIO.write(clean_alignment, output_filename, 'fasta')
     with open(algn_length_filename, "w") as f:
-        f.write(str(clean_alignment.get_alignment_length()))
+        f.write(str(clean_alignment.get_alignment_length()) + "," + str(num_unique_seqs))

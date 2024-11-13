@@ -95,7 +95,7 @@ for root, dirs, files in os.walk(data_dir):
                 # only take those datasets for which we actually have pickled
                 # tree dictionaries
                 with open(alignment_length_file, "r") as f:
-                    data_props[dataset_name].append(int(f.read().strip()))
+                    data_props[dataset_name].append(int(f.read().split(",")[0].strip()))
 
 data_props_df = pd.DataFrame.from_dict(
     data_props,

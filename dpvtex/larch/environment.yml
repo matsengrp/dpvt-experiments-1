@@ -1,0 +1,13 @@
+name: larch-data
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.9
+  - biopython
+  - usher
+  - snakemake
+  - pandas
+  - pytest
+  - historydag
+  - scikit-learn

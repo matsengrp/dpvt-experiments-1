@@ -1,0 +1,50 @@
+import os
+import datetime
+
+snakefile_dir = workflow.basedir
+config_path = os.path.join(snakefile_dir, "config.yaml")
+
+configfile: config_path
+
+input_data=os.path.realpath(config["input_data"])
+
+preprocessing_snakefile = os.path.join(snakefile_dir,"preprocess_alignments.snakefile")
+generating_data_snakefile = os.path.join(snakefile_dir,"generate_dpvt_input.snakefile")
+num_cores = config["num_cores"]
+
+current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+
+
+def get_subdirs(data_dir):
+    subdirs = []
+    for entry in os.scandir(data_dir):
+        if entry.is_dir():
+            subdir_path = entry.path
+            subdirs.append(entry.name)
+    return subdirs
+
+
+module preprocessing:
+    snakefile:
+        preprocessing_snakefile
+    config:
+        config
+
+
+rule this_all:
+    input:
+        "run_all.done"
+
+
+rule generate_dpvt_input:
+    input:
+        expand(input_data+"/{subdir}/checkpoint.done", subdir=get_subdirs(input_data))
+    output:
+        temp(touch("run_all.done"))
+    shell:
+        """
+        snakemake --unlock
+        snakemake --snakefile {generating_data_snakefile} --cores {num_cores} --rerun-incomplete
+        """
+
+use rule * from preprocessing as preprocessing_*

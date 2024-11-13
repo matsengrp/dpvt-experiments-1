@@ -1,13 +1,19 @@
-models: ["TransformerEncoderTraversal", "TraverseNN", "TraverseMaxPooling", "TraverseAvgPooling"]
+models:
+  [
+    "TransformerEncoderTraversal",
+    "TraverseNN",
+    "TraverseMaxPooling",
+    "TraverseAvgPooling",
+  ]
 train_data: [
-  "FourLeaf", 
-  "FourLeafFourSite", 
-  # "TenLeaf", 
-  # "ThirtyLeaf",
-]
+    "FourLeafTrain",
+    "FourLeafFourSiteTrain",
+    # "TenLeaf",
+    # "ThirtyLeaf",
+  ]
 test_data: [
-  "FourLeafTest",
-  "FourLeafFourSiteTest",
-  # "TenLeafTest", 
-  # "ThirtyLeafTest",
-]
+    "FourLeafTest",
+    "FourLeafFourSiteTest",
+    # "TenLeafTest",
+    # "ThirtyLeafTest",
+  ]

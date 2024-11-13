@@ -1,7 +1,7 @@
 from ete3 import Tree
 from random import randrange, choice
 from historydag.parsimony import disambiguate, parsimony_score
-from dpvtex.perfect_phylogenies.utils import populate
+from dpvtex.perfect_phylogenies.utils import populate, get_distance
 
 
 def perturb_tree(tree, depth, skip_root=True, exception_on_fail=False):
@@ -33,7 +33,7 @@ def perturb_tree(tree, depth, skip_root=True, exception_on_fail=False):
     valid_nodes = [
         node
         for node in tree.traverse(strategy="preorder")
-        if not (skip_root and node.is_root()) and depth <= tree_depth(node)
+        if not (skip_root and node.is_root()) and 0 < depth <= tree_depth(node)
     ]
     n = len(valid_nodes)
     if n == 0:
@@ -62,12 +62,15 @@ def tree_depth(node):
     Returns the depth of the tree with the given node as the root. This depth is the
     number of nodes along the longest path from the given node to a leaf node.
     """
-    return node.get_farthest_leaf(topology_only=True)[1] + 1
+    if node.is_leaf():
+        return 1
+    tree_depth = max([get_distance(node,leaf, topology_only=True) + 2 for leaf in node])
+    return tree_depth
 
 
 def edge_distance(node1, node2):
     """Returns the number of edges between the nodes."""
-    return node1.get_distance(node2, topology_only=True) + 1
+    return get_distance(node1, node2, topology_only=True) + 1
 
 
 def is_subtree_depth_tip(root_node, other_node, depth):

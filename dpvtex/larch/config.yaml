@@ -1,0 +1,5 @@
+input_data: "../data/larch-data"
+larch_build: "../../../larch/build"
+output_data: "../data"
+dataset_name: "test-dataset"
+num_cores: 1

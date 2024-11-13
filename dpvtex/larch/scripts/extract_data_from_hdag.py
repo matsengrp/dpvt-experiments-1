@@ -58,8 +58,7 @@ def split(taxon_set, node):
 def root_and_outgroup_leaf(tree, leaf):
     """
     Re-root tree by setting given leaf as root with its only child being the
-    previous root.
-    Args:
+    previous root. Args:
         tree: ete3 tree leaf: leaf in given tree
     """
     tree.set_outgroup(leaf)
@@ -99,13 +98,10 @@ def exists_subset_union(S, C):
     """
     Find if there is a collection S_1, ..., S_k of sets in frozenset S = {S_1,
     ..., S_N} (k <= N) whose union is exactly C. We assume that |S| = |S_1| +
-    ... + |S_N|, i.e. no element is present in more than one S_i
-    Args:
-        S: frozenset containing frozensets
-        C: frozenset
+    ... + |S_N|, i.e. no element is present in more than one S_i Args:
+        S: frozenset containing frozensets C: frozenset
     Returns:
-        True if there are sets S_1, ..., S_k with union C
-        Else otherwise
+        True if there are sets S_1, ..., S_k with union C Else otherwise
     """
     union = set() # we aim to create a union of subsets of S that equals C
     for subset in S:
@@ -128,8 +124,7 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
     supported by dag_clades. `modified_tree' is assumed to be received from
     changing some edges in tree, so that a lot of edges are still shared between
     then two. `tree' is assumed to be extracted from the hdag, and is used to
-    make the label assignment more efficient.
-    Args:
+    make the label assignment more efficient. Args:
         modified_tree: ete3 tree for which we want to get edge label list tree:
         ete3 tree that is mostly identical to modified tree (tree before
             make_worse)
@@ -179,8 +174,7 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
 def get_non_dag_edges(dag, num_children_file, num_trees=0):
     """
     Perturbs trees in tree_list to create num_trees perturbed trees containing
-    edges that are not present in the given dag
-    Args:
+    edges that are not present in the given dag Args:
         tree_list: list of ete trees dag: sequence_dag num_trees: number of
         trees to return. If 0, returns as many trees as
             there are in tree_list
@@ -227,10 +221,10 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0):
                     modified_tree = new_tree
                 # assign edge labels
                 edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
-                tree_to_label_dict[modified_tree] = edge_labels
                 if sum(edge_labels) / len(edge_labels) >= 1 / 6 or i > 100:
                     # note that len(edge_labels) is roughly 2*internal edges
                     done_modifying = True
+            tree_to_label_dict[modified_tree] = edge_labels
     if len(tree_to_label_dict) < num_trees:
         print("Produced ", len(tree_to_label_dict), " trees instead of ", num_trees)
     return tree_to_label_dict
@@ -260,7 +254,7 @@ def main():
     # trim to only MP topologies + convert to sequence_dag
     dag.trim_optimal_weight()
     dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
-    num_topologies = dag.count_topologies()
+    num_topologies = min(dag.count_topologies(), 200) # get at most 200 trees from hdag
 
     tree_label_dict = get_non_dag_edges(dag, num_children_file, num_topologies)
     with open(dpvt_data_file, "wb") as f:

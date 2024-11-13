@@ -7,8 +7,8 @@
 "TenLeafTest": "10leaf_perfect_distinct_trees_test.p",
 "ThirtyLeafTest": "30leaf_perfect_distinct_trees_test.p",
 "ThirtyLeafTrain": "30leaf_perfect_distinct_trees_train.p",
-"harrington_small_train": "larch_harrington-small_2024-06-10_train.p",
-"harrington_small_test": "larch_harrington-small_2024-06-10_test.p",
-"Alisim10leaf_100sites_50algnmnts_test": "larch_alisim_10_seq_100_sites_50_algnmnts_2024-09-27_test.p",
-"Alisim10leaf_100sites_50algnmnts_train": "larch_alisim_10_seq_100_sites_50_algnmnts_2024-09-27_train.p"
+"harrington_subset_train": "larch_harrington-small_2024-06-10_train.p",
+"harrington_subset_test": "larch_harrington-small_2024-06-10_test.p",
+"Alisim10leaf_100sites_50algnmnts_test": "larch_alisim_10_seq_100_sites_50_algnmnts_2024-11-13_test.p",
+"Alisim10leaf_100sites_50algnmnts_train": "larch_alisim_10_seq_100_sites_50_algnmnts_2024-11-13_train.p"
 }

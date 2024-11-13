@@ -12,7 +12,8 @@ dpvt_test_data = sys.argv[3]
 data_props_file = sys.argv[
     4
 ]  # output csv that contains for each dataset the number of MP trees extracted,
-# the number of leaves in those trees, and the length of the corresponding alignment
+# the number of leaves in those trees, and the length of the corresponding
+# alignment
 
 
 # Function to read a .p file and return the length of the dictionary it contains
@@ -56,8 +57,7 @@ for root, dirs, files in os.walk(data_dir):
 
                 all_trees_dict.update(this_alignment_dict)
 
-# split data into training/validation and testing set.
-# We split 80/20
+# split data into training/validation and testing set. We split 80/20
 trees = list(all_trees_dict.keys())
 labels = list(all_trees_dict.values())
 
@@ -66,14 +66,25 @@ labels = list(all_trees_dict.values())
 sum_of_ones = [sum(label) for label in labels]
 counter = Counter(sum_of_ones)
 
-# Convert sums to a categorical variable for balancing number of non-MP edges in train/test/val
+# Convert sums to a categorical variable for balancing number of non-MP edges in
+# train/test/val
 categories = pd.qcut(
     sum_of_ones, q=min(len(counter), 4), labels=False, duplicates="drop"
 )
 
-train_trees, test_trees, train_labels, test_labels = train_test_split(
-    trees, labels, train_size=0.8, stratify=categories
-)
+try:
+    # Attempt to split the data with stratification
+    train_trees, test_trees, train_labels, test_labels = train_test_split(
+        trees, labels, train_size=0.8, stratify=categories
+    )
+except ValueError as e:
+    # If a ValueError occurs (e.g., due to insufficient data for
+    # stratification), print a custom message
+    print(f"Error during train-test split: {e}")
+    print("The dataset is not large enough to split in training and testing data. Increase number of trees extracted from hDAG or even better the number of alignments used.")
+    # Optionally, re-raise the error or handle it further
+    sys.exit("Dataset too small, will not generate training/testing data split.")
+    raise
 
 train_dict = {i: j for (i, j) in zip(train_trees, train_labels)}
 test_dict = {i: j for (i, j) in zip(test_trees, test_labels)}

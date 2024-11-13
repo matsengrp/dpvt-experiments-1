@@ -4,15 +4,14 @@ from collections import deque
 import itertools
 
 
-def get_distance(target, target2=None, topology_only=False):
+def get_distance(target, target2, topology_only=False):
     """
     UPDATED VERSION OF ETE3 BUILT-IN get_distance FUNCTION.
     Returns the distance between two nodes. If only one target is
     specified, it returns the distance between the target and the
     current node.
-    :argument target: a node within the same tree structure.
-    :argument target2: a node within the same tree structure. If
-        not specified, current node is used as target2.
+    :argument target: node in ete3 Tree
+    :argument target2: node in same ete3 as target
     :argument False topology_only: If set to True, distance will
         refer to the number of nodes between target and target2.
     :returns: branch length distance between target and

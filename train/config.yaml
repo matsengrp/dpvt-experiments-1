@@ -1,10 +1,4 @@
-models:
-  [
-    "TransformerEncoderTraversal",
-    "TraverseNN",
-    "TraverseMaxPooling",
-    "TraverseAvgPooling",
-  ]
+models: ["TraverseNN", "TraverseMaxPooling", "TraverseAvgPooling"]
 train_data: [
     "FourLeafTrain",
     "FourLeafFourSiteTrain",
@@ -17,3 +11,4 @@ test_data: [
     # "TenLeafTest",
     # "ThirtyLeafTest",
   ]
+device: "cpu"

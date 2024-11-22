@@ -21,10 +21,9 @@ configfile: config_path
 model_names = config["models"]
 train_data_names = config["train_data"]
 test_data_names = config["test_data"]
-
+device = config["device"]
 
 data_pairs = list(zip(train_data_names, test_data_names))
-
 
 def generate_tested_model_ckpts(model_names, data_pairs):
     return [
@@ -45,7 +44,6 @@ def tested_model_ckpt(model, train_data, test_data):
 def best_model_params(model, data):
     return f"{best_model_params_path(model, data)}.json"
 
-
 rule all:
     input:
         generate_tested_model_ckpts(model_names, data_pairs),
@@ -53,31 +51,39 @@ rule all:
 
 rule train_models:
     input:
-        best_model_params("{model_name}", "{train_data_name}"),
+        hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
     output:
         trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
+    benchmark:
+        "benchmarks/train_model/{model_name}_{train_data_name}_" + device + ".tsv"
     run:
         train_model(
             wildcards.model_name,
             wildcards.train_data_name,
             output.trained_model,
+            device,
+            input.hyperparameter_path,
+            profiling=False,
         )
 
 
 rule test_models:
     input:
         trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
+        hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
     output:
         tested_model=tested_model_ckpt(
             "{model_name}", "{train_data_name}", "{test_data_name}"
         ),
     run:
         test_model(
-            wildcards.model_name,
-            wildcards.train_data_name,
-            input.trained_model,
-            wildcards.test_data_name,
-            output.tested_model,
+            trained_model_name=wildcards.model_name,
+            train_data_name=wildcards.train_data_name,
+            trained_model_ckpt=input.trained_model,
+            test_data_name=wildcards.test_data_name,
+            test_checkpoint=output.tested_model,
+            device=device,
+            hyperparameter_path=input.hyperparameter_path,
         )
 
 
@@ -86,5 +92,8 @@ rule hyperparameter_optimization:
         best_model_params=best_model_params("{model_name}", "{train_data_name}"),
     run:
         optimize_hyperparameters(
-            wildcards.model_name, wildcards.train_data_name, output.best_model_params
+            wildcards.model_name,
+            wildcards.train_data_name,
+            output.best_model_params,
+            device,
         )

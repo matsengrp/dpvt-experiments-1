@@ -74,7 +74,6 @@ We have four different models:
 - `TraverseNN`
 - `TraverseAvgPooling`
 - `TraverseMaxPooling`
-- `TransformerEncoderTraversal`
 
 Details about these models can be found in
 [dpvt](https://github.com/matsengrp/dpvt)
@@ -124,7 +123,6 @@ performance of classification on the test set.
   for training are specified.
 - `dpvtex`: contains `dpvt_data.py`, which implements functions to get datasets
   for a given nickname and `dpvt_zoo.py`, which creates models for a given
-<<<<<<< HEAD
   nickname. The mapping from nicknames to file paths is provided in
   `dataset_dict.json` and nicknames for datasets are given to the `Snakefile` in
   `config.yaml`.
@@ -133,7 +131,6 @@ performance of classification on the test set.
   code for creating datasets for training and testing dpvt models (See _Training
   Data_).
 
-<<<<<<< HEAD
 
 ## Training Data
 
@@ -194,9 +191,3 @@ trees for a given alignment. We set up a pipeline that uses larch to create such
 trees and then perturbs them to create training and testing sets for dpvt. We
 describe how to do this in more detail in this
 [README.md](dpvtex/larch/README.md)
-=======
->>>>>>> explanation for perfect phylogenies data generation in separate README
-=======
-  nickname. These nicknames are provided to the `Snakefile` in `config.yaml`.
-
->>>>>>> update README

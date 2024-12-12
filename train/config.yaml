@@ -13,4 +13,4 @@ test_data: [
     # "ThirtyLeafTest",
   ]
 device: "cpu"
-n_optimization_trials: "10"
+n_hyperparameter_trials: "10"

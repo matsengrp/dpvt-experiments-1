@@ -295,18 +295,14 @@ def aggregate_data_to_csv(
   train_log_path = get_lightning_log_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=None, version=version)
   test_log_path = get_lightning_log_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=test_data_name, version=version)
 
-  log_dfs = {}
-  log_dfs['log_train'] = get_df_from_log(f'{train_log_path}')
-  log_dfs['log_test'] = get_df_from_log(f'{test_log_path}')
-
   # fetch training stats
-  df = log_dfs['log_train']
+  df = get_df_from_log(f'{train_log_path}')
   train_walltime = df[df.tag == 'train_wall_time'].value.iloc[0]
   train_epochs = df[df.tag == 'train_final_epoch'].value.iloc[0]
-  # train_steps = df[df.tag == 'train_final_step'].value.iloc[0]
+  train_steps = df[df.tag == 'train_final_step'].value.iloc[0]
 
   # fetch testing stats
-  df = log_dfs['log_test']
+  df = get_df_from_log(f'{test_log_path}')
   test_auroc = df[df.tag == 'test_auroc'].value.iloc[0]
   test_loss = df[df.tag == 'test_loss'].value.iloc[0]
 
@@ -326,7 +322,7 @@ def aggregate_data_to_csv(
     'feature_length': [opt_hyperparams['feature_length']],
     'dim_mlp_layers': [opt_hyperparams['dim_mlp_layers']],
     # number of training steps, epochs
-    'train_steps': [-1],
+    'train_steps': [train_steps],
     'train_epochs': [train_epochs],
     # test auroc
     'test_auroc': [test_auroc],
@@ -378,7 +374,7 @@ class CustomCallback(Callback):
         trainer.logger.log_metrics({f"{prefix}_stopped_early": stopped_early})
         trainer.logger.log_metrics({f"{prefix}_final_step": self.total_steps[prefix]})
 
-    def log_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx, prefix=""):
+    def log_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, prefix=""):
         self.total_steps[prefix] += 1
 
     # hooks
@@ -389,5 +385,5 @@ class CustomCallback(Callback):
     def on_train_end(self, trainer, pl_module):
         self.log_end(trainer, pl_module, "train")
 
-    # def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
-    #     self.log_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx, "train")
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        self.log_batch_end(trainer, pl_module, outputs, batch, batch_idx, "train")

@@ -6,6 +6,11 @@ from dpvtex.dpvt_data import (
 )
 import json
 import torch
+import os
+import tbparse
+import pandas as pd
+import time
+
 
 from lightning.pytorch.callbacks import Callback
 
@@ -59,17 +64,15 @@ def best_model_params_path(model_name, data_name):
 
 
 def csv_log_path(model_name, train_data_name, test_data_name=None, device=None, date=str(todays_date)):
-    path = f"result_csvs/{device}_{date}"
+    path = f"result_csvs_and_pdfs/{device}_{date}"
     return f"{path}/{model_str(model_name, train_data_name, test_data_name)}.csv"
 
 
-def generate_csv_log_paths(model_names, data_pairs, device=None, date=str(todays_date)):
+def generate_csv_log_paths(model_names, data_pairs, device, date=str(todays_date)):
     csv_log_paths = []
     for model_name in model_names:
         for train_data_name,test_data_name in data_pairs:
-            # csv_log_paths.append(csv_log_path(model_name, train_data_name, device=device, date=date))
             csv_log_paths.append(csv_log_path(model_name, train_data_name, test_data_name=test_data_name, device=device, date=date))
-    print(f'CSV_LOG_PATHS:\n{csv_log_paths}')
     return csv_log_paths
 
 
@@ -109,7 +112,7 @@ def train_model(
         feature_length=feature_length,
         dim_mlp_layers=dim_mlp_layers,
         hyperparameter_path=hyperparameter_path,
-        added_callbacks=[TimerCallback()],
+        added_callbacks=[CustomCallback()],
         timestamp=timestamp,
         **wrap_params,
     )
@@ -232,9 +235,6 @@ def test_model(
     # evaluate model
     test_wrap.test(trained_model_ckpt, test_checkpoint)
 
-import os
-import tbparse
-import pandas as pd
 
 # get lightning logs from training and testing
 def get_lightning_log_path(model_name, train_data_name, device, timestamp, root_dir, test_data_name=None, version=None):
@@ -296,18 +296,8 @@ def aggregate_data_to_csv(
   test_log_path = get_lightning_log_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=test_data_name, version=version)
 
   log_dfs = {}
-  log_dfs['log_hyperparam'] = get_df_from_log(f'{hyperparam_log_path}')
   log_dfs['log_train'] = get_df_from_log(f'{train_log_path}')
   log_dfs['log_test'] = get_df_from_log(f'{test_log_path}')
-
-  # for key,df in log_dfs.items():
-  #   print('KEY:', key)
-  #   print(set(df.tag))
-  #   for tag in set(df.tag):
-  #       tag_df = df[df.tag == tag]
-  #       print(f'{tag}: {len(tag_df)}')
-  #       print(f'max_step: {max(set(tag_df.step))}')
-  #       print(f'max_value: {max(set(tag_df.value))}')
 
   # fetch training stats
   df = log_dfs['log_train']
@@ -357,7 +347,7 @@ def aggregate_data_to_csv(
   df_row.to_csv(csv_outpath, index=False)
 
   # append row to final file
-  csv_final_outpath = 'result_csvs/FINAL.csv'
+  csv_final_outpath = 'result_csvs_and_pdfs/FINAL.csv'
   print(f"csv_final_outpath: {csv_final_outpath}")
   if os.path.exists(csv_final_outpath):
       final_df = pd.read_csv(csv_final_outpath)
@@ -367,9 +357,8 @@ def aggregate_data_to_csv(
       df_row.to_csv(csv_final_outpath, index=False)
   return
 
-import time
 
-class TimerCallback(Callback):
+class CustomCallback(Callback):
     """
     Callback for logging hyperparameters, total_epochs, number_of_steps, auroc, runtimes
     """
@@ -399,3 +388,6 @@ class TimerCallback(Callback):
 
     def on_train_end(self, trainer, pl_module):
         self.log_end(trainer, pl_module, "train")
+
+    # def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    #     self.log_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx, "train")

@@ -171,6 +171,7 @@ hyper_checkpoints/
 
 # snakemake workflow
 .snakemake
+result_csvs_and_pdfs
 
 # datafiles
 *.fasta
@@ -192,6 +193,3 @@ hyper_checkpoints/
 
 # soft-linked data folder
 data
-
-# temporary folders
-_temp*/

@@ -1,4 +1,5 @@
 models: ["TraverseNN", "TraverseMaxPooling", "TraverseAvgPooling"]
+# models: ["TraverseNN"]
 train_data: [
     "FourLeafTrain",
     "FourLeafFourSiteTrain",

@@ -189,3 +189,9 @@ hyper_checkpoints/
 *.nex
 *.pdf
 *.ckpt
+
+# soft-linked data folder
+data
+
+# temporary folders
+_temp*/

@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime
 
 snakefile_dir = workflow.basedir
 sys.path.append(snakefile_dir + "/..")
@@ -10,13 +11,24 @@ from dpvtex.dpvt_zoo import (
     tested_model_path,
     best_model_params_path,
     optimize_hyperparameters,
+    lightning_log_path,
+    csv_log_path,
+    generate_csv_log_paths,
+    aggregate_data_to_csv
 )
 
+default_config = {
+  'models': None,
+  'train_data_names': None,
+  'test_data_names': None,
+  'device': 'cpu',
+  'n_optimization_trials': 10,
+  'n_optimization_epochs_per_trial': 50,
+  'timestamp': datetime.now().strftime("%Y-%m-%d")
+}
+
 config_path = os.path.join(snakefile_dir, "config.yaml")
-
-
 configfile: config_path
-
 
 model_names = config["models"]
 train_data_names = config["train_data"]
@@ -24,13 +36,17 @@ test_data_names = config["test_data"]
 device = config["device"]
 
 data_pairs = list(zip(train_data_names, test_data_names))
+print(f'DATA_PAIRS:\n{data_pairs}')
+
 
 def generate_tested_model_ckpts(model_names, data_pairs):
-    return [
+    tested_model_ckpts = [
         tested_model_ckpt(model_name, train_data_name, test_data_name)
         for model_name in model_names
         for train_data_name, test_data_name in data_pairs
     ]
+    # print(f'TESTED_MODEL_CKPTS:\n{tested_model_ckpts}')
+    return tested_model_ckpts
 
 
 def trained_model_ckpt(model, data):
@@ -44,9 +60,11 @@ def tested_model_ckpt(model, train_data, test_data):
 def best_model_params(model, data):
     return f"{best_model_params_path(model, data)}.json"
 
+
 rule all:
     input:
         generate_tested_model_ckpts(model_names, data_pairs),
+        generate_csv_log_paths(model_names, data_pairs, device=device, date="TODAY")
 
 
 rule train_models:
@@ -92,8 +110,31 @@ rule hyperparameter_optimization:
         best_model_params=best_model_params("{model_name}", "{train_data_name}"),
     run:
         optimize_hyperparameters(
-            wildcards.model_name,
-            wildcards.train_data_name,
-            output.best_model_params,
-            device,
+            model_name=wildcards.model_name,
+            data_name=wildcards.train_data_name,
+            best_model_hparams_filepath=output.best_model_params,
+            device=device,
+            profiling=False,
+            n_trials=
         )
+
+rule create_csvs_and_pdfs:
+    input:
+        tested_model=tested_model_ckpt("{model_name}", "{train_data_name}", "{test_data_name}"),
+        trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
+        hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
+    output:
+        csv_path=csv_log_path("{model_name}", "{train_data_name}", test_data_name="{test_data_name}", device="{device}", date="TODAY"),
+    run:
+        aggregate_data_to_csv(
+          trained_model_name=wildcards.model_name,
+          train_data_name=wildcards.train_data_name,
+          trained_model_ckpt=input.trained_model,
+          test_data_name=wildcards.test_data_name,
+          test_checkpoint=input.tested_model,
+          device=device,
+          hyperparameter_path=input.hyperparameter_path,
+          lightning_log_path="lightning_logs/{device}_{timestamp}/version_0",
+          csv_outpath=output.csv_path,
+        )
+

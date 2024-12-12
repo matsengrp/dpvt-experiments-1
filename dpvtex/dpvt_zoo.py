@@ -46,6 +46,27 @@ def best_model_params_path(model_name, data_name):
     return f"hyper_checkpoints/{trained_model_str(model_name, data_name)}"
 
 
+def lightning_log_path(device, model_name, data_name, date="TIMESTAMP"):
+    return f"lightning_logs/{device}_{date}/{trained_model_str(model_name, data_name)}"
+
+
+def csv_log_path(model_name, train_data_name, test_data_name=None, device=None, date="TIMESTAMP"):
+    dir_path = f"csvs/{device}_{date}"
+    if test_data_name:
+        return f"{dir_path}/{tested_model_str(model_name, train_data_name, test_data_name)}"
+    return f"{dir_path}/{trained_model_str(model_name, train_data_name)}.csv"
+
+
+def generate_csv_log_paths(model_names, data_pairs, device=None, date="TIMESTAMP"):
+    csv_log_paths = []
+    for model_name in model_names:
+        for train_data_name,test_data_name in data_pairs:
+            # csv_log_paths.append(csv_log_path(model_name, train_data_name, device=device, date=date))
+            csv_log_paths.append(csv_log_path(model_name, train_data_name, test_data_name=test_data_name, device=device, date=date))
+    print(f'CSV_LOG_PATHS:\n{csv_log_paths}')
+    return csv_log_paths
+
+
 def train_model(
     model_name,
     data_name,
@@ -138,7 +159,12 @@ def continue_train_model(
 
 
 def optimize_hyperparameters(
-    model_name, data_name, best_model_hparams_filepath, device, profiling=False
+    model_name,
+    data_name,
+    best_model_hparams_filepath,
+    device,
+    profiling=False,
+    n_trials=100
 ):
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
     model = get_model(model_name)
@@ -150,7 +176,7 @@ def optimize_hyperparameters(
         model_str,
         profiling=profiling,
         device=device,
-        n_trials=100,
+        n_trials=n_trials,
     )
     hyper_wrap.optuna_optimize(best_model_hparams_filepath)
     return model
@@ -195,3 +221,41 @@ def test_model(
 
     # evaluate model
     test_wrap.test(trained_model_ckpt, test_checkpoint)
+
+def aggregate_data_to_csv(
+    trained_model_name,
+    train_data_name,
+    trained_model_ckpt,
+    test_data_name,
+    test_checkpoint,
+    device,
+    hyperparameter_path,
+    lightning_log_path,
+    csv_outpath
+):
+  """
+  Aggregate result data in a CSV entry.
+  """
+
+  import numpy as np
+  import pandas as pd
+  import tbparse
+
+  print("aggregate data [BEGIN]")
+
+  with open(hyperparameter_path) as f:
+      best_hyperparams = json.load(f)
+  print(f"best_hyperparams:\n{best_hyperparams}")
+  print(f"csv_outpath: {csv_outpath}")
+
+  df = pd.DataFrame({
+    'model': [trained_model_name],
+    'train_data': [train_data_name],
+    'test_data': [test_data_name],
+    'learning_rate': [best_hyperparams['learning_rate']],
+    'batch_size': [best_hyperparams['batch_size']],
+    'accum_grad_batches': [best_hyperparams['accum_grad_batches']]
+  })
+
+  print("aggregate data [END]")
+  return

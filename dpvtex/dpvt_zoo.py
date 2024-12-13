@@ -480,6 +480,8 @@ class CustomCallback(Callback):
     def log_start(self, trainer, pl_module, prefix=""):
         self.total_steps = 0
         self.start_time[prefix] = time.time()
+        self.total_epoch_loss = 0
+        self.total_epoch_measures = 0
 
     def log_end(self, trainer, pl_module, prefix=""):
         total_time = time.time() - self.start_time[prefix]
@@ -493,6 +495,8 @@ class CustomCallback(Callback):
         self.total_steps += 1
         loss = outputs["loss"] if "loss" in outputs else None
         if loss is not None:
+            self.total_epoch_measures += 1
+            self.total_epoch_loss += loss
             self.writer.add_scalar(
                 "loss_per_batch",
                 loss,
@@ -507,6 +511,21 @@ class CustomCallback(Callback):
         )
 
     def log_epoch_end(self, trainer, pl_module, prefix=""):
+        avg_loss = self.total_epoch_loss / self.total_epoch_measures
+        self.writer.add_scalar(
+            "avgloss_per_epoch",
+            avg_loss,
+            trainer.current_epoch,
+            walltime=(time.time() - self.start_time[prefix]),
+        )
+        self.writer.add_scalar(
+            "walltime_per_epoch",
+            (time.time() - self.start_time[prefix]),
+            trainer.current_epoch,
+            walltime=(time.time() - self.start_time[prefix]),
+        )
+        self.total_epoch_steps = 0
+        self.total_epoch_loss = 0
         pass
 
     def close(self):

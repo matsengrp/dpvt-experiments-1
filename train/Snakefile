@@ -41,7 +41,7 @@ test_data_names = config["test_data"]
 device = config["device"]
 timestamp=config["timestamp"]
 n_hyperparameter_trials = int(config["n_hyperparameter_trials"])
-notebook_input_path = 'plot_final_csv.in.ipynb'
+notebook_input_path = 'plot_final_csv.input.ipynb'
 notebook_output_path = 'result_csvs_and_pdfs/plot_final_csv.ipynb'
 
 data_pairs = list(zip(train_data_names, test_data_names))

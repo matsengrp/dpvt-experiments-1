@@ -10,6 +10,7 @@ import os
 import tbparse
 import pandas as pd
 import time
+from datetime import datetime
 
 
 from lightning.pytorch.callbacks import Callback
@@ -20,12 +21,11 @@ from pytorch_lightning import seed_everything
 # seed_everything(42, workers=True)
 torch.set_default_dtype(torch.float64)  # Set default to float64 for higher precision
 
-from datetime import datetime
 
 todays_date = datetime.now().strftime("%Y-%m-%d")
 
 
-def get_model(model_name):
+def model(model_name):
     if model_name == "TraverseNN":
         model = models.TraverseNN
     elif model_name == "TraverseMaxPooling":
@@ -98,7 +98,7 @@ def train_model(
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
-    model = get_model(model_name)
+    model = model(model_name)
     model_str = trained_model_str(model_name, data_name)
     wrap = Wrap(
         train_data,
@@ -141,7 +141,7 @@ def continue_train_model(
         train_checkpoint = trained_model_path(model_name, data_name) + ".ckpt"
     # load trained model
     try:
-        model = get_model(model_name).load_from_checkpoint(train_checkpoint)
+        model = model(model_name).load_from_checkpoint(train_checkpoint)
     except FileNotFoundError as e:
         raise ValueError(
             f"Model {model_name} trained on data {data_name} does not have saved checkpoint."
@@ -179,7 +179,7 @@ def optimize_hyperparameters(
     n_trials=100
 ):
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
-    model = get_model(model_name)
+    model = model(model_name)
     model_str = trained_model_str(model_name, data_name)
     hyper_wrap = HyperWrap(
         model,
@@ -213,7 +213,7 @@ def test_model(
     """
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
-    model = get_model(trained_model_name)
+    model = model(trained_model_name)
     with open(hyperparameter_path, "r") as f:
         hparams = json.load(f)
     model.load_from_checkpoint(trained_model_ckpt, learning_rate = hparams["learning_rate"], feature_length = hparams["feature_length"], dim_mlp_layers = hparams["dim_mlp_layers"])
@@ -237,19 +237,19 @@ def test_model(
 
 
 # get lightning logs from training and testing
-def get_lightning_log_path(model_name, train_data_name, device, timestamp, root_dir, test_data_name=None, version=None):
+def lightning_log_path(model_name, train_data_name, device, timestamp, root_dir, test_data_name=None, version=None):
     path = f'{root_dir}/lightning_logs/{device}_{timestamp}/{model_str(model_name, train_data_name, test_data_name)}'
     path = append_version_to_path(path, version)
     return path
 
 # get lightning logs from hyperparameter optimization
-def get_hyperparam_log_path(model_name, train_data_name, device, timestamp, root_dir, test_data_name=None, version=None):
+def hyperparam_log_path(model_name, train_data_name, device, timestamp, root_dir, test_data_name=None, version=None):
     path = f'{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name)}'
     path = append_version_to_path(path, version)
     return path
 
 # get json of hyperparameters
-def get_hyperparam_json_path(model_name, train_data_name, device, timestamp, root_dir, test_data_name=None, version=None):
+def hyperparam_json_path(model_name, train_data_name, device, timestamp, root_dir, test_data_name=None, version=None):
     path = f'{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name)}.json'
     path = append_version_to_path(path, version)
     return path
@@ -285,15 +285,14 @@ def aggregate_data_to_csv(
   # fetch hyperparams
   with open(hyperparameter_path) as f:
       opt_hyperparams = json.load(f)
-  # print(f"best_hyperparams:\n{opt_hyperparams}")
 
   # fetch logs
   root_dir = '.'
   version = 'version_0'
-  hyperparam_json_path = get_hyperparam_json_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=None, version=version)
-  hyperparam_log_path = get_hyperparam_log_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=None, version=version)
-  train_log_path = get_lightning_log_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=None, version=version)
-  test_log_path = get_lightning_log_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=test_data_name, version=version)
+  hyperparam_json_path = hyperparam_json_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=None, version=version)
+  hyperparam_log_path = hyperparam_log_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=None, version=version)
+  train_log_path = lightning_log_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=None, version=version)
+  test_log_path = lightning_log_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=test_data_name, version=version)
 
   # fetch training stats
   df = get_df_from_log(f'{train_log_path}')
@@ -338,13 +337,8 @@ def aggregate_data_to_csv(
     'tested_model_ckpt_path': [tested_model_ckpt],
   })
 
-  # output single row to file
-  print(f"csv_outpath: {csv_outpath}")
-  df_row.to_csv(csv_outpath, index=False)
-
   # append row to final file
   csv_final_outpath = 'result_csvs_and_pdfs/FINAL.csv'
-  print(f"csv_final_outpath: {csv_final_outpath}")
   if os.path.exists(csv_final_outpath):
       final_df = pd.read_csv(csv_final_outpath)
       final_df = pd.concat([final_df, df_row], ignore_index=True)

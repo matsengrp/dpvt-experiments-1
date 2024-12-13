@@ -280,7 +280,7 @@ def hyperparameter_log_path(
     test_data_name=None,
     version=None,
 ):
-    path = f"{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name)}"
+    path = f"{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name, test_data_name)}"
     path = append_version_to_path(path, version)
     return path
 
@@ -295,7 +295,7 @@ def summary_log_path(
     test_data_name=None,
     version=None,
 ):
-    path = f"{root_dir}/summary_logs/{model_str(model_name, train_data_name)}"
+    path = f"{root_dir}/summary_logs/{model_str(model_name, train_data_name, test_data_name)}"
     return path
 
 
@@ -309,7 +309,7 @@ def hyperparameter_json_path(
     test_data_name=None,
     version=None,
 ):
-    path = f"{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name)}.json"
+    path = f"{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name, test_data_name)}.json"
     path = append_version_to_path(path, version)
     return path
 
@@ -385,10 +385,19 @@ def aggregate_data_to_csv(
         test_data_name=test_data_name,
         version=version,
     )
+    sum_log_path = summary_log_path(
+        model_name,
+        train_data_name,
+        device,
+        timestamp,
+        root_dir=root_dir,
+        test_data_name=None,
+        version=version,
+    )
 
     # fetch training stats
     df = get_df_from_log(f"{train_log_path}")
-    train_walltime = df[df.tag == "train_wall_time"].value.iloc[0]
+    train_walltime = df[df.tag == "train_final_walltime"].value.iloc[0]
     train_epochs = df[df.tag == "train_final_epoch"].value.iloc[0]
     train_steps = df[df.tag == "train_final_step"].value.iloc[0]
     train_stopped_early = df[df.tag == "train_stopped_early"].value.iloc[0]
@@ -428,6 +437,7 @@ def aggregate_data_to_csv(
             "hyperparam_log_path": [hyperparam_log_path],
             "train_log_path": [train_log_path],
             "test_log_path": [test_log_path],
+            "summary_log_path": [sum_log_path],
             "trained_model_ckpt_path": [trained_model_ckpt],
             "tested_model_ckpt_path": [tested_model_ckpt],
         }
@@ -466,28 +476,31 @@ class CustomCallback(Callback):
         self.start_time = {}
 
     def log_start(self, trainer, pl_module, prefix=""):
+        self.total_steps = 0
         self.start_time[prefix] = time.time()
 
     def log_end(self, trainer, pl_module, prefix=""):
         total_time = time.time() - self.start_time[prefix]
-        trainer.logger.log_metrics({f"{prefix}_wall_time": total_time})
+        trainer.logger.log_metrics({f"{prefix}_final_walltime": total_time})
         trainer.logger.log_metrics({f"{prefix}_final_epoch": trainer.current_epoch})
-        trainer.logger.log_metrics({f"{prefix}_final_step": trainer.global_step})
+        trainer.logger.log_metrics({f"{prefix}_final_step": self.total_steps})
         stopped_early = trainer.current_epoch + 1 < trainer.max_epochs
         trainer.logger.log_metrics({f"{prefix}_stopped_early": stopped_early})
 
     def log_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, prefix=""):
+        self.total_steps += 1
         loss = outputs['loss'] if 'loss' in outputs else None
         if loss is not None:
             self.writer.add_scalar(
-                'Loss per Batch',
-                trainer.global_step,
-
-                loss
+                'loss_per_batch',
+                loss,
+                self.total_steps,
+                walltime=(time.time() - self.start_time[prefix]),
             )
         self.writer.add_scalar(
-            'Walltime per Batch',
-            trainer.global_step,
+            'walltime_per_batch',
+            (time.time() - self.start_time[prefix]),
+            self.total_steps,
             walltime=(time.time() - self.start_time[prefix]),
         )
 

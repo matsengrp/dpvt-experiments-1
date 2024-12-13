@@ -469,10 +469,12 @@ class CustomCallback(Callback):
     Callback for logging hyperparameters, total_epochs, number_of_steps, auroc, runtimes
     """
 
-    def __init__(self, name="model-traindata-ON-testdata", summary_log_dir="summary_logs"):
+    def __init__(
+        self, name="model-traindata-ON-testdata", summary_log_dir="summary_logs"
+    ):
         self.name = name
         self.summary_log_dir = summary_log_dir
-        self.writer = SummaryWriter(f'{summary_log_dir}/{name}')
+        self.writer = SummaryWriter(f"{summary_log_dir}/{name}")
         self.start_time = {}
 
     def log_start(self, trainer, pl_module, prefix=""):
@@ -489,16 +491,16 @@ class CustomCallback(Callback):
 
     def log_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, prefix=""):
         self.total_steps += 1
-        loss = outputs['loss'] if 'loss' in outputs else None
+        loss = outputs["loss"] if "loss" in outputs else None
         if loss is not None:
             self.writer.add_scalar(
-                'loss_per_batch',
+                "loss_per_batch",
                 loss,
                 self.total_steps,
                 walltime=(time.time() - self.start_time[prefix]),
             )
         self.writer.add_scalar(
-            'walltime_per_batch',
+            "walltime_per_batch",
             (time.time() - self.start_time[prefix]),
             self.total_steps,
             walltime=(time.time() - self.start_time[prefix]),

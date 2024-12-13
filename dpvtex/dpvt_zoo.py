@@ -14,6 +14,7 @@ from datetime import datetime
 
 
 from lightning.pytorch.callbacks import Callback
+from torch.utils.tensorboard import SummaryWriter
 
 torch.set_num_threads(1)
 from pytorch_lightning import seed_everything
@@ -25,7 +26,7 @@ torch.set_default_dtype(torch.float64)  # Set default to float64 for higher prec
 todays_date = datetime.now().strftime("%Y-%m-%d")
 
 
-def model(model_name):
+def build_model(model_name):
     if model_name == "TraverseNN":
         model = models.TraverseNN
     elif model_name == "TraverseMaxPooling":
@@ -108,7 +109,7 @@ def train_model(
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
-    model = model(model_name)
+    model = build_model(model_name)
     model_str = trained_model_str(model_name, data_name)
     wrap = Wrap(
         train_data,
@@ -122,7 +123,7 @@ def train_model(
         feature_length=feature_length,
         dim_mlp_layers=dim_mlp_layers,
         hyperparameter_path=hyperparameter_path,
-        added_callbacks=[CustomCallback()],
+        added_callbacks=[CustomCallback(name=model_str)],
         timestamp=timestamp,
         **wrap_params,
     )
@@ -151,7 +152,7 @@ def continue_train_model(
         train_checkpoint = trained_model_path(model_name, data_name) + ".ckpt"
     # load trained model
     try:
-        model = model(model_name).load_from_checkpoint(train_checkpoint)
+        model = build_model(model_name).load_from_checkpoint(train_checkpoint)
     except FileNotFoundError as e:
         raise ValueError(
             f"Model {model_name} trained on data {data_name} does not have saved checkpoint."
@@ -189,7 +190,7 @@ def optimize_hyperparameters(
     n_trials=100,
 ):
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
-    model = model(model_name)
+    model = build_model(model_name)
     model_str = trained_model_str(model_name, data_name)
     hyper_wrap = HyperWrap(
         model,
@@ -214,6 +215,7 @@ def test_model(
     device,
     hyperparameter_path,
     accum_grad_batches=1,
+    timestamp=str(todays_date),
     **wrap_kwargs,
 ):
     """
@@ -223,7 +225,7 @@ def test_model(
     """
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
-    model = model(trained_model_name)
+    model = build_model(trained_model_name)
     with open(hyperparameter_path, "r") as f:
         hparams = json.load(f)
     model.load_from_checkpoint(
@@ -244,6 +246,8 @@ def test_model(
         device=device,
         accum_grad_batches=accum_grad_batches,
         hyperparameter_path=hyperparameter_path,
+        added_callbacks=[CustomCallback(name=model_str)],
+        timestamp=timestamp,
         **wrap_params,
     )
 
@@ -278,6 +282,20 @@ def hyperparameter_log_path(
 ):
     path = f"{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name)}"
     path = append_version_to_path(path, version)
+    return path
+
+
+# get summary_writer logs from training and testing
+def summary_log_path(
+    model_name,
+    train_data_name,
+    device,
+    timestamp,
+    root_dir,
+    test_data_name=None,
+    version=None,
+):
+    path = f"{root_dir}/summary_logs/{model_str(model_name, train_data_name)}"
     return path
 
 
@@ -373,6 +391,7 @@ def aggregate_data_to_csv(
     train_walltime = df[df.tag == "train_wall_time"].value.iloc[0]
     train_epochs = df[df.tag == "train_final_epoch"].value.iloc[0]
     train_steps = df[df.tag == "train_final_step"].value.iloc[0]
+    train_stopped_early = df[df.tag == "train_stopped_early"].value.iloc[0]
 
     # fetch testing stats
     df = get_df_from_log(f"{test_log_path}")
@@ -398,6 +417,7 @@ def aggregate_data_to_csv(
             # number of training steps, epochs
             "train_steps": [train_steps],
             "train_epochs": [train_epochs],
+            "train_stopped_early": [train_stopped_early],
             # test auroc
             "test_auroc": [test_auroc],
             "test_loss": [test_loss],
@@ -439,24 +459,43 @@ class CustomCallback(Callback):
     Callback for logging hyperparameters, total_epochs, number_of_steps, auroc, runtimes
     """
 
-    def __init__(self):
+    def __init__(self, name="model-traindata-ON-testdata", summary_log_dir="summary_logs"):
+        self.name = name
+        self.summary_log_dir = summary_log_dir
+        self.writer = SummaryWriter(f'{summary_log_dir}/{name}')
         self.start_time = {}
-        self.total_steps = {}
 
     def log_start(self, trainer, pl_module, prefix=""):
         self.start_time[prefix] = time.time()
-        self.total_steps[prefix] = 0
 
     def log_end(self, trainer, pl_module, prefix=""):
         total_time = time.time() - self.start_time[prefix]
         trainer.logger.log_metrics({f"{prefix}_wall_time": total_time})
         trainer.logger.log_metrics({f"{prefix}_final_epoch": trainer.current_epoch})
+        trainer.logger.log_metrics({f"{prefix}_final_step": trainer.global_step})
         stopped_early = trainer.current_epoch + 1 < trainer.max_epochs
         trainer.logger.log_metrics({f"{prefix}_stopped_early": stopped_early})
-        trainer.logger.log_metrics({f"{prefix}_final_step": self.total_steps[prefix]})
 
     def log_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, prefix=""):
-        self.total_steps[prefix] += 1
+        loss = outputs['loss'] if 'loss' in outputs else None
+        if loss is not None:
+            self.writer.add_scalar(
+                'Loss per Batch',
+                trainer.global_step,
+
+                loss
+            )
+        self.writer.add_scalar(
+            'Walltime per Batch',
+            trainer.global_step,
+            walltime=(time.time() - self.start_time[prefix]),
+        )
+
+    def log_epoch_end(self, trainer, pl_module, prefix=""):
+        pass
+
+    def close(self):
+        self.writer.close()
 
     # hooks
 
@@ -465,6 +504,10 @@ class CustomCallback(Callback):
 
     def on_train_end(self, trainer, pl_module):
         self.log_end(trainer, pl_module, "train")
+        self.close()
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         self.log_batch_end(trainer, pl_module, outputs, batch, batch_idx, "train")
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        self.log_epoch_end(trainer, pl_module, "train")

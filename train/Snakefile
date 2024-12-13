@@ -91,6 +91,7 @@ rule train_models:
             device,
             input.hyperparameter_path,
             profiling=False,
+            timestamp=timestamp,
         )
 
 
@@ -111,6 +112,7 @@ rule test_models:
             test_checkpoint=output.tested_model,
             device=device,
             hyperparameter_path=input.hyperparameter_path,
+            timestamp=timestamp,
         )
 
 

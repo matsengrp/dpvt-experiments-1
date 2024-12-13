@@ -63,7 +63,9 @@ def best_model_params_path(model_name, data_name):
     return f"hyper_checkpoints/{trained_model_str(model_name, data_name)}"
 
 
-def csv_log_path(model_name, train_data_name, test_data_name=None, device=None, date=str(todays_date)):
+def csv_log_path(
+    model_name, train_data_name, test_data_name=None, device=None, date=str(todays_date)
+):
     path = f"result_csvs_and_pdfs/{device}_{date}"
     return f"{path}/{model_str(model_name, train_data_name, test_data_name)}.csv"
 
@@ -71,8 +73,16 @@ def csv_log_path(model_name, train_data_name, test_data_name=None, device=None, 
 def generate_csv_log_paths(model_names, data_pairs, device, date=str(todays_date)):
     csv_log_paths = []
     for model_name in model_names:
-        for train_data_name,test_data_name in data_pairs:
-            csv_log_paths.append(csv_log_path(model_name, train_data_name, test_data_name=test_data_name, device=device, date=date))
+        for train_data_name, test_data_name in data_pairs:
+            csv_log_paths.append(
+                csv_log_path(
+                    model_name,
+                    train_data_name,
+                    test_data_name=test_data_name,
+                    device=device,
+                    date=date,
+                )
+            )
     return csv_log_paths
 
 
@@ -176,7 +186,7 @@ def optimize_hyperparameters(
     best_model_hparams_filepath,
     device,
     profiling=False,
-    n_trials=100
+    n_trials=100,
 ):
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
     model = model(model_name)
@@ -216,7 +226,12 @@ def test_model(
     model = model(trained_model_name)
     with open(hyperparameter_path, "r") as f:
         hparams = json.load(f)
-    model.load_from_checkpoint(trained_model_ckpt, learning_rate = hparams["learning_rate"], feature_length = hparams["feature_length"], dim_mlp_layers = hparams["dim_mlp_layers"])
+    model.load_from_checkpoint(
+        trained_model_ckpt,
+        learning_rate=hparams["learning_rate"],
+        feature_length=hparams["feature_length"],
+        dim_mlp_layers=hparams["dim_mlp_layers"],
+    )
     model_str = tested_model_str(trained_model_name, train_data_name, test_data_name)
     # load dataset
     test_data = data_of_nicknames(test_data_name, device)
@@ -237,32 +252,59 @@ def test_model(
 
 
 # get lightning logs from training and testing
-def lightning_log_path(model_name, train_data_name, device, timestamp, root_dir, test_data_name=None, version=None):
-    path = f'{root_dir}/lightning_logs/{device}_{timestamp}/{model_str(model_name, train_data_name, test_data_name)}'
+def lightning_log_path(
+    model_name,
+    train_data_name,
+    device,
+    timestamp,
+    root_dir,
+    test_data_name=None,
+    version=None,
+):
+    path = f"{root_dir}/lightning_logs/{device}_{timestamp}/{model_str(model_name, train_data_name, test_data_name)}"
     path = append_version_to_path(path, version)
     return path
+
 
 # get lightning logs from hyperparameter optimization
-def hyperparam_log_path(model_name, train_data_name, device, timestamp, root_dir, test_data_name=None, version=None):
-    path = f'{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name)}'
+def hyperparameter_log_path(
+    model_name,
+    train_data_name,
+    device,
+    timestamp,
+    root_dir,
+    test_data_name=None,
+    version=None,
+):
+    path = f"{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name)}"
     path = append_version_to_path(path, version)
     return path
 
+
 # get json of hyperparameters
-def hyperparam_json_path(model_name, train_data_name, device, timestamp, root_dir, test_data_name=None, version=None):
-    path = f'{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name)}.json'
+def hyperparameter_json_path(
+    model_name,
+    train_data_name,
+    device,
+    timestamp,
+    root_dir,
+    test_data_name=None,
+    version=None,
+):
+    path = f"{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name)}.json"
     path = append_version_to_path(path, version)
     return path
+
 
 # get dataframe from lightning log
 def get_df_from_log(log_path):
     reader = tbparse.SummaryReader(log_path)
     return reader.scalars
 
-# append version folder
+
 def append_version_to_path(path, version=None):
     if version:
-        return f'{path}/{version}'
+        return f"{path}/{version}"
     return path
 
 
@@ -276,82 +318,127 @@ def aggregate_data_to_csv(
     hyperparameter_path,
     trained_model_ckpt,
     tested_model_ckpt,
-    csv_outpath,
+    csv_output_path,
 ):
-  """
-  Aggregate result data in a CSV entry.
-  """
+    """
+    Aggregate result data in a CSV entry.
+    """
 
-  # fetch hyperparams
-  with open(hyperparameter_path) as f:
-      opt_hyperparams = json.load(f)
+    # fetch hyperparams
+    with open(hyperparameter_path) as f:
+        opt_hyperparams = json.load(f)
 
-  # fetch logs
-  root_dir = '.'
-  version = 'version_0'
-  hyperparam_json_path = hyperparam_json_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=None, version=version)
-  hyperparam_log_path = hyperparam_log_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=None, version=version)
-  train_log_path = lightning_log_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=None, version=version)
-  test_log_path = lightning_log_path(model_name, train_data_name, device, timestamp, root_dir=root_dir, test_data_name=test_data_name, version=version)
+    # fetch logs
+    root_dir = "."
+    version = "version_0"
+    hyperparam_json_path = hyperparameter_json_path(
+        model_name,
+        train_data_name,
+        device,
+        timestamp,
+        root_dir=root_dir,
+        test_data_name=None,
+        version=version,
+    )
+    hyperparam_log_path = hyperparameter_log_path(
+        model_name,
+        train_data_name,
+        device,
+        timestamp,
+        root_dir=root_dir,
+        test_data_name=None,
+        version=version,
+    )
+    train_log_path = lightning_log_path(
+        model_name,
+        train_data_name,
+        device,
+        timestamp,
+        root_dir=root_dir,
+        test_data_name=None,
+        version=version,
+    )
+    test_log_path = lightning_log_path(
+        model_name,
+        train_data_name,
+        device,
+        timestamp,
+        root_dir=root_dir,
+        test_data_name=test_data_name,
+        version=version,
+    )
 
-  # fetch training stats
-  df = get_df_from_log(f'{train_log_path}')
-  train_walltime = df[df.tag == 'train_wall_time'].value.iloc[0]
-  train_epochs = df[df.tag == 'train_final_epoch'].value.iloc[0]
-  train_steps = df[df.tag == 'train_final_step'].value.iloc[0]
+    # fetch training stats
+    df = get_df_from_log(f"{train_log_path}")
+    train_walltime = df[df.tag == "train_wall_time"].value.iloc[0]
+    train_epochs = df[df.tag == "train_final_epoch"].value.iloc[0]
+    train_steps = df[df.tag == "train_final_step"].value.iloc[0]
 
-  # fetch testing stats
-  df = get_df_from_log(f'{test_log_path}')
-  test_auroc = df[df.tag == 'test_auroc'].value.iloc[0]
-  test_loss = df[df.tag == 'test_loss'].value.iloc[0]
+    # fetch testing stats
+    df = get_df_from_log(f"{test_log_path}")
+    test_auroc = df[df.tag == "test_auroc"].value.iloc[0]
+    test_loss = df[df.tag == "test_loss"].value.iloc[0]
 
-  df_row = pd.DataFrame({
-    # config settings
-    'model': [model_name],
-    'train_data': [train_data_name],
-    'test_data': [test_data_name],
-    'device': [device],
-    'timestamp': [timestamp],
-    'n_hyperparam_trials': [n_hyperparameter_trials],
-    # hyperparameters
-    'learning_rate': [opt_hyperparams['learning_rate']],
-    'batch_size': [opt_hyperparams['batch_size']],
-    'accum_grad_batches': [opt_hyperparams['accum_grad_batches']],
-    'max_epochs': [opt_hyperparams['epochs']],
-    'feature_length': [opt_hyperparams['feature_length']],
-    'dim_mlp_layers': [opt_hyperparams['dim_mlp_layers']],
-    # number of training steps, epochs
-    'train_steps': [train_steps],
-    'train_epochs': [train_epochs],
-    # test auroc
-    'test_auroc': [test_auroc],
-    'test_loss': [test_loss],
-    # runtime
-    'train_walltime': [train_walltime],
-    # paths
-    'hyperparam_json_path': [hyperparam_json_path],
-    'hyperparam_log_path': [hyperparam_log_path],
-    'train_log_path': [train_log_path],
-    'test_log_path': [test_log_path],
-    'trained_model_ckpt_path': [trained_model_ckpt],
-    'tested_model_ckpt_path': [tested_model_ckpt],
-  })
+    df_row = pd.DataFrame(
+        {
+            # config settings
+            "model": [model_name],
+            "train_data": [train_data_name],
+            "test_data": [test_data_name],
+            "device": [device],
+            "timestamp": [timestamp],
+            "n_hyperparam_trials": [n_hyperparameter_trials],
+            # hyperparameters
+            "learning_rate": [opt_hyperparams["learning_rate"]],
+            "batch_size": [opt_hyperparams["batch_size"]],
+            "accum_grad_batches": [opt_hyperparams["accum_grad_batches"]],
+            "max_epochs": [opt_hyperparams["epochs"]],
+            "feature_length": [opt_hyperparams["feature_length"]],
+            "dim_mlp_layers": [opt_hyperparams["dim_mlp_layers"]],
+            # number of training steps, epochs
+            "train_steps": [train_steps],
+            "train_epochs": [train_epochs],
+            # test auroc
+            "test_auroc": [test_auroc],
+            "test_loss": [test_loss],
+            # runtime
+            "train_walltime": [train_walltime],
+            # data paths
+            "hyperparam_json_path": [hyperparam_json_path],
+            "hyperparam_log_path": [hyperparam_log_path],
+            "train_log_path": [train_log_path],
+            "test_log_path": [test_log_path],
+            "trained_model_ckpt_path": [trained_model_ckpt],
+            "tested_model_ckpt_path": [tested_model_ckpt],
+        }
+    )
 
-  # append row to final file
-  csv_final_outpath = 'result_csvs_and_pdfs/FINAL.csv'
-  if os.path.exists(csv_final_outpath):
-      final_df = pd.read_csv(csv_final_outpath)
-      final_df = pd.concat([final_df, df_row], ignore_index=True)
-      final_df.to_csv(csv_final_outpath, index=False)
-  else:
-      df_row.to_csv(csv_final_outpath, index=False)
-  return
+    df_row.to_csv(csv_output_path)
+    return
+
+
+def concatenate_csvs(
+    input_csv_paths,
+    output_csv_path,
+):
+    """
+    Concatenates multiple CSV files into one CSV file.
+    """
+
+    dfs = []
+    for csv_path in input_csv_paths:
+        df = pd.read_csv(csv_path)
+        dfs.append(df)
+
+    result_df = pd.concat(dfs, ignore_index=True)
+    result_df.to_csv(output_csv_path, index=False)
 
 
 class CustomCallback(Callback):
     """
     Callback for logging hyperparameters, total_epochs, number_of_steps, auroc, runtimes
     """
+
     def __init__(self):
         self.start_time = {}
         self.total_steps = {}

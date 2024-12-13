@@ -35,6 +35,7 @@ def data_of_nicknames(data_name, device):
         tree_data = TraversalDataset(trees, labels, device)
     return tree_data
 
+
 def train_val_data_of_nicknames(data_name, device):
     file_path = dataset_dict[data_name]
     file_path = os.path.realpath(file_path)

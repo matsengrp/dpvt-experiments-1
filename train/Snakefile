@@ -1,6 +1,8 @@
 import sys
 from datetime import datetime
 import papermill as pm
+import itertools
+import json
 
 snakefile_dir = workflow.basedir
 sys.path.append(snakefile_dir + "/..")
@@ -25,12 +27,14 @@ default_config = {
   'device': "cpu",
   'timestamp': str(datetime.now().strftime("%Y-%m-%d")),
   'n_hyperparameter_trials': 100,
+  'cross_datasets': "False",
+  'output_dir': "_output",
 }
 
 config_path = os.path.join(snakefile_dir, "config.yaml")
 configfile: config_path
 
-# use defaults where
+# use defaults where not listed in config file
 for arg in default_config:
     if arg not in config:
         config[arg] = default_config[arg]
@@ -42,11 +46,22 @@ test_data_names = config["test_data"]
 device = config["device"]
 timestamp=config["timestamp"]
 n_hyperparameter_trials = int(config["n_hyperparameter_trials"])
+use_cross_datasets = (config["cross_datasets"].lower() == "true")
 csv_output_path = "result_csvs_and_pdfs/FINAL.csv"
 notebook_input_path = "plot_final_csv.input.ipynb"
 notebook_output_path = "result_csvs_and_pdfs/plot_final_csv.ipynb"
+# print(f'CONFIG:\n{config}')
 
-data_pairs = list(zip(train_data_names, test_data_names))
+
+def generate_data_pairs(train_data_names, test_data_names, use_cross_datasets=False):
+    if not use_cross_datasets:
+        data_pairs = list(zip(train_data_names, test_data_names))
+    else:
+        data_pairs = [x for x in itertools.product(train_data_names, test_data_names)]
+    return data_pairs
+
+data_pairs = generate_data_pairs(train_data_names, test_data_names, use_cross_datasets)
+# print(f'DATA_PAIRS: {data_pairs}')
 
 
 def generate_tested_model_ckpts(model_names, data_pairs):
@@ -71,8 +86,8 @@ def best_model_params(model, data):
 
 rule all:
     input:
-        generate_tested_model_ckpts(model_names, data_pairs),
-        generate_csv_log_paths(model_names, data_pairs, device=device, date=timestamp),
+        # generate_tested_model_ckpts(model_names, data_pairs),
+        # generate_csv_log_paths(model_names, data_pairs, device=device, date=timestamp),
         notebook_output_path,
 
 
@@ -98,7 +113,7 @@ rule train_models:
 rule test_models:
     input:
         trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
-        hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
+        # hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
     output:
         tested_model=tested_model_ckpt(
             "{model_name}", "{train_data_name}", "{test_data_name}"
@@ -133,8 +148,8 @@ rule hyperparameter_optimization:
 rule create_csvs:
     input:
         tested_model=tested_model_ckpt("{model_name}", "{train_data_name}", "{test_data_name}"),
-        trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
-        hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
+        # trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
+        # hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
     output:
         csv_path=csv_log_path("{model_name}", "{train_data_name}", test_data_name="{test_data_name}", device="{device}", date="{timestamp}"),
     run:

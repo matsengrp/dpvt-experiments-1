@@ -1,14 +1,16 @@
 models: ["TraverseNN", "TraverseMaxPooling", "TraverseAvgPooling"]
 train_data: [
     "FourLeafTrain",
-    "FourLeafFourSiteTrain",
+    # "FourLeafFourSiteTrain",
     # "TenLeaf",
     # "ThirtyLeaf",
   ]
 test_data: [
     "FourLeafTest",
-    "FourLeafFourSiteTest",
+    # "FourLeafFourSiteTest",
     # "TenLeafTest",
     # "ThirtyLeafTest",
   ]
 device: "cpu"
+n_hyperparameter_trials: "10"
+timestamp: "TODAY"

@@ -24,4 +24,7 @@ dependencies:
   - tensorboard
   - iqtree
   - usher #currently broken for osx-arm64...
+  - tbparse
+  - seaborn
+  - papermill
 

@@ -40,6 +40,7 @@ for arg in default_config:
         config[arg] = default_config[arg]
 
 
+output_dir = config["output_dir"]
 model_names = config["models"]
 train_data_names = config["train_data"]
 test_data_names = config["test_data"]
@@ -47,9 +48,10 @@ device = config["device"]
 timestamp=config["timestamp"]
 n_hyperparameter_trials = int(config["n_hyperparameter_trials"])
 use_cross_datasets = (config["cross_datasets"].lower() == "true")
-csv_output_path = "result_csvs_and_pdfs/FINAL.csv"
+
+csv_output_path = f"{output_dir}/result_csvs_and_pdfs/FINAL.csv"
 notebook_input_path = "plot_final_csv.input.ipynb"
-notebook_output_path = "result_csvs_and_pdfs/plot_final_csv.ipynb"
+notebook_output_path = f"{output_dir}/result_csvs_and_pdfs/plot_final_csv.ipynb"
 # print(f'CONFIG:\n{config}')
 
 
@@ -86,8 +88,6 @@ def best_model_params(model, data):
 
 rule all:
     input:
-        # generate_tested_model_ckpts(model_names, data_pairs),
-        # generate_csv_log_paths(model_names, data_pairs, device=device, date=timestamp),
         notebook_output_path,
 
 
@@ -113,7 +113,7 @@ rule train_models:
 rule test_models:
     input:
         trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
-        # hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
+        hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
     output:
         tested_model=tested_model_ckpt(
             "{model_name}", "{train_data_name}", "{test_data_name}"
@@ -148,8 +148,8 @@ rule hyperparameter_optimization:
 rule create_csvs:
     input:
         tested_model=tested_model_ckpt("{model_name}", "{train_data_name}", "{test_data_name}"),
-        # trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
-        # hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
+        trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
+        hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
     output:
         csv_path=csv_log_path("{model_name}", "{train_data_name}", test_data_name="{test_data_name}", device="{device}", date="{timestamp}"),
     run:

@@ -194,3 +194,6 @@ summary_logs
 
 # soft-linked data folder
 data
+
+# training temporary folder
+train--*/

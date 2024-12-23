@@ -27,6 +27,15 @@ default_config = {
   'device': "cpu",
   'timestamp': str(datetime.now().strftime("%Y-%m-%d")),
   'n_hyperparameter_trials': 100,
+
+  'hyperparameter_optimize': "True",
+  'learning_rate': [0.0002],
+  'batch_size': [512],
+  'accum_grad_batches': [1],
+  'epochs': [200],
+  'feature_length': [128],
+  'dim_mlp_layers': [256],
+
   'cross_datasets': "False",
   'output_dir': "_output",
 }
@@ -34,7 +43,7 @@ default_config = {
 config_path = os.path.join(snakefile_dir, "config.yaml")
 configfile: config_path
 
-# use defaults where not listed in config file
+# use defaults where option not in config file
 for arg in default_config:
     if arg not in config:
         config[arg] = default_config[arg]
@@ -49,10 +58,9 @@ timestamp=config["timestamp"]
 n_hyperparameter_trials = int(config["n_hyperparameter_trials"])
 use_cross_datasets = (config["cross_datasets"].lower() == "true")
 
-csv_output_path = f"{output_dir}/result_csvs_and_pdfs/FINAL.csv"
+csv_output_path = f"result_csvs_and_pdfs/FINAL.csv"
 notebook_input_path = "plot_final_csv.input.ipynb"
-notebook_output_path = f"{output_dir}/result_csvs_and_pdfs/plot_final_csv.ipynb"
-# print(f'CONFIG:\n{config}')
+notebook_output_path = f"result_csvs_and_pdfs/plot_final_csv.ipynb"
 
 
 def generate_data_pairs(train_data_names, test_data_names, use_cross_datasets=False):
@@ -63,7 +71,6 @@ def generate_data_pairs(train_data_names, test_data_names, use_cross_datasets=Fa
     return data_pairs
 
 data_pairs = generate_data_pairs(train_data_names, test_data_names, use_cross_datasets)
-# print(f'DATA_PAIRS: {data_pairs}')
 
 
 def generate_tested_model_ckpts(model_names, data_pairs):

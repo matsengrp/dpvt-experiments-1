@@ -36,54 +36,63 @@ def build_model(model_name):
     return model
 
 
-def trained_model_str(model_name, data_name):
-    return f"{model_name}-{data_name}"
+def trained_model_str(model_name, train_data_name, param_id=None):
+    model = f"{model_name}-{train_data_name}"
+    if param_id is not None:
+        model = f"{model}-{param_id}"
+    return model
 
 
-def tested_model_str(model_name, train_data_name, test_data_name):
-    return f"{model_name}-{train_data_name}-ON-{test_data_name}"
+def tested_model_str(model_name, train_data_name, test_data_name, param_id=None):
+    model = f"{model_name}-{train_data_name}-ON-{test_data_name}"
+    if param_id is not None:
+        model = f"{model}-{param_id}"
+    return model
 
 
-def model_str(model_name, train_data_name, test_data_name=None):
+def model_str(model_name, train_data_name, test_data_name=None, param_id=None):
     if test_data_name:
-        return tested_model_str(model_name, train_data_name, test_data_name)
-    return trained_model_str(model_name, train_data_name)
+        path = tested_model_str(model_name, train_data_name, test_data_name, param_id)
+    else:
+        path = trained_model_str(model_name, train_data_name, param_id)
+    return path
 
 
-def trained_model_path(model_name, data_name):
-    return f"trained_models/{trained_model_str(model_name, data_name)}"
+def trained_model_path(model_name, train_data_name, param_id=None):
+    return f"trained_models/{trained_model_str(model_name, train_data_name, param_id)}"
 
 
-def tested_model_path(model_name, train_data_name, test_data_name):
-    return (
-        f"tested_models/{tested_model_str(model_name, train_data_name, test_data_name)}"
-    )
+def tested_model_path(model_name, train_data_name, test_data_name, param_id=None):
+    return f"tested_models/{tested_model_str(model_name, train_data_name, test_data_name, param_id)}"
 
 
-def best_model_params_path(model_name, data_name):
-    return f"hyper_checkpoints/{trained_model_str(model_name, data_name)}"
+def best_model_params_path(model_name, data_name, param_id=None):
+    return f"hyper_checkpoints/{trained_model_str(model_name, data_name, param_id)}"
 
 
 def csv_log_path(
-    model_name, train_data_name, test_data_name=None, device=None, date=str(todays_date)
+    model_name, train_data_name, test_data_name=None, param_id=None, device=None, date=str(todays_date)
 ):
     path = f"result_csvs_and_pdfs/{device}_{date}"
-    return f"{path}/{model_str(model_name, train_data_name, test_data_name)}.csv"
+    path = f"{path}/{model_str(model_name, train_data_name, test_data_name, param_id)}.csv"
+    return path
 
 
-def generate_csv_log_paths(model_names, data_pairs, device, date=str(todays_date)):
+def generate_csv_log_paths(model_names, data_pairs, param_ids, device, date=str(todays_date)):
     csv_log_paths = []
     for model_name in model_names:
         for train_data_name, test_data_name in data_pairs:
-            csv_log_paths.append(
-                csv_log_path(
-                    model_name,
-                    train_data_name,
-                    test_data_name=test_data_name,
-                    device=device,
-                    date=date,
+            for param_id in param_ids:
+                csv_log_paths.append(
+                    csv_log_path(
+                        model_name,
+                        train_data_name,
+                        test_data_name=test_data_name,
+                        param_id=param_id,
+                        device=device,
+                        date=date,
+                    )
                 )
-            )
     return csv_log_paths
 
 
@@ -98,6 +107,7 @@ def train_model(
     dim_mlp_layers=32,
     profiling=False,
     timestamp=str(todays_date),
+    param_id=None,
     **wrap_kwargs,
 ):
     """
@@ -105,7 +115,7 @@ def train_model(
     """
     # set final and test checkpoint strings
     if train_checkpoint is None:
-        train_checkpoint = trained_model_path(model_name, data_name) + ".ckpt"
+        train_checkpoint = f"{trained_model_path(model_name, data_name)}.ckpt"
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
@@ -141,6 +151,8 @@ def continue_train_model(
     feature_length=32,
     dim_mlp_layers=32,
     train_checkpoint=None,
+    timestamp=str(todays_date),
+    id=None,
     **wrap_kwargs,
 ):
     """
@@ -149,7 +161,7 @@ def continue_train_model(
     """
     # set final and test checkpoint strings
     if train_checkpoint is None:
-        train_checkpoint = trained_model_path(model_name, data_name) + ".ckpt"
+        train_checkpoint = f"{trained_model_path(model_name, data_name)}.ckpt"
     # load trained model
     try:
         model = build_model(model_name).load_from_checkpoint(train_checkpoint)
@@ -216,6 +228,7 @@ def test_model(
     hyperparameter_path,
     accum_grad_batches=1,
     timestamp=str(todays_date),
+    param_id=None,
     **wrap_kwargs,
 ):
     """
@@ -332,6 +345,7 @@ def aggregate_data_to_csv(
     test_data_name,
     device,
     timestamp,
+    param_id,
     n_hyperparameter_trials,
     hyperparameter_path,
     trained_model_ckpt,
@@ -415,6 +429,7 @@ def aggregate_data_to_csv(
             "test_data": [test_data_name],
             "device": [device],
             "timestamp": [timestamp],
+            "param_id": [param_id],
             "n_hyperparam_trials": [n_hyperparameter_trials],
             # hyperparameters
             "learning_rate": [opt_hyperparams["learning_rate"]],

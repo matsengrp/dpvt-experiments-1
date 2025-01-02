@@ -196,4 +196,5 @@ summary_logs
 data
 
 # training temporary folder
+_output*/
 train--*/

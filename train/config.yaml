@@ -1,7 +1,7 @@
 models: [
     # "TraverseNN",
     "TraverseMaxPooling",
-    "TraverseAvgPooling"
+    # "TraverseAvgPooling"
   ]
 train_data: [
     "FourLeafTrain",
@@ -21,10 +21,11 @@ timestamp: "TODAY"
 cross_datasets: True
 output_dir: "_output"
 
-hyperparameter_optimize: True
+hyperparameter_optimize: False
 n_hyperparameter_trials: 5
 hyperparameters:
   learning_rate: [0.0002, 0.0004]
+  # batch_size: [512]
   accum_grad_batches: [1]
   epochs: [100]
   feature_length: [128]

@@ -468,7 +468,7 @@ class CustomCallback(Callback):
     """
 
     def __init__(
-        self, name="model-traindata-ON-testdata-PARAMid", summary_log_dir="summary_logs"
+        self, name="model-traindata-ON-testdata-ParamId", summary_log_dir="summary_logs"
     ):
         self.name = name
         self.summary_log_dir = summary_log_dir

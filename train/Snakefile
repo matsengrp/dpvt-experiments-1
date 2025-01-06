@@ -115,13 +115,13 @@ def benchmark_path(rule_name, model, train_data, test_data=None, device=None, pa
 
 def generate_hyperparameter_dicts(hyperparameters, use_hyperparameter_optimize):
     if use_hyperparameter_optimize:
-        return ["PARAM_OPT"], {}
+        return ["ParamOpt"], {}
 
     param_dicts = {}
     keys = hyperparameters.keys()
     values = [x for x in hyperparameters.values()]
     for id, combination in enumerate(itertools.product(*values)):
-        param_id = f"PARAM_{id}"
+        param_id = f"Param{id}"
         result_dict = dict(zip(keys, combination))
         param_dicts[param_id] = result_dict
     return list(param_dicts.keys()), param_dicts

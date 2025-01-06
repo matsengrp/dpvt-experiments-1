@@ -1,6 +1,6 @@
 models: [
-    "TraverseNN",
-    # "TraverseMaxPooling",
+    # "TraverseNN",
+    "TraverseMaxPooling",
     # "TraverseAvgPooling"
   ]
 train_data: [
@@ -18,13 +18,12 @@ test_data: [
 
 device: "cpu"
 # timestamp: "TODAY"
-cross_datasets: True
+cross_datasets: False
 output_dir: "_output"
 
 hyperparameter_optimize: True
 n_hyperparameter_trials: 5
 
-# hyperparameters only in effect if hyperparameter_optimize is false.
 hyperparameters:
   learning_rate: [0.0002, 0.0004]
   batch_size: [512]

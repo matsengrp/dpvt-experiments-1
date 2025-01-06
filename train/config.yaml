@@ -24,6 +24,7 @@ output_dir: "_output"
 hyperparameter_optimize: True
 n_hyperparameter_trials: 5
 
+# hyperparameters only in effect if hyperparameter_optimize is false.
 hyperparameters:
   learning_rate: [0.0002, 0.0004]
   batch_size: [512]

@@ -70,32 +70,6 @@ def best_model_params_path(model_name, data_name, param_id=None):
     return f"hyper_checkpoints/{trained_model_str(model_name, data_name, param_id)}"
 
 
-def csv_log_path(
-    model_name, train_data_name, test_data_name=None, param_id=None, device=None, date=str(todays_date)
-):
-    path = f"result_csvs_and_pdfs/{device}_{date}"
-    path = f"{path}/{model_str(model_name, train_data_name, test_data_name, param_id)}.csv"
-    return path
-
-
-def generate_csv_log_paths(model_names, data_pairs, param_ids, device, date=str(todays_date)):
-    csv_log_paths = []
-    for model_name in model_names:
-        for train_data_name, test_data_name in data_pairs:
-            for param_id in param_ids:
-                csv_log_paths.append(
-                    csv_log_path(
-                        model_name,
-                        train_data_name,
-                        test_data_name=test_data_name,
-                        param_id=param_id,
-                        device=device,
-                        date=date,
-                    )
-                )
-    return csv_log_paths
-
-
 def train_model(
     model_name,
     data_name,
@@ -115,12 +89,12 @@ def train_model(
     """
     # set final and test checkpoint strings
     if train_checkpoint is None:
-        train_checkpoint = f"{trained_model_path(model_name, data_name)}.ckpt"
+        train_checkpoint = f"{trained_model_path(model_name, data_name, param_id=param_id)}.ckpt"
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
     model = build_model(model_name)
-    model_str = trained_model_str(model_name, data_name)
+    model_str = trained_model_str(model_name, data_name, param_id=param_id)
     wrap = Wrap(
         train_data,
         val_data,
@@ -152,7 +126,7 @@ def continue_train_model(
     dim_mlp_layers=32,
     train_checkpoint=None,
     timestamp=str(todays_date),
-    id=None,
+    param_id=None,
     **wrap_kwargs,
 ):
     """
@@ -161,7 +135,7 @@ def continue_train_model(
     """
     # set final and test checkpoint strings
     if train_checkpoint is None:
-        train_checkpoint = f"{trained_model_path(model_name, data_name)}.ckpt"
+        train_checkpoint = f"{trained_model_path(model_name, data_name, param_id=param_id)}.ckpt"
     # load trained model
     try:
         model = build_model(model_name).load_from_checkpoint(train_checkpoint)
@@ -170,7 +144,7 @@ def continue_train_model(
             f"Model {model_name} trained on data {data_name} does not have saved checkpoint."
         ) from e
 
-    model_str = trained_model_str(model_name, data_name)
+    model_str = trained_model_str(model_name, data_name, param_id=param_id)
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
     # load dataset
@@ -247,7 +221,7 @@ def test_model(
         feature_length=hparams["feature_length"],
         dim_mlp_layers=hparams["dim_mlp_layers"],
     )
-    model_str = tested_model_str(trained_model_name, train_data_name, test_data_name)
+    model_str = tested_model_str(trained_model_name, train_data_name, test_data_name, param_id=param_id)
     # load dataset
     test_data = data_of_nicknames(test_data_name, device)
     test_wrap = Wrap(
@@ -273,12 +247,13 @@ def lightning_log_path(
     model_name,
     train_data_name,
     device,
+    param_id,
     timestamp,
     root_dir,
     test_data_name=None,
     version=None,
 ):
-    path = f"{root_dir}/lightning_logs/{device}_{timestamp}/{model_str(model_name, train_data_name, test_data_name)}"
+    path = f"{root_dir}/lightning_logs/{device}_{timestamp}/{model_str(model_name, train_data_name, test_data_name, param_id=param_id)}"
     path = append_version_to_path(path, version)
     return path
 
@@ -288,12 +263,13 @@ def hyperparameter_log_path(
     model_name,
     train_data_name,
     device,
+    param_id,
     timestamp,
     root_dir,
     test_data_name=None,
     version=None,
 ):
-    path = f"{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name, test_data_name)}"
+    path = f"{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name, test_data_name, param_id=param_id)}"
     path = append_version_to_path(path, version)
     return path
 
@@ -303,12 +279,13 @@ def summary_log_path(
     model_name,
     train_data_name,
     device,
+    param_id,
     timestamp,
     root_dir,
     test_data_name=None,
     version=None,
 ):
-    path = f"{root_dir}/summary_logs/{model_str(model_name, train_data_name, test_data_name)}"
+    path = f"{root_dir}/summary_logs/{model_str(model_name, train_data_name, test_data_name, param_id=param_id)}"
     return path
 
 
@@ -317,12 +294,13 @@ def hyperparameter_json_path(
     model_name,
     train_data_name,
     device,
+    param_id,
     timestamp,
     root_dir,
     test_data_name=None,
     version=None,
 ):
-    path = f"{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name, test_data_name)}.json"
+    path = f"{root_dir}/hyper_checkpoints/{model_str(model_name, train_data_name, test_data_name, param_id=param_id)}.json"
     path = append_version_to_path(path, version)
     return path
 
@@ -367,7 +345,8 @@ def aggregate_data_to_csv(
         model_name,
         train_data_name,
         device,
-        timestamp,
+        param_id=param_id,
+        timestamp=timestamp,
         root_dir=root_dir,
         test_data_name=None,
         version=version,
@@ -376,7 +355,8 @@ def aggregate_data_to_csv(
         model_name,
         train_data_name,
         device,
-        timestamp,
+        param_id=param_id,
+        timestamp=timestamp,
         root_dir=root_dir,
         test_data_name=None,
         version=version,
@@ -385,7 +365,8 @@ def aggregate_data_to_csv(
         model_name,
         train_data_name,
         device,
-        timestamp,
+        param_id=param_id,
+        timestamp=timestamp,
         root_dir=root_dir,
         test_data_name=None,
         version=version,
@@ -394,7 +375,8 @@ def aggregate_data_to_csv(
         model_name,
         train_data_name,
         device,
-        timestamp,
+        param_id=param_id,
+        timestamp=timestamp,
         root_dir=root_dir,
         test_data_name=test_data_name,
         version=version,
@@ -403,7 +385,8 @@ def aggregate_data_to_csv(
         model_name,
         train_data_name,
         device,
-        timestamp,
+        param_id=param_id,
+        timestamp=timestamp,
         root_dir=root_dir,
         test_data_name=None,
         version=version,
@@ -485,7 +468,7 @@ class CustomCallback(Callback):
     """
 
     def __init__(
-        self, name="model-traindata-ON-testdata", summary_log_dir="summary_logs"
+        self, name="model-traindata-ON-testdata-PARAMid", summary_log_dir="summary_logs"
     ):
         self.name = name
         self.summary_log_dir = summary_log_dir

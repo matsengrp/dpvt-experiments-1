@@ -16,8 +16,6 @@ from dpvtex.dpvt_zoo import (
     tested_model_path,
     best_model_params_path,
     optimize_hyperparameters,
-    csv_log_path,
-    generate_csv_log_paths,
     aggregate_data_to_csv,
     concatenate_csvs,
 )
@@ -127,6 +125,31 @@ def generate_hyperparameter_dicts(hyperparameters, use_hyperparameter_optimize):
         param_dicts[param_id] = result_dict
     return list(param_dicts.keys()), param_dicts
 
+def csv_log_path(
+    model_name, train_data_name, test_data_name=None, device=None, date=None, param_id=None,
+):
+    path = f"result_csvs_and_pdfs/{device}_{date}"
+    path = f"{path}/{model_str(model_name, train_data_name, test_data_name, param_id)}.csv"
+    return path
+
+
+def generate_csv_log_paths(model_names, data_pairs, device, date=None, param_ids=[None]):
+    csv_log_paths = []
+    for model_name in model_names:
+        for train_data_name, test_data_name in data_pairs:
+            for param_id in param_ids:
+                csv_log_paths.append(
+                    csv_log_path(
+                        model_name,
+                        train_data_name,
+                        test_data_name=test_data_name,
+                        device=device,
+                        date=date,
+                        param_id=param_id,
+                    )
+                )
+    return csv_log_paths
+
 
 # rule paths
 
@@ -134,7 +157,7 @@ data_pairs = generate_data_pairs(train_data_names, test_data_names, use_cross_da
 param_ids, param_dicts = generate_hyperparameter_dicts(hyperparameters, use_hyperparameter_optimize)
 tested_model_chkpts = generate_tested_model_ckpts(model_names, data_pairs, param_ids)
 trained_model_chkpts = generate_trained_model_ckpts(model_names, train_data_names, param_ids)
-csv_individual_paths = generate_csv_log_paths(model_names, data_pairs, param_ids=param_ids, device=device, date=timestamp)
+csv_individual_paths = generate_csv_log_paths(model_names, data_pairs, device, param_ids=param_ids, date=timestamp)
 csv_output_path = f"result_csvs_and_pdfs/FINAL.csv"
 notebook_input_path = f"plot_final_csv.input.ipynb"
 notebook_output_path = f"result_csvs_and_pdfs/plot_final_csv.ipynb"

@@ -54,6 +54,7 @@ for arg in default_config['hyperparameters']:
         config['hyperparameters'][arg] = default_config['hyperparameters'][arg]
 
 
+# config settings
 output_dir = config["output_dir"]
 model_names = config["models"]
 train_data_names = config["train_data"]
@@ -151,8 +152,7 @@ def generate_csv_log_paths(model_names, data_pairs, device, date=None, param_ids
     return csv_log_paths
 
 
-# rule paths
-
+# rule input/output paths
 data_pairs = generate_data_pairs(train_data_names, test_data_names, use_cross_datasets)
 param_ids, param_dicts = generate_hyperparameter_dicts(hyperparameters, use_hyperparameter_optimize)
 tested_model_chkpts = generate_tested_model_ckpts(model_names, data_pairs, param_ids)
@@ -162,24 +162,10 @@ csv_output_path = f"result_csvs_and_pdfs/FINAL.csv"
 notebook_input_path = f"plot_final_csv.input.ipynb"
 notebook_output_path = f"result_csvs_and_pdfs/plot_final_csv.ipynb"
 
-# print(f'==> config:')
-# pp.pp(config)
-# print(f'==> param_dicts:')
-# pp.pp(param_dicts)
-# print(f'==> trained_model_chkpts:')
-# pp.pp(trained_model_chkpts)
-# print(f'==> tested_model_chkpts:')
-# pp.pp(tested_model_chkpts)
-# exit()
-
 
 rule all:
     input:
         notebook_output_path,
-        # csv_output_path,
-        # csv_individual_paths,
-        # tested_model_chkpts,
-        # trained_model_chkpts,
 
 
 rule hyperparameter_optimization:

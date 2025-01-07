@@ -59,30 +59,30 @@ def model_str(model_name, train_data_name, test_data_name=None, param_id=None):
     return path
 
 
-def prepend_dir_to_path(path, dir=None):
-    if dir is None:
-        dir = "."
-    path = str(Path(dir) / Path(path))
+def prepend_dir_to_path(path, root_dir=None):
+    if root_dir is not None:
+        path = str(Path(root_dir) / Path(path))
     return path
 
 
-def trained_model_path(model_name, train_data_name, param_id=None, output_dir=None):
+def append_dir_to_path(path, sub_dir=None):
+    if sub_dir is not None:
+        path = str(Path(path) / Path(sub_dir))
+    return path
+
+
+def trained_model_path(model_name, train_data_name, param_id=None):
     path = f"trained_models/{trained_model_str(model_name, train_data_name, param_id)}"
-    path = prepend_dir_to_path(path, output_dir)
     return path
 
 
-def tested_model_path(
-    model_name, train_data_name, test_data_name, param_id=None, output_dir=None
-):
+def tested_model_path(model_name, train_data_name, test_data_name, param_id=None):
     path = f"tested_models/{tested_model_str(model_name, train_data_name, test_data_name, param_id)}"
-    path = prepend_dir_to_path(path, output_dir)
     return path
 
 
-def best_model_params_path(model_name, data_name, param_id=None, output_dir=None):
+def best_model_params_path(model_name, data_name, param_id=None):
     path = f"hyper_checkpoints/{trained_model_str(model_name, data_name, param_id)}"
-    path = prepend_dir_to_path(path, output_dir)
     return path
 
 
@@ -98,7 +98,6 @@ def train_model(
     profiling=False,
     timestamp=str(todays_date),
     param_id=None,
-    output_dir=None,
     **wrap_kwargs,
 ):
     """
@@ -106,28 +105,27 @@ def train_model(
     """
     # set final and test checkpoint strings
     if train_checkpoint is None:
-        train_checkpoint = (
-            f"{trained_model_path(model_name, data_name, param_id, output_dir)}.ckpt"
-        )
+        train_checkpoint = f"{trained_model_path(model_name, data_name, param_id)}.ckpt"
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
     model = build_model(model_name)
     model_str = trained_model_str(model_name, data_name, param_id)
-    log_path = prepend_dir_to_path(model_str, output_dir)
     wrap = Wrap(
         train_data=train_data,
         val_data=val_data,
         test_data=None,
         model=model,
-        log_path=log_path,
+        log_path=model_str,
         profiling=profiling,
         device=device,
         accum_grad_batches=accum_grad_batches,
         feature_length=feature_length,
         dim_mlp_layers=dim_mlp_layers,
         hyperparameter_path=hyperparameter_path,
-        added_callbacks=[CustomCallback(name=model_str, summary_log_dir=f'{output_dir}/summary_logs/train')],
+        added_callbacks=[
+            CustomCallback(name=model_str, log_dir=f"custom_logs/train")
+        ],
         timestamp=timestamp,
         **wrap_params,
     )
@@ -147,7 +145,6 @@ def continue_train_model(
     train_checkpoint=None,
     timestamp=str(todays_date),
     param_id=None,
-    output_dir=None,
     **wrap_kwargs,
 ):
     """
@@ -156,9 +153,7 @@ def continue_train_model(
     """
     # set final and test checkpoint strings
     if train_checkpoint is None:
-        train_checkpoint = (
-            f"{trained_model_path(model_name, data_name, param_id, output_dir)}.ckpt"
-        )
+        train_checkpoint = f"{trained_model_path(model_name, data_name, param_id)}.ckpt"
     # load trained model
     try:
         model = build_model(model_name).load_from_checkpoint(train_checkpoint)
@@ -167,8 +162,7 @@ def continue_train_model(
             f"Model {model_name} trained on data {data_name} does not have saved checkpoint."
         ) from e
 
-    model_str = trained_model_str(model_name, data_name, param_id, output_dir)
-    log_path = prepend_dir_to_path(model_str, output_dir)
+    model_str = trained_model_str(model_name, data_name, param_id)
 
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
@@ -179,14 +173,16 @@ def continue_train_model(
         val_data=val_data,
         test_data=None,
         model=model,
-        log_path=log_path,
+        log_path=model_str,
         device=device,
         epochs=epochs,
         accum_grad_batches=accum_grad_batches,
         feature_length=feature_length,
         dim_mlp_layers=dim_mlp_layers,
         hyperparameter_path=hyperparameter_path,
-        added_callbacks=[CustomCallback(name=model_str, summary_log_dir=f'{output_dir}/summary_logs/continue')],
+        added_callbacks=[
+            CustomCallback(name=model_str, log_dir=f"custom_logs/continue/")
+        ],
         **wrap_params,
     )
     wrap.train(train_checkpoint)
@@ -202,23 +198,22 @@ def optimize_hyperparameters(
     n_trials=100,
     timestamp=str(todays_date),
     param_id=None,
-    output_dir=None,
 ):
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
     model = build_model(model_name)
     model_str = trained_model_str(model_name, data_name, param_id)
-    # log_path = prepend_dir_to_path(model_str, output_dir)
-    checkpoint_dir = prepend_dir_to_path('hyper_checkpoints/', output_dir)
     hyper_wrap = HyperWrap(
         model=model,
         train_data=train_data,
         val_data=val_data,
         log_path=model_str,
-        checkpoint_dir=checkpoint_dir,
+        checkpoint_dir="hyper_checkpoints/",
         profiling=profiling,
         device=device,
         n_trials=n_trials,
-        added_callbacks=[CustomCallback(name=model_str, summary_log_dir=f'{output_dir}/summary_logs/optimize')],
+        added_callbacks=[
+            CustomCallback(name=model_str, log_dir=f"custom_logs/optimize/")
+        ],
     )
     hyper_wrap.optuna_optimize(best_model_hparams_filepath)
     return model
@@ -235,7 +230,6 @@ def test_model(
     accum_grad_batches=1,
     timestamp=str(todays_date),
     param_id=None,
-    output_dir=None,
     **wrap_kwargs,
 ):
     """
@@ -254,8 +248,9 @@ def test_model(
         feature_length=hparams["feature_length"],
         dim_mlp_layers=hparams["dim_mlp_layers"],
     )
-    model_str = tested_model_str(trained_model_name, train_data_name, test_data_name, param_id)
-    log_path = prepend_dir_to_path(model_str)
+    model_str = tested_model_str(
+        trained_model_name, train_data_name, test_data_name, param_id
+    )
     # load dataset
     test_data = data_of_nicknames(test_data_name, device)
     test_wrap = Wrap(
@@ -263,11 +258,13 @@ def test_model(
         val_data=None,
         test_data=test_data,
         model=model,
-        log_path=log_path,
+        log_path=model_str,
         device=device,
         accum_grad_batches=accum_grad_batches,
         hyperparameter_path=hyperparameter_path,
-        added_callbacks=[CustomCallback(name=model_str, summary_log_dir=f'{output_dir}/summary_logs/test')],
+        added_callbacks=[
+            CustomCallback(name=model_str, log_dir=f"custom_logs/test")
+        ],
         timestamp=timestamp,
         **wrap_params,
     )
@@ -279,15 +276,15 @@ def test_model(
 def lightning_log_path(
     model_name,
     train_data_name,
+    test_data_name,
     device,
     param_id,
     timestamp,
-    root_dir,
-    test_data_name=None,
-    version=None,
+    root_dir=".",
+    sub_dir=None,
 ):
-    path = f"lightning_logs/{device}_{timestamp}/{model_str(model_name, train_data_name, test_data_name, param_id=param_id)}"
-    path = append_version_to_path(path, version)
+    path = f"lightning_logs/{device}_{timestamp}/{model_str(model_name, train_data_name, test_data_name, param_id)}"
+    path = append_dir_to_path(path, sub_dir)
     path = prepend_dir_to_path(path, root_dir)
     return path
 
@@ -295,30 +292,30 @@ def lightning_log_path(
 def hyperparameter_log_path(
     model_name,
     train_data_name,
+    test_data_name,
     device,
     param_id,
     timestamp,
-    root_dir,
-    test_data_name=None,
-    version=None,
+    root_dir=".",
+    sub_dir=None,
 ):
-    path = f"hyper_checkpoints/{model_str(model_name, train_data_name, test_data_name, param_id=param_id)}"
-    path = append_version_to_path(path, version)
+    path = f"hyper_checkpoints/{model_str(model_name, train_data_name, test_data_name, param_id)}"
+    path = append_dir_to_path(path, sub_dir)
     path = prepend_dir_to_path(path, root_dir)
     return path
 
 
-def summary_log_path(
+def custom_log_path(
     model_name,
     train_data_name,
+    test_data_name,
     device,
     param_id,
     timestamp,
-    root_dir,
-    test_data_name=None,
-    version=None,
+    root_dir=".",
+    sub_dir=None,
 ):
-    path = f"summary_logs/{model_str(model_name, train_data_name, test_data_name, param_id=param_id)}"
+    path = f"custom_logs/train/{model_str(model_name, train_data_name, test_data_name, param_id=param_id)}"
     path = prepend_dir_to_path(path, root_dir)
     return path
 
@@ -326,29 +323,22 @@ def summary_log_path(
 def hyperparameter_json_path(
     model_name,
     train_data_name,
+    test_data_name,
     device,
     param_id,
     timestamp,
-    root_dir,
-    test_data_name=None,
-    version=None,
+    root_dir=".",
+    sub_dir=None,
 ):
     path = f"hyper_checkpoints/{model_str(model_name, train_data_name, test_data_name, param_id=param_id)}.json"
-    path = append_version_to_path(path, version)
+    path = append_dir_to_path(path, sub_dir)
     path = prepend_dir_to_path(path, root_dir)
     return path
 
 
-# get dataframe from lightning log
 def get_df_from_log(log_path):
     reader = tbparse.SummaryReader(log_path)
     return reader.scalars
-
-
-def append_version_to_path(path, version=None):
-    if version:
-        return f"{path}/{version}"
-    return path
 
 
 def aggregate_data_to_csv(
@@ -363,7 +353,7 @@ def aggregate_data_to_csv(
     trained_model_ckpt,
     tested_model_ckpt,
     csv_output_path,
-    output_dir='.',
+    output_dir=".",
 ):
     """
     Aggregate result data in a CSV entry.
@@ -374,67 +364,69 @@ def aggregate_data_to_csv(
         opt_hyperparams = json.load(f)
 
     # fetch logs
-    version = "version_0"
-    hyperparam_json_path = hyperparameter_json_path(
-        model_name,
-        train_data_name,
-        device,
-        param_id=param_id,
-        timestamp=timestamp,
-        root_dir=output_dir,
-        test_data_name=None,
-        version=version,
-    )
-    hyperparam_log_path = hyperparameter_log_path(
-        model_name,
-        train_data_name,
-        device,
-        param_id=param_id,
-        timestamp=timestamp,
-        root_dir=output_dir,
-        test_data_name=None,
-        version=version,
-    )
-    train_log_path = lightning_log_path(
-        model_name,
-        train_data_name,
-        device,
-        param_id=param_id,
-        timestamp=timestamp,
-        root_dir=output_dir,
-        test_data_name=None,
-        version=version,
-    )
-    test_log_path = lightning_log_path(
-        model_name,
-        train_data_name,
-        device,
-        param_id=param_id,
-        timestamp=timestamp,
-        root_dir=output_dir,
-        test_data_name=test_data_name,
-        version=version,
-    )
-    sum_log_path = summary_log_path(
-        model_name,
-        train_data_name,
-        device,
-        param_id=param_id,
-        timestamp=timestamp,
-        root_dir=output_dir,
-        test_data_name=None,
-        version=version,
-    )
+    sub_dir = "version_0"
+    path_dict = {
+      'hyperparameter_json': hyperparameter_json_path(
+          model_name=model_name,
+          train_data_name=train_data_name,
+          test_data_name=None,
+          device=device,
+          param_id=param_id,
+          timestamp=timestamp,
+          root_dir=output_dir,
+          sub_dir=sub_dir,
+      ),
+      'hyperparameter_log': hyperparameter_log_path(
+          model_name=model_name,
+          train_data_name=train_data_name,
+          test_data_name=None,
+          device=device,
+          param_id=param_id,
+          timestamp=timestamp,
+          root_dir=output_dir,
+          sub_dir=sub_dir,
+      ),
+      'train_llog': lightning_log_path(
+          model_name=model_name,
+          train_data_name=train_data_name,
+          test_data_name=None,
+          device=device,
+          param_id=param_id,
+          timestamp=timestamp,
+          root_dir=output_dir,
+          sub_dir=sub_dir,
+      ),
+      'test_llog': lightning_log_path(
+          model_name=model_name,
+          train_data_name=train_data_name,
+          test_data_name=test_data_name,
+          device=device,
+          param_id=param_id,
+          timestamp=timestamp,
+          root_dir=output_dir,
+          sub_dir=sub_dir,
+      ),
+      'custom_log': custom_log_path(
+          model_name=model_name,
+          train_data_name=train_data_name,
+          test_data_name=None,
+          device=device,
+          param_id=param_id,
+          timestamp=timestamp,
+          root_dir=output_dir,
+          sub_dir=sub_dir,
+      ),
+    }
 
     # fetch training stats
-    df = get_df_from_log(f"{train_log_path}")
+    df = get_df_from_log(path_dict["train_llog"])
     train_walltime = df[df.tag == "train_final_walltime"].value.iloc[0]
     train_epochs = df[df.tag == "train_final_epoch"].value.iloc[0]
     train_steps = df[df.tag == "train_final_step"].value.iloc[0]
     train_stopped_early = df[df.tag == "train_stopped_early"].value.iloc[0]
 
     # fetch testing stats
-    df = get_df_from_log(f"{test_log_path}")
+    df = get_df_from_log(path_dict["test_llog"])
     test_auroc = df[df.tag == "test_auroc"].value.iloc[0]
     test_loss = df[df.tag == "test_loss"].value.iloc[0]
 
@@ -465,11 +457,11 @@ def aggregate_data_to_csv(
             # runtime
             "train_walltime": [train_walltime],
             # data paths
-            "hyperparam_json_path": [hyperparam_json_path],
-            "hyperparam_log_path": [hyperparam_log_path],
-            "train_log_path": [train_log_path],
-            "test_log_path": [test_log_path],
-            "summary_log_path": [sum_log_path],
+            "hyperparam_json_path": [path_dict["hyperparameter_json"]],
+            "hyperparam_log_path": [path_dict["hyperparameter_log"]],
+            "train_log_path": [path_dict["train_llog"]],
+            "test_log_path": [path_dict["test_llog"]],
+            "custom_log_path": [path_dict["custom_log"]],
             "trained_model_ckpt_path": [trained_model_ckpt],
             "tested_model_ckpt_path": [tested_model_ckpt],
         }
@@ -502,11 +494,11 @@ class CustomCallback(Callback):
     """
 
     def __init__(
-        self, name="model-traindata-ON-testdata-ParamId", summary_log_dir="summary_logs"
+        self, name="model-traindata-ON-testdata-ParamId", log_dir="custom_logs"
     ):
         self.name = name
-        self.summary_log_dir = summary_log_dir
-        self.writer = SummaryWriter(f"{summary_log_dir}/{name}")
+        self.log_dir = log_dir
+        self.writer = SummaryWriter(f"{log_dir}/{name}")
         self.start_time = {}
 
     def log_start(self, trainer, pl_module, prefix=""):

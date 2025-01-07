@@ -79,15 +79,12 @@ def generate_data_pairs(train_data_names, test_data_names, use_cross_datasets=Fa
     return data_pairs
 
 
-def generate_trained_model_ckpts(
-    model_names, train_data_names, param_ids=[None], output_dir=None
-):
+def generate_trained_model_ckpts(model_names, train_data_names, param_ids=[None]):
     return [
         trained_model_ckpt(
             model_name,
             train_data_name,
             param_id,
-            output_dir,
         )
         for model_name in model_names
         for train_data_name in train_data_names
@@ -95,16 +92,13 @@ def generate_trained_model_ckpts(
     ]
 
 
-def generate_tested_model_ckpts(
-    model_names, data_pairs, param_ids=[None], output_dir=None
-):
+def generate_tested_model_ckpts(model_names, data_pairs, param_ids=[None]):
     return [
         tested_model_ckpt(
             model_name,
             train_data_name,
             test_data_name,
             param_id,
-            output_dir,
         )
         for model_name in model_names
         for train_data_name, test_data_name in data_pairs
@@ -112,19 +106,18 @@ def generate_tested_model_ckpts(
     ]
 
 
-def trained_model_ckpt(model, data, param_id=None, output_dir=None):
-    path = f"{trained_model_path(model, data, param_id, output_dir)}"
+def trained_model_ckpt(model, data, param_id=None):
+    path = f"{trained_model_path(model, data, param_id)}"
     return f"{path}.ckpt"
 
 
-def tested_model_ckpt(model, train_data, test_data, param_id=None, output_dir=None):
-    path = f"{tested_model_path(model, train_data, test_data, param_id, output_dir)}"
+def tested_model_ckpt(model, train_data, test_data, param_id=None):
+    path = f"{tested_model_path(model, train_data, test_data, param_id)}"
     return f"{path}.ckpt"
 
 
-def best_model_params(model, data, param_id=None, output_dir=None):
-    path = f"{best_model_params_path(model, data, param_id, output_dir)}"
-    path = prepend_dir_to_path(path, output_dir)
+def best_model_params(model, data, param_id=None):
+    path = f"{best_model_params_path(model, data, param_id)}"
     return f"{path}.json"
 
 
@@ -135,10 +128,8 @@ def benchmark_path(
     test_data=None,
     device=None,
     param_id=None,
-    output_dir=None,
 ):
     path = f"benchmarks/{rule_name}/{device}_{model_str(model, train_data, test_data, param_id)}"
-    path = prepend_dir_to_path(path, output_dir)
     return f"{path}.tsv"
 
 
@@ -163,16 +154,14 @@ def csv_log_path(
     device=None,
     date=None,
     param_id=None,
-    output_dir=None,
 ):
     path = f"result_csvs_and_pdfs/{device}_{date}"
     path = f"{path}/{model_str(model_name, train_data_name, test_data_name, param_id)}"
-    path = prepend_dir_to_path(path, output_dir)
     return f"{path}.csv"
 
 
 def generate_csv_log_paths(
-    model_names, data_pairs, device, date=None, param_ids=[None], output_dir=None
+    model_names, data_pairs, device, date=None, param_ids=[None]
 ):
     csv_log_paths = [
         csv_log_path(
@@ -182,7 +171,6 @@ def generate_csv_log_paths(
             device=device,
             date=date,
             param_id=param_id,
-            output_dir=output_dir,
         )
         for model_name in model_names
         for train_data_name, test_data_name in data_pairs
@@ -201,13 +189,11 @@ tested_model_chkpts = generate_tested_model_ckpts(
     model_names=model_names,
     data_pairs=data_pairs,
     param_ids=param_ids,
-    output_dir=output_dir,
 )
 trained_model_chkpts = generate_trained_model_ckpts(
     model_names=model_names,
     train_data_names=train_data_names,
     param_ids=param_ids,
-    output_dir=output_dir,
 )
 csv_single_paths = generate_csv_log_paths(
     model_names=model_names,
@@ -215,13 +201,10 @@ csv_single_paths = generate_csv_log_paths(
     device=device,
     param_ids=param_ids,
     date=timestamp,
-    output_dir=output_dir,
 )
-csv_output_path = prepend_dir_to_path("result_csvs_and_pdfs/FINAL.csv", output_dir)
-notebook_input_path = prepend_dir_to_path("plot_final_csv.input.ipynb", output_dir)
-notebook_output_path = prepend_dir_to_path(
-    "result_csvs_and_pdfs/plot_final_csv.ipynb", output_dir
-)
+csv_output_path = "result_csvs_and_pdfs/FINAL.csv"
+notebook_input_path = "plot_final_csv.input.ipynb"
+notebook_output_path = "result_csvs_and_pdfs/plot_final_csv.ipynb"
 
 
 rule all:
@@ -235,7 +218,6 @@ rule hyperparameter_optimization:
             model="{model_name}",
             data="{train_data_name}",
             param_id="{param_id}",
-            output_dir=output_dir,
         ),
     benchmark:
         benchmark_path(
@@ -244,7 +226,6 @@ rule hyperparameter_optimization:
             train_data="{train_data_name}",
             device=device,
             param_id="{param_id}",
-            output_dir=output_dir,
         )
     run:
         if use_hyperparameter_optimize:
@@ -257,7 +238,6 @@ rule hyperparameter_optimization:
                 n_trials=n_hyperparameter_trials,
                 timestamp=timestamp,
                 param_id=wildcards.param_id,
-                output_dir=output_dir,
             )
         else:
             with open(output.hyperparameter_path, "w") as file:
@@ -270,14 +250,12 @@ rule train_models:
             model="{model_name}",
             data="{train_data_name}",
             param_id="{param_id}",
-            output_dir=output_dir,
         ),
     output:
         trained_model=trained_model_ckpt(
             model="{model_name}",
             data="{train_data_name}",
             param_id="{param_id}",
-            output_dir=output_dir,
         ),
     benchmark:
         benchmark_path(
@@ -286,7 +264,6 @@ rule train_models:
             train_data="{train_data_name}",
             device=device,
             param_id="{param_id}",
-            output_dir=output_dir,
         )
     run:
         train_model(
@@ -298,7 +275,6 @@ rule train_models:
             profiling=False,
             timestamp=timestamp,
             param_id=wildcards.param_id,
-            output_dir=output_dir,
         )
 
 
@@ -308,13 +284,11 @@ rule test_models:
             model="{model_name}",
             data="{train_data_name}",
             param_id="{param_id}",
-            output_dir=output_dir,
         ),
         hyperparameter_path=best_model_params(
             model="{model_name}",
             data="{train_data_name}",
             param_id="{param_id}",
-            output_dir=output_dir,
         ),
     output:
         tested_model=tested_model_ckpt(
@@ -322,7 +296,6 @@ rule test_models:
             train_data="{train_data_name}",
             test_data="{test_data_name}",
             param_id="{param_id}",
-            output_dir=output_dir,
         ),
     run:
         test_model(
@@ -335,7 +308,6 @@ rule test_models:
             hyperparameter_path=input.hyperparameter_path,
             timestamp=timestamp,
             param_id=wildcards.param_id,
-            output_dir=output_dir,
         )
 
 
@@ -346,19 +318,16 @@ rule create_csvs:
             train_data="{train_data_name}",
             test_data="{test_data_name}",
             param_id="{param_id}",
-            output_dir=output_dir,
         ),
         trained_model=trained_model_ckpt(
             model="{model_name}",
             data="{train_data_name}",
             param_id="{param_id}",
-            output_dir=output_dir,
         ),
         hyperparameter_path=best_model_params(
             model="{model_name}",
             data="{train_data_name}",
             param_id="{param_id}",
-            output_dir=output_dir,
         ),
     output:
         csv_path=csv_log_path(
@@ -368,7 +337,6 @@ rule create_csvs:
             param_id="{param_id}",
             device="{device}",
             date="{timestamp}",
-            output_dir=output_dir,
         ),
     run:
         aggregate_data_to_csv(
@@ -383,7 +351,6 @@ rule create_csvs:
             trained_model_ckpt=input.trained_model,
             tested_model_ckpt=input.tested_model,
             csv_output_path=output.csv_path,
-            output_dir=output_dir,
         )
 
 

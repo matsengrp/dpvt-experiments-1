@@ -15,7 +15,7 @@ from dpvtex.dpvt_zoo import (
     model_str,
     trained_model_path,
     tested_model_path,
-    best_model_params_path,
+    model_params_path,
     optimize_hyperparameters,
     aggregate_data_to_csv,
     concatenate_csvs,
@@ -82,9 +82,9 @@ def generate_data_pairs(train_data_names, test_data_names, use_cross_datasets=Fa
 def generate_trained_model_ckpts(model_names, train_data_names, param_ids=[None]):
     return [
         trained_model_ckpt(
-            model_name,
-            train_data_name,
-            param_id,
+            model=model_name,
+            train_data=train_data_name,
+            param_id=param_id,
         )
         for model_name in model_names
         for train_data_name in train_data_names
@@ -95,10 +95,10 @@ def generate_trained_model_ckpts(model_names, train_data_names, param_ids=[None]
 def generate_tested_model_ckpts(model_names, data_pairs, param_ids=[None]):
     return [
         tested_model_ckpt(
-            model_name,
-            train_data_name,
-            test_data_name,
-            param_id,
+            model=model_name,
+            train_data=train_data_name,
+            test_data=test_data_name,
+            param_id=param_id,
         )
         for model_name in model_names
         for train_data_name, test_data_name in data_pairs
@@ -106,8 +106,8 @@ def generate_tested_model_ckpts(model_names, data_pairs, param_ids=[None]):
     ]
 
 
-def trained_model_ckpt(model, data, param_id=None):
-    path = f"{trained_model_path(model, data, param_id)}"
+def trained_model_ckpt(model, train_data, param_id=None):
+    path = f"{trained_model_path(model, train_data, param_id)}"
     return f"{path}.ckpt"
 
 
@@ -116,8 +116,8 @@ def tested_model_ckpt(model, train_data, test_data, param_id=None):
     return f"{path}.ckpt"
 
 
-def best_model_params(model, data, param_id=None):
-    path = f"{best_model_params_path(model, data, param_id)}"
+def model_params(model, train_data, param_id=None):
+    path = f"{model_params_path(model, train_data, param_id)}"
     return f"{path}.json"
 
 
@@ -165,8 +165,8 @@ def generate_csv_log_paths(
 ):
     csv_log_paths = [
         csv_log_path(
-            model_name,
-            train_data_name,
+            model_name=model_name,
+            train_data_name=train_data_name,
             test_data_name=test_data_name,
             device=device,
             date=date,
@@ -214,9 +214,9 @@ rule all:
 
 rule hyperparameter_optimization:
     output:
-        hyperparameter_path=best_model_params(
+        hyperparameter_path=model_params(
             model="{model_name}",
-            data="{train_data_name}",
+            train_data="{train_data_name}",
             param_id="{param_id}",
         ),
     benchmark:
@@ -246,15 +246,15 @@ rule hyperparameter_optimization:
 
 rule train_models:
     input:
-        hyperparameter_path=best_model_params(
+        hyperparameter_path=model_params(
             model="{model_name}",
-            data="{train_data_name}",
+            train_data="{train_data_name}",
             param_id="{param_id}",
         ),
     output:
         trained_model=trained_model_ckpt(
             model="{model_name}",
-            data="{train_data_name}",
+            train_data="{train_data_name}",
             param_id="{param_id}",
         ),
     benchmark:
@@ -282,12 +282,12 @@ rule test_models:
     input:
         trained_model=trained_model_ckpt(
             model="{model_name}",
-            data="{train_data_name}",
+            train_data="{train_data_name}",
             param_id="{param_id}",
         ),
-        hyperparameter_path=best_model_params(
+        hyperparameter_path=model_params(
             model="{model_name}",
-            data="{train_data_name}",
+            train_data="{train_data_name}",
             param_id="{param_id}",
         ),
     output:
@@ -321,12 +321,12 @@ rule create_csvs:
         ),
         trained_model=trained_model_ckpt(
             model="{model_name}",
-            data="{train_data_name}",
+            train_data="{train_data_name}",
             param_id="{param_id}",
         ),
-        hyperparameter_path=best_model_params(
+        hyperparameter_path=model_params(
             model="{model_name}",
-            data="{train_data_name}",
+            train_data="{train_data_name}",
             param_id="{param_id}",
         ),
     output:

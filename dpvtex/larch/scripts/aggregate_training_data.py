@@ -81,7 +81,7 @@ except ValueError as e:
     # If a ValueError occurs (e.g., due to insufficient data for
     # stratification), print a custom message
     print(f"Error during train-test split: {e}")
-    print("The dataset is not large enough to split in training and testing data. Increase number of trees extracted from hDAG or even better the number of alignments used.")
+    print(f"The dataset is not large enough to split in training and testing data: {len(trees)} trees generated. Increase number of trees extracted from hDAG or the number of alignments used.")
     # Optionally, re-raise the error or handle it further
     sys.exit("Dataset too small, will not generate training/testing data split.")
     raise

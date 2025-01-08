@@ -2,10 +2,15 @@
 
 # Parameters
 num_alignments=200
+num_sequences_list=(5 10 15)
+alignment_length_list=(20 50 100)
 
-for num_sequences in 5 10 15; do
-    for alignment_length in 20 50 100; do
-        base_directory="../../data/simulated_alignments/alisim_alignment_${num_sequences}_seq_${alignment_length}_sites_${num_alignments}_algnmnts"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+for num_sequences in "${num_sequences_list[@]}"; do
+    for alignment_length in "${alignment_length_list[@]}"; do
+        base_directory="$(cd "${script_dir}/../../data/simulated_alignments" && pwd)/alisim_alignment_${num_sequences}_seq_${alignment_length}_sites_${num_alignments}_algnmnts"
+
 
         # Create base directory for alignments
         if [ -d "$base_directory" ]; then
@@ -28,7 +33,7 @@ for num_sequences in 5 10 15; do
             done
 
             echo "Generate config file..."
-            python generate_configs.py $num_sequences $alignment_length
+            python ${script_dir}/generate_configs.py $num_sequences $alignment_length
         fi
     done
 done

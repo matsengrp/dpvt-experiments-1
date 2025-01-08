@@ -1,8 +1,15 @@
 import os
 import datetime
+import sys
 
 snakefile_dir = workflow.basedir
-config_path = os.path.join(snakefile_dir, "config.yaml")
+default_config_path = os.path.join(snakefile_dir, "config.yaml")
+
+args = sys.argv
+try:
+    config_path = args[args.index("--configfile") + 1]
+except:
+    config_path = default_config_path
 
 configfile: config_path
 
@@ -44,7 +51,7 @@ rule generate_dpvt_input:
     shell:
         """
         snakemake --unlock
-        snakemake --snakefile {generating_data_snakefile} --cores {num_cores} --rerun-incomplete
+        snakemake --snakefile {generating_data_snakefile} --configfile {config_path} --cores {num_cores} --rerun-incomplete
         """
 
 use rule * from preprocessing as preprocessing_*

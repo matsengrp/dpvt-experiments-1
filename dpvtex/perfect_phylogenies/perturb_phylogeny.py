@@ -67,7 +67,9 @@ def tree_depth(node):
     """
     if node.is_leaf():
         return 1
-    tree_depth = max([get_distance(node,leaf, topology_only=True) + 2 for leaf in node])
+    tree_depth = max(
+        [get_distance(node, leaf, topology_only=True) + 2 for leaf in node]
+    )
     return tree_depth
 
 
@@ -175,6 +177,8 @@ def spr_move(tree, node1, node2):
 
     if node2 in node1.get_descendants():
         raise ValueError("No SPR move possible, node2 is child of node1")
+
+    # prune node1 and reattach on edge above node2
     node1_parent = node1.up
     node1_sibling = node1.get_sisters()[0]  # bifurcating tree -> only one sibling
     pruned_tree = node1.detach()
@@ -186,6 +190,7 @@ def spr_move(tree, node1, node2):
     node2.detach()
     new_node.add_child(node2)
     new_node.add_child(pruned_tree)
+    new_node.add_feature("random_tree", True)
     return new_tree
 
 
@@ -195,6 +200,7 @@ def make_worse_spr(tree, num_sprs, max_attempts=100):
     with higher parsimony score
     """
     sankoff_for_missing_sequences(tree)
+    any(node.add_feature("random_tree", False) for node in tree.traverse())
     move_count = 0
     for _ in range(max_attempts):
         node_list = list(
@@ -207,6 +213,8 @@ def make_worse_spr(tree, num_sprs, max_attempts=100):
             node
             for node in tree.iter_descendants()
             if node not in list(prune_node.traverse())
+            and not node.up == prune_node.up
+            and not node == prune_node.up
         ]
         insertion_node = allowed_edges[randrange(0, len(allowed_edges))]
         perturbed_tree = spr_move(tree, prune_node, insertion_node)

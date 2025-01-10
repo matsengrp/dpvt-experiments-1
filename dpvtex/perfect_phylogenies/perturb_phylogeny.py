@@ -145,3 +145,28 @@ def make_worse_tree(tree, depth, max_attempts=100):
         if parsimony_score(perturbed_tree) > old_score:
             return perturbed_tree
     return None
+
+
+# TODO: Write test!
+def spr_move(tree, node1, node2):
+    """SPR move on tree that prunes rootward edge incident to node1 and regrafts it on rootward edge incident to node2."""
+	node1_p = node1.parent
+    removed_tree = node1.detach()
+    # node1_p is unufurcation now
+    node2_p = node2.parent
+    # TODO: Do we need to follow some naming rules?
+    node2_p.add_child(name="N1")
+
+
+def make_worse_spr(tree):
+    """
+    Peform a random SPR move on input tree to create tree with higher parsimony score
+    """
+    node_list = list(tree.traverse())
+    # prune edge above randomly chosen node prune_node
+    prune_node = node_list[randrange(0, len(node_list))]
+    # pick random edge to insert
+    allowed_edges = node_list - list(prune_node.traverse())
+    insertion_node = allowed_edges[randrange(0, len(allowed_edges))]
+    
+    

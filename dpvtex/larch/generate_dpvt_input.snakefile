@@ -11,6 +11,7 @@ input_data=os.path.realpath(config["input_data"])
 output_data=config["output_data"]
 larch_build=config["larch_build"]
 dataset_name=config["dataset_name"]
+make_worse_spr=config["make_worse_spr"]
 
 
 current_date = datetime.datetime.now().strftime("%Y-%m-%d")
@@ -78,7 +79,7 @@ rule extract_dpvt_data:
         num_children_file=input_data+"/{subdir}/num_children_dag_trees.csv"
     shell:
         """
-        python {snakefile_dir}/scripts/extract_data_from_hdag.py {input.pb} {output.data} {output.num_children_file}
+        python {snakefile_dir}/scripts/extract_data_from_hdag.py {input.pb} {output.data} {output.num_children_file} {make_worse_spr}
         """
 
 

@@ -2,4 +2,5 @@ input_data: "../data/larch-data"
 larch_build: "../../../larch/build"
 output_data: "../data"
 dataset_name: "test-dataset"
+make_worse_spr: True
 num_cores: 1

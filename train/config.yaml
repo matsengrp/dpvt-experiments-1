@@ -17,7 +17,7 @@ test_data: [
   ]
 
 device: "cpu"
-# timestamp: "TODAY"
+timestamp: "TODAY"
 cross_datasets: False
 output_dir: "_output"
 

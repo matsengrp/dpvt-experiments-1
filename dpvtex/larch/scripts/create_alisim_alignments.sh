@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Parameters
-num_alignments=200
+num_alignments=10
 num_sequences_list=(5 10 15)
 alignment_length_list=(20 50 100)
 
@@ -33,7 +33,7 @@ for num_sequences in "${num_sequences_list[@]}"; do
             done
 
             echo "Generate config file..."
-            python ${script_dir}/generate_configs.py $num_sequences $alignment_length
+            python ${script_dir}/generate_configs.py $num_sequences $alignment_length $num_alignments
         fi
     done
 done

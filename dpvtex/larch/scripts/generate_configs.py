@@ -1,0 +1,43 @@
+import json
+import os
+import argparse
+
+
+def generate_config_files(num_sequences, num_sites):    
+    # Create output directory if it doesn't exist
+    os.makedirs("../configs", exist_ok=True)
+    
+    # Create the dataset name
+    dataset_name = f"alisim_alignment_{num_sequences}_seq_{num_sites}_sites_200_algnmnts"
+    
+    # Create the config dictionary
+    config = {
+        "input_data": f"../data/simulated_alignments/{dataset_name}",
+        "larch_build": "../../../larch/build",
+        "output_data": "../data",
+        "dataset_name": dataset_name,
+        "num_cores": 2,
+        "make_worse_spr": True
+    }
+    
+    # Create filename for the config
+    filename = f"config_{num_sequences}seq_{num_sites}sites.json"
+    filepath = os.path.join("configs", filename)
+    
+    # Write the JSON file
+    if os.path.exists(filepath):
+        print(f"Config file {filename} exists already.")
+    else:
+        with open(filepath, "w") as f:
+            json.dump(config, f, indent=2)
+        print(f"Generated {filename}")
+
+
+if __name__ == "__main__":
+    # Parse command line arguments (number of sequences and number of sites)
+    parser = argparse.ArgumentParser(description="Provide number of sequences and number of sites in alignment.")
+    parser.add_argument('num_sequences', type=int, help='Number of sequences in alignment.')
+    parser.add_argument('num_sites', type=int, help='Number of sites in alignment')
+    args = parser.parse_args()
+
+    generate_config_files(args.num_sequences, args.num_sites)

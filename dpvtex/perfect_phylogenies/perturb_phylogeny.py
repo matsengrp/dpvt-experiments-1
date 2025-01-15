@@ -203,8 +203,9 @@ def make_worse_spr(tree, num_sprs, max_attempts=100):
     any(node.add_feature("random_tree", False) for node in tree.traverse())
     move_count = 0
     for _ in range(max_attempts):
+        # we cannot prune children or grandchildren of root
         node_list = list(
-            [node for node in tree.iter_descendants() if not node.up.is_root()]
+            [node for node in tree.iter_descendants() if not node.up.is_root() or node.up in tree.children]
         )
         # prune edge above randomly chosen node prune_node
         prune_node = node_list[randrange(0, len(node_list))]
@@ -216,12 +217,13 @@ def make_worse_spr(tree, num_sprs, max_attempts=100):
             and not node.up == prune_node.up
             and not node == prune_node.up
         ]
-        insertion_node = allowed_edges[randrange(0, len(allowed_edges))]
-        perturbed_tree = spr_move(tree, prune_node, insertion_node)
-        sankoff_for_missing_sequences(perturbed_tree)
-        if parsimony_score(perturbed_tree) > parsimony_score(tree):
-            move_count += 1
-            tree = perturbed_tree
-            if move_count >= num_sprs:
-                return tree
+        if len(allowed_edges) > 0:
+            insertion_node = allowed_edges[randrange(0, len(allowed_edges))]
+            perturbed_tree = spr_move(tree, prune_node, insertion_node)
+            sankoff_for_missing_sequences(perturbed_tree)
+            if parsimony_score(perturbed_tree) > parsimony_score(tree):
+                move_count += 1
+                tree = perturbed_tree
+                if move_count >= num_sprs:
+                    return tree
     return None

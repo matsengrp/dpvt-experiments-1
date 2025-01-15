@@ -3,7 +3,14 @@ import os
 import datetime
 
 snakefile_dir = workflow.basedir
-config_path = os.path.join(snakefile_dir, "config.yaml")
+default_config_path = os.path.join(snakefile_dir, "config.yaml")
+
+args = sys.argv
+
+try:
+    config_path = os.path.join(snakefile_dir, args[args.index("--configfile") + 1])
+except:
+    config_path = default_config_path
 
 configfile: config_path
 

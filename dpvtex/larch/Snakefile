@@ -7,7 +7,7 @@ default_config_path = os.path.join(snakefile_dir, "config.yaml")
 args = sys.argv
 
 try:
-    config_path = args[args.index("--configfile") + 1]
+    config_path = os.path.join(snakefile_dir, args[args.index("--configfile") + 1])
 except:
     config_path = default_config_path
 
@@ -16,8 +16,6 @@ configfile: config_path
 
 input_data=os.path.realpath(config["input_data"])
 
-print("config:", config_path)
-print("input_data:", config["input_data"])
 
 preprocessing_snakefile = os.path.join(snakefile_dir,"preprocess_alignments.snakefile")
 generating_data_snakefile = os.path.join(snakefile_dir,"generate_dpvt_input.snakefile")
@@ -52,7 +50,7 @@ rule generate_dpvt_input:
         temp(touch("run_all.done"))
     shell:
         """
-        snakemake --unlock
+        snakemake --unlock --configfile {config_path}
         snakemake --snakefile {generating_data_snakefile} --cores {num_cores} --configfile {config_path} --rerun-incomplete
         """
 

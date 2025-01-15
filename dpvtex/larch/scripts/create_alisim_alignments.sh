@@ -1,7 +1,15 @@
 #!/bin/bash
 
+# This script simulates alignments under JC using the iqtree package alisim
+# For each combination of num_sequence and alignment_length_list specified below
+# num_alignments will be simulated and saved in a directory in
+#  ../../data/simulated_alignments (base_directory in for loops)
+# Additionally, config files are produced by calling generate_configs.py
+# These can then be used for running the larch pipeline to generate dpvt
+# training and testing datasets.
+
 # Parameters
-num_alignments=10
+num_alignments=200
 num_sequences_list=(5 10 15)
 alignment_length_list=(20 50 100)
 

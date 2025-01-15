@@ -3,7 +3,13 @@ import os
 import argparse
 
 
-def generate_config_files(num_sequences, num_sites, num_algnmnts):    
+def generate_config_files(num_sequences, num_sites, num_algnmnts):
+    """
+    Generate config files for running the larch pipeline to generate
+    training and testing data for dpvt.
+    These are config files for data simulated by alisim using the
+    script create_alisim_alignments.sh in `dpvtex/larch/sripts`
+    """
     # Create output directory if it doesn't exist
     os.makedirs("../configs", exist_ok=True)
     

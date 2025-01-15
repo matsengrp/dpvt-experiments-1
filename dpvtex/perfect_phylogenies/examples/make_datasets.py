@@ -30,7 +30,6 @@ def make_phylogeny_data(n_leaves, n_phylos_per_tree, depth, spr=False):
         # create a random prefect phylogeny
         phylo = rpp.make_random_perfect_phylogeny()
         if spr:
-            # TODO: We need to add node attributes "random_tree"
             mixed_phylo = make_worse_spr(phylo, len(tree) / 2, max_attempts=500)
         else:
             mixed_phylo = make_worse_tree(phylo, depth=depth, max_attempts=500)

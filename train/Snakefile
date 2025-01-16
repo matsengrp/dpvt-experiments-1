@@ -1,4 +1,4 @@
-import sys,os
+import sys, os
 from datetime import datetime
 import papermill as pm
 import itertools
@@ -44,7 +44,10 @@ default_config = {
 }
 
 config_path = os.path.join(snakefile_dir, "config.yaml")
+
+
 configfile: config_path
+
 
 # use defaults where option not in config file
 for arg in default_config:
@@ -132,19 +135,25 @@ def generate_tested_model_ckpts(
 
 
 def get_trained_model_ckpt(model, train_data, param_id, device, timestamp, output_dir):
-    path = get_trained_model_path(model, train_data, param_id, device, timestamp, output_dir)
+    path = get_trained_model_path(
+        model, train_data, param_id, device, timestamp, output_dir
+    )
     return f"{path}.ckpt"
 
 
 def get_tested_model_ckpt(
     model, train_data, test_data, param_id, device, timestamp, output_dir
 ):
-    path = get_tested_model_path(model, train_data, test_data, param_id, device, timestamp, output_dir)
+    path = get_tested_model_path(
+        model, train_data, test_data, param_id, device, timestamp, output_dir
+    )
     return f"{path}.ckpt"
 
 
 def get_model_params_json(model, train_data, param_id, device, timestamp, output_dir):
-    path = get_model_params_path(model, train_data, param_id, device, timestamp, output_dir)
+    path = get_model_params_path(
+        model, train_data, param_id, device, timestamp, output_dir
+    )
     return f"{path}.json"
 
 
@@ -281,9 +290,6 @@ config_output_path = f"{run_dir}/config.yaml"
 
 rule all:
     input:
-        # model_param_jsons,
-        # trained_model_chkpts,
-        # tested_model_chkpts,
         notebook_output_path,
 
 
@@ -497,9 +503,9 @@ rule create_pdfs_step:
         notebook_output_path=notebook_output_path,
     run:
         parameters = {
-          'output_dir': run_dir,
-          'results_dir': f'{output_dir}/result_csvs_and_pdfs',
-          'summary_csv_path': input.csv_output_path,
+            "output_dir": run_dir,
+            "results_dir": f"{run_dir}/result_csvs_and_pdfs",
+            "summary_csv_path": input.csv_output_path,
         }
         pm.execute_notebook(
             input_path=notebook_input_path,
@@ -511,6 +517,6 @@ rule create_pdfs_step:
 
 rule log_config_step:
     output:
-        config_output_path=config_output_path
+        config_output_path=config_output_path,
     run:
         json.dump(config, config_output_path)

@@ -57,9 +57,9 @@ def get_model_str(model_name, train_data_name, test_data_name=None, param_id=Non
     return path
 
 
-def prepend_dir_to_path(path, root_dir=None):
-    if root_dir is not None:
-        path = str(Path(root_dir) / Path(path))
+def prepend_dir_to_path(path, output_dir=None):
+    if output_dir is not None:
+        path = str(Path(output_dir) / Path(path))
     return path
 
 
@@ -78,17 +78,17 @@ def build_log_path(
     timestamp,
     log_name,
     step_name,
-    root_dir=".",
+    output_dir=".",
 ):
     model_str = get_model_str(model_name, train_data_name, test_data_name, param_id)
     path = f"run.{device}_{timestamp}/{log_name}/{step_name}/{model_str}"
-    path = prepend_dir_to_path(path, root_dir)
+    path = prepend_dir_to_path(path, output_dir)
     path = f"{os.getcwd()}/{path}"
     return path
 
 
 def get_trained_model_path(
-    model_name, train_data_name, param_id, device, timestamp, root_dir="."
+    model_name, train_data_name, param_id, device, timestamp, output_dir="."
 ):
     path = build_log_path(
         model_name=model_name,
@@ -99,7 +99,7 @@ def get_trained_model_path(
         timestamp=timestamp,
         log_name="checkpoint_logs",
         step_name="train_model",
-        root_dir=root_dir,
+        output_dir=output_dir,
     )
     return path
 
@@ -111,7 +111,7 @@ def get_tested_model_path(
     param_id,
     device,
     timestamp,
-    root_dir=".",
+    output_dir=".",
 ):
     path = build_log_path(
         model_name=model_name,
@@ -122,7 +122,7 @@ def get_tested_model_path(
         timestamp=timestamp,
         log_name="checkpoint_logs",
         step_name="test_model",
-        root_dir=root_dir,
+        output_dir=output_dir,
     )
     return path
 
@@ -133,7 +133,7 @@ def get_model_params_path(
     param_id,
     device,
     timestamp,
-    root_dir=".",
+    output_dir=".",
 ):
     path = build_log_path(
         model_name=model_name,
@@ -144,7 +144,7 @@ def get_model_params_path(
         timestamp=timestamp,
         log_name="checkpoint_logs",
         step_name="optimize_hyperparameters",
-        root_dir=root_dir,
+        output_dir=output_dir,
     )
     return path
 
@@ -156,7 +156,7 @@ def build_paths_dict(
     device,
     param_id,
     timestamp,
-    root_dir=".",
+    output_dir=".",
 ):
     def _get_path(test_data_name, log_name, step_name):
         path = build_log_path(
@@ -168,7 +168,7 @@ def build_paths_dict(
             timestamp=timestamp,
             log_name=log_name,
             step_name=step_name,
-            root_dir=root_dir,
+            output_dir=output_dir,
         )
         return path
 
@@ -210,7 +210,7 @@ def optimize_hyperparameters(
     n_trials=100,
     timestamp=str(todays_date),
     param_id=None,
-    root_dir=".",
+    output_dir=".",
 ):
     dir_dict, path_dict = build_paths_dict(
         model_name=model_name,
@@ -219,7 +219,7 @@ def optimize_hyperparameters(
         device=device,
         param_id=param_id,
         timestamp=timestamp,
-        root_dir=root_dir
+        output_dir=output_dir
     )
     train_data, val_data = train_val_data_of_nicknames(data_name, device)
     model = build_model(model_name)
@@ -253,7 +253,7 @@ def train_model(
     profiling=False,
     timestamp=str(todays_date),
     param_id=None,
-    root_dir=".",
+    output_dir=".",
     **wrap_kwargs,
 ):
     """
@@ -266,7 +266,7 @@ def train_model(
         device=device,
         param_id=param_id,
         timestamp=timestamp,
-        root_dir=root_dir
+        output_dir=output_dir
     )
     # set final and test checkpoint strings
     if train_checkpoint is None:
@@ -310,7 +310,7 @@ def continue_train_model(
     train_checkpoint=None,
     timestamp=str(todays_date),
     param_id=None,
-    root_dir=".",
+    output_dir=".",
     **wrap_kwargs,
 ):
     """
@@ -324,7 +324,7 @@ def continue_train_model(
         device=device,
         param_id=param_id,
         timestamp=timestamp,
-        root_dir=root_dir
+        output_dir=output_dir
     )
     # set final and test checkpoint strings
     if train_checkpoint is None:
@@ -374,7 +374,7 @@ def test_model(
     accum_grad_batches=1,
     timestamp=str(todays_date),
     param_id=None,
-    root_dir=".",
+    output_dir=".",
     **wrap_kwargs,
 ):
     """
@@ -389,7 +389,7 @@ def test_model(
         device=device,
         param_id=param_id,
         timestamp=timestamp,
-        root_dir=root_dir
+        output_dir=output_dir
     )
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
@@ -441,7 +441,7 @@ def aggregate_data_to_csv(
     trained_model_ckpt,
     tested_model_ckpt,
     csv_output_path,
-    root_dir=".",
+    output_dir=".",
 ):
     """
     Aggregate result data in a CSV entry.
@@ -459,7 +459,7 @@ def aggregate_data_to_csv(
         device=device,
         timestamp=timestamp,
         param_id=param_id,
-        root_dir=root_dir,
+        output_dir=output_dir,
     )
 
     # fetch training stats

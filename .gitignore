@@ -172,7 +172,6 @@ hyper_checkpoints/
 # snakemake workflow
 .snakemake
 result_csvs_and_pdfs/
-custom_logs/
 
 # datafiles
 *.fasta

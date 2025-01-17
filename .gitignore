@@ -171,8 +171,7 @@ hyper_checkpoints/
 
 # snakemake workflow
 .snakemake
-result_csvs_and_pdfs
-summary_logs
+result_csvs_and_pdfs/
 
 # datafiles
 *.fasta
@@ -194,3 +193,7 @@ summary_logs
 
 # soft-linked data folder
 data
+
+# training temporary folder
+_output*/
+train--*/

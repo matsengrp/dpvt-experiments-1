@@ -1,16 +1,33 @@
-models: ["TraverseNN", "TraverseMaxPooling", "TraverseAvgPooling"]
+models: [
+    # "TraverseNN",
+    "TraverseMaxPooling",
+    "TraverseAvgPooling"
+  ]
 train_data: [
     "FourLeafTrain",
-    # "FourLeafFourSiteTrain",
+    "FourLeafFourSiteTrain",
     # "TenLeaf",
     # "ThirtyLeaf",
   ]
 test_data: [
     "FourLeafTest",
-    # "FourLeafFourSiteTest",
+    "FourLeafFourSiteTest",
     # "TenLeafTest",
     # "ThirtyLeafTest",
   ]
+
 device: "cpu"
-n_hyperparameter_trials: "10"
-timestamp: "TODAY"
+# timestamp: "TODAY"
+cross_datasets: False
+output_dir: "_output"
+
+hyperparameter_optimize: True
+n_hyperparameter_trials: 5
+
+hyperparameters:
+  learning_rate: [0.0002, 0.0004]
+  batch_size: [512]
+  accum_grad_batches: [1]
+  epochs: [100, 200]
+  feature_length: [128]
+  dim_mlp_layers: [256]

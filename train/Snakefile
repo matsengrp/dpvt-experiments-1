@@ -1,108 +1,420 @@
-import sys
+import sys, os
 from datetime import datetime
 import papermill as pm
+import itertools
+import pprint as pp
+import json
+from pathlib import Path
 
 snakefile_dir = workflow.basedir
 sys.path.append(snakefile_dir + "/..")
 
 from dpvtex.dpvt_zoo import (
+    get_model_str,
+    build_log_path,
+    get_trained_model_path,
+    get_tested_model_path,
+    get_model_params_path,
     train_model,
     test_model,
-    trained_model_path,
-    tested_model_path,
-    best_model_params_path,
     optimize_hyperparameters,
-    csv_log_path,
-    generate_csv_log_paths,
     aggregate_data_to_csv,
     concatenate_csvs,
 )
 
 default_config = {
-  'models': "TraverseNN",
-  'train_data_names': ["FourLeafTrain"],
-  'test_data_names': ["FourLeafTest"],
-  'device': "cpu",
-  'timestamp': str(datetime.now().strftime("%Y-%m-%d")),
-  'n_hyperparameter_trials': 100,
+    "models": "TraverseNN",
+    "train_data_names": ["FourLeafTrain"],
+    "test_data_names": ["FourLeafTest"],
+    "device": "cpu",
+    "timestamp": str(datetime.now().strftime("%Y-%m-%d")),
+    "n_hyperparameter_trials": 100,
+    "cross_datasets": False,
+    "output_dir": "_output",
+    # if hyperparameter_optimize is False, then uses hyperparameter arguments below.
+    "hyperparameter_optimize": True,
+    "hyperparameters": {
+        "learning_rate": [0.0002, 0.0004],
+        "batch_size": [512],
+        "accum_grad_batches": [1],
+        "epochs": [100, 200],
+        "feature_length": [128],
+        "dim_mlp_layers": [256],
+    },
 }
 
 config_path = os.path.join(snakefile_dir, "config.yaml")
+
+
 configfile: config_path
 
-# use defaults where
+
+# use defaults where option not in config file
 for arg in default_config:
     if arg not in config:
         config[arg] = default_config[arg]
+for arg in default_config["hyperparameters"]:
+    if arg not in config["hyperparameters"]:
+        config["hyperparameters"][arg] = default_config["hyperparameters"][arg]
 
 
+# config settings
+output_dir = config["output_dir"]
 model_names = config["models"]
 train_data_names = config["train_data"]
 test_data_names = config["test_data"]
 device = config["device"]
-timestamp=config["timestamp"]
-n_hyperparameter_trials = int(config["n_hyperparameter_trials"])
-csv_output_path = "result_csvs_and_pdfs/FINAL.csv"
-notebook_input_path = "plot_final_csv.input.ipynb"
-notebook_output_path = "result_csvs_and_pdfs/plot_final_csv.ipynb"
-
-data_pairs = list(zip(train_data_names, test_data_names))
+timestamp = config["timestamp"]
+n_hyperparameter_trials = config["n_hyperparameter_trials"]
+use_cross_datasets = config["cross_datasets"]
+use_hyperparameter_optimize = config["hyperparameter_optimize"]
+hyperparameters = config["hyperparameters"]
 
 
-def generate_tested_model_ckpts(model_names, data_pairs):
+def generate_data_pairs(train_data_names, test_data_names, use_cross_datasets):
+    if not use_cross_datasets:
+        data_pairs = list(zip(train_data_names, test_data_names))
+    else:
+        data_pairs = [x for x in itertools.product(train_data_names, test_data_names)]
+    return data_pairs
+
+
+def generate_model_params_jsons(
+    model_names, train_data_names, param_ids, device, timestamp, output_dir
+):
     return [
-        tested_model_ckpt(model_name, train_data_name, test_data_name)
+        get_model_params_json(
+            model=model_name,
+            train_data=train_data_name,
+            param_id=param_id,
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
         for model_name in model_names
-        for train_data_name, test_data_name in data_pairs
+        for train_data_name in train_data_names
+        for param_id in param_ids
     ]
 
 
-def trained_model_ckpt(model, data):
-    return f"{trained_model_path(model, data)}.ckpt"
+def generate_trained_model_ckpts(
+    model_names, train_data_names, param_ids, device, timestamp, output_dir
+):
+    return [
+        get_trained_model_ckpt(
+            model=model_name,
+            train_data=train_data_name,
+            param_id=param_id,
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
+        for model_name in model_names
+        for train_data_name in train_data_names
+        for param_id in param_ids
+    ]
 
 
-def tested_model_ckpt(model, train_data, test_data):
-    return f"{tested_model_path(model, train_data, test_data)}.ckpt"
+def generate_tested_model_ckpts(
+    model_names, data_pairs, param_ids, device, timestamp, output_dir
+):
+    return [
+        get_tested_model_ckpt(
+            model=model_name,
+            train_data=train_data_name,
+            test_data=test_data_name,
+            param_id=param_id,
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
+        for model_name in model_names
+        for train_data_name, test_data_name in data_pairs
+        for param_id in param_ids
+    ]
 
 
-def best_model_params(model, data):
-    return f"{best_model_params_path(model, data)}.json"
+def get_trained_model_ckpt(model, train_data, param_id, device, timestamp, output_dir):
+    path = get_trained_model_path(
+        model, train_data, param_id, device, timestamp, output_dir
+    )
+    return f"{path}.ckpt"
+
+
+def get_tested_model_ckpt(
+    model, train_data, test_data, param_id, device, timestamp, output_dir
+):
+    path = get_tested_model_path(
+        model, train_data, test_data, param_id, device, timestamp, output_dir
+    )
+    return f"{path}.ckpt"
+
+
+def get_model_params_json(model, train_data, param_id, device, timestamp, output_dir):
+    path = get_model_params_path(
+        model, train_data, param_id, device, timestamp, output_dir
+    )
+    return f"{path}.json"
+
+
+def get_benchmark_path(
+    rule_name,
+    model,
+    train_data,
+    test_data,
+    param_id,
+    device,
+    timestamp,
+    output_dir,
+):
+    path = build_log_path(
+        model_name=model,
+        train_data_name=train_data,
+        test_data_name=test_data,
+        param_id=param_id,
+        device=device,
+        timestamp=timestamp,
+        log_name="benchmark_logs",
+        step_name=rule_name,
+        output_dir=output_dir,
+    )
+    return f"{path}.tsv"
+
+
+def generate_hyperparameter_dicts(hyperparameters, use_hyperparameter_optimize):
+    if use_hyperparameter_optimize:
+        return ["ParamOpt"], {}
+
+    param_dicts = {}
+    keys = hyperparameters.keys()
+    values = [x for x in hyperparameters.values()]
+    for id, combination in enumerate(itertools.product(*values)):
+        param_id = f"Param{id}"
+        result_dict = dict(zip(keys, combination))
+        param_dicts[param_id] = result_dict
+    return list(param_dicts.keys()), param_dicts
+
+
+def get_csv_log_path(
+    model_name,
+    train_data_name,
+    test_data_name,
+    param_id,
+    timestamp,
+    device,
+    output_dir,
+):
+    path = build_log_path(
+        model_name=model_name,
+        train_data_name=train_data_name,
+        test_data_name=test_data_name,
+        param_id=param_id,
+        device=device,
+        timestamp=timestamp,
+        log_name="csv_logs",
+        step_name="",
+        output_dir=output_dir,
+    )
+    return f"{path}.csv"
+
+
+def generate_csv_log_paths(
+    model_names,
+    data_pairs,
+    param_ids,
+    device,
+    timestamp,
+    output_dir,
+):
+    csv_log_paths = [
+        get_csv_log_path(
+            model_name=model_name,
+            train_data_name=train_data_name,
+            test_data_name=test_data_name,
+            param_id=param_id,
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
+        for model_name in model_names
+        for train_data_name, test_data_name in data_pairs
+        for param_id in param_ids
+    ]
+    return csv_log_paths
+
+
+# rule input/output paths
+data_pairs = generate_data_pairs(train_data_names, test_data_names, use_cross_datasets)
+param_ids, param_dicts = generate_hyperparameter_dicts(
+    hyperparameters=hyperparameters,
+    use_hyperparameter_optimize=use_hyperparameter_optimize,
+)
+model_param_jsons = generate_model_params_jsons(
+    model_names=model_names,
+    train_data_names=train_data_names,
+    param_ids=param_ids,
+    device=device,
+    timestamp=timestamp,
+    output_dir=output_dir,
+)
+trained_model_chkpts = generate_trained_model_ckpts(
+    model_names=model_names,
+    train_data_names=train_data_names,
+    param_ids=param_ids,
+    device=device,
+    timestamp=timestamp,
+    output_dir=output_dir,
+)
+tested_model_chkpts = generate_tested_model_ckpts(
+    model_names=model_names,
+    data_pairs=data_pairs,
+    param_ids=param_ids,
+    device=device,
+    timestamp=timestamp,
+    output_dir=output_dir,
+)
+csv_single_paths = generate_csv_log_paths(
+    model_names=model_names,
+    data_pairs=data_pairs,
+    param_ids=param_ids,
+    device=device,
+    timestamp=timestamp,
+    output_dir=output_dir,
+)
+run_dir = f"{output_dir}/run.{device}_{timestamp}"
+notebook_input_path = f"./plot_summary_csv.input.ipynb"
+csv_output_path = f"{run_dir}/result_csvs_and_pdfs/summary.csv"
+notebook_output_path = f"{run_dir}/result_csvs_and_pdfs/plot_final_csv.ipynb"
+config_output_path = f"{run_dir}/config.yaml"
 
 
 rule all:
     input:
-        generate_tested_model_ckpts(model_names, data_pairs),
-        generate_csv_log_paths(model_names, data_pairs, device=device, date=timestamp),
         notebook_output_path,
 
 
-rule train_models:
-    input:
-        hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
+rule optimize_hyperparameters_step:
     output:
-        trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
+        hyperparameter_path=get_model_params_json(
+            model="{model_name}",
+            train_data="{train_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        ),
     benchmark:
-        "benchmarks/train_model/{model_name}_{train_data_name}_" + device + ".tsv"
+        get_benchmark_path(
+            rule_name="optimize_hyperparameters",
+            model="{model_name}",
+            train_data="{train_data_name}",
+            test_data=None,
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
+    run:
+        if use_hyperparameter_optimize:
+            optimize_hyperparameters(
+                model_name=wildcards.model_name,
+                data_name=wildcards.train_data_name,
+                best_model_hparams_filepath=output.hyperparameter_path,
+                device=device,
+                profiling=False,
+                n_trials=n_hyperparameter_trials,
+                timestamp=timestamp,
+                param_id=wildcards.param_id,
+                output_dir=output_dir,
+            )
+        else:
+            with open(output.hyperparameter_path, "w") as file:
+                file.write(json.dumps(param_dicts[wildcards.param_id]))
+
+
+rule train_model_step:
+    input:
+        hyperparameter_path=get_model_params_json(
+            model="{model_name}",
+            train_data="{train_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        ),
+    output:
+        trained_model=get_trained_model_ckpt(
+            model="{model_name}",
+            train_data="{train_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        ),
+    benchmark:
+        get_benchmark_path(
+            rule_name="train_model",
+            model="{model_name}",
+            train_data="{train_data_name}",
+            test_data=None,
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
     run:
         train_model(
-            wildcards.model_name,
-            wildcards.train_data_name,
-            output.trained_model,
-            device,
-            input.hyperparameter_path,
+            model_name=wildcards.model_name,
+            data_name=wildcards.train_data_name,
+            train_checkpoint=output.trained_model,
+            device=device,
+            hyperparameter_path=input.hyperparameter_path,
             profiling=False,
             timestamp=timestamp,
+            param_id=wildcards.param_id,
+            output_dir=output_dir,
         )
 
 
-rule test_models:
+rule test_model_step:
     input:
-        trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
-        hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
-    output:
-        tested_model=tested_model_ckpt(
-            "{model_name}", "{train_data_name}", "{test_data_name}"
+        trained_model=get_trained_model_ckpt(
+            model="{model_name}",
+            train_data="{train_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
         ),
+        hyperparameter_path=get_model_params_json(
+            model="{model_name}",
+            train_data="{train_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        ),
+    output:
+        tested_model=get_tested_model_ckpt(
+            model="{model_name}",
+            train_data="{train_data_name}",
+            test_data="{test_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        ),
+    benchmark:
+        get_benchmark_path(
+            rule_name="test_model",
+            model="{model_name}",
+            train_data="{train_data_name}",
+            test_data="{test_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
     run:
         test_model(
             trained_model_name=wildcards.model_name,
@@ -113,30 +425,48 @@ rule test_models:
             device=device,
             hyperparameter_path=input.hyperparameter_path,
             timestamp=timestamp,
+            param_id=wildcards.param_id,
+            output_dir=output_dir,
         )
 
 
-rule hyperparameter_optimization:
-    output:
-        best_model_params=best_model_params("{model_name}", "{train_data_name}"),
-    run:
-        optimize_hyperparameters(
-            model_name=wildcards.model_name,
-            data_name=wildcards.train_data_name,
-            best_model_hparams_filepath=output.best_model_params,
-            device=device,
-            profiling=False,
-            n_trials=n_hyperparameter_trials
-        )
-
-
-rule create_csvs:
+rule create_csvs_step:
     input:
-        tested_model=tested_model_ckpt("{model_name}", "{train_data_name}", "{test_data_name}"),
-        trained_model=trained_model_ckpt("{model_name}", "{train_data_name}"),
-        hyperparameter_path=best_model_params("{model_name}", "{train_data_name}"),
+        tested_model=get_tested_model_ckpt(
+            model="{model_name}",
+            train_data="{train_data_name}",
+            test_data="{test_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        ),
+        trained_model=get_trained_model_ckpt(
+            model="{model_name}",
+            train_data="{train_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        ),
+        hyperparameter_path=get_model_params_json(
+            model="{model_name}",
+            train_data="{train_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        ),
     output:
-        csv_path=csv_log_path("{model_name}", "{train_data_name}", test_data_name="{test_data_name}", device="{device}", date="{timestamp}"),
+        csv_path=get_csv_log_path(
+            model_name="{model_name}",
+            train_data_name="{train_data_name}",
+            test_data_name="{test_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        ),
     run:
         aggregate_data_to_csv(
             model_name=wildcards.model_name,
@@ -144,34 +474,49 @@ rule create_csvs:
             test_data_name=wildcards.test_data_name,
             device=device,
             timestamp=timestamp,
+            param_id=wildcards.param_id,
             n_hyperparameter_trials=n_hyperparameter_trials,
             hyperparameter_path=input.hyperparameter_path,
             trained_model_ckpt=input.trained_model,
             tested_model_ckpt=input.tested_model,
             csv_output_path=output.csv_path,
+            output_dir=output_dir,
         )
 
 
-rule concat_csvs:
+rule concat_csvs_step:
     input:
-        csv_input_paths=generate_csv_log_paths(model_names, data_pairs, device=device, date=timestamp),
+        csv_input_paths=csv_single_paths,
     output:
-        csv_output_path=csv_output_path
+        csv_output_path=csv_output_path,
     run:
         concatenate_csvs(
-            input.csv_input_paths,
-            output.csv_output_path,
+            input_csv_paths=input.csv_input_paths,
+            output_csv_path=output.csv_output_path,
         )
 
 
-rule create_pdfs:
+rule create_pdfs_step:
     input:
-        csv_output_path=csv_output_path
+        csv_output_path=csv_output_path,
     output:
-        notebook_output_path=notebook_output_path
+        notebook_output_path=notebook_output_path,
     run:
+        parameters = {
+            "output_dir": run_dir,
+            "results_dir": f"{run_dir}/result_csvs_and_pdfs",
+            "summary_csv_path": input.csv_output_path,
+        }
         pm.execute_notebook(
             input_path=notebook_input_path,
             output_path=output.notebook_output_path,
+            parameters=parameters,
+            report_mode=False,
         )
 
+
+rule log_config_step:
+    output:
+        config_output_path=config_output_path,
+    run:
+        json.dump(config, config_output_path)

@@ -47,12 +47,22 @@ def train_val_data_of_nicknames(data_name, device):
     trees = list(data_dict.keys())
 
     sum_of_ones = [sum(label) for label in labels]
-    counter = Counter(sum_of_ones)
 
     # Convert sums to a categorical variable for balancing number of non-MP edges in train/test/val
+    num_categories = 4 # Aim for 4 categories
     categories = pd.qcut(
-        sum_of_ones, q=min(len(counter), 4), labels=False, duplicates="drop"
+        sum_of_ones, q=num_categories, labels=False, duplicates="drop"
     )
+    cat_counter = Counter(categories)
+
+    while any(count < 0.2 * len(trees) for count in cat_counter.values()):
+        # require minimum size of 20% of dataset for each category to ensure train/val split can be performed correctly
+        print("decrease number of categories")
+        num_categories -= 1
+        categories = pd.qcut(
+            sum_of_ones, q=num_categories, labels=False, duplicates="drop"
+        )
+        cat_counter = Counter(categories)
 
     train_data, val_data, train_labels, val_labels = train_test_split(
         trees,

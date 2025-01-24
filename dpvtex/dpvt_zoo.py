@@ -195,7 +195,7 @@ def build_paths_dict(
         "train_benchmark": f"{dirs['train_benchmark']}.tsv",
         "train_clog": f"{dirs['train_clog']}",
         "train_checkpoint": f"{dirs['train_checkpoint']}.ckpt",
-        "test_llog": f"{dirs['train_benchmark']}",
+        "test_llog": f"{dirs['test_llog']}",
         "test_checkpoint": f"{dirs['test_checkpoint']}.ckpt",
     }
     return dirs, paths

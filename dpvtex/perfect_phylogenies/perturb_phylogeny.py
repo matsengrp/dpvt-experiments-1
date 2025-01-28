@@ -175,7 +175,7 @@ def spr_move(tree, node1, node2):
     else:
         node2 = new_tree.search_nodes(name=node2_set[0])[0]
 
-    if node2 in node1.get_descendants():
+    if node2 in node1.get_descendants() or node2 in node1.get_sisters():
         raise ValueError("No SPR move possible, node2 is child of node1")
 
     # prune node1 and reattach on edge above node2

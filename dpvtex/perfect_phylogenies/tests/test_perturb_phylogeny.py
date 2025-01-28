@@ -15,9 +15,18 @@ def test_spr_move():
     node2 = tree1.search_nodes(name="3")[0]
     new_tree3 = spr_move(tree1, node2, node1)
 
+    # impossible SPR move on sister edges
+    node1 = tree3.search_nodes(name="3")[0]
+    node2 = tree3.search_nodes(name="4")[0]
+    try:
+        new_tree4 = spr_move(tree3, node1, node2)
+    except:
+        new_tree4 = None
+
     assert (
         new_tree2.robinson_foulds(tree2)[0] == 0
         and new_tree3.robinson_foulds(tree3)[0] == 0
+        and new_tree4 == None
     )
 
 

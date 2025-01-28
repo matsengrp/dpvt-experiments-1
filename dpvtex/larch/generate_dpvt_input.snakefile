@@ -3,7 +3,14 @@ import os
 import datetime
 
 snakefile_dir = workflow.basedir
-config_path = os.path.join(snakefile_dir, "config.yaml")
+default_config_path = os.path.join(snakefile_dir, "config.yaml")
+
+args = sys.argv
+
+try:
+    config_path = os.path.join(snakefile_dir, args[args.index("--configfile") + 1])
+except:
+    config_path = default_config_path
 
 configfile: config_path
 
@@ -11,9 +18,17 @@ input_data=os.path.realpath(config["input_data"])
 output_data=config["output_data"]
 larch_build=config["larch_build"]
 dataset_name=config["dataset_name"]
+make_worse_spr=config["make_worse_spr"]
 
 
 current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+
+# special suffices if spr moves to introduce non-MP edges
+pickle_suffix = ".p"
+csv_suffix = ".csv"
+if make_worse_spr == "True":
+    pickle_suffix = "_spr.p"
+    csv_suffix = "_spr.csv"
 
 
 def get_subdirs(data_dir):
@@ -29,9 +44,9 @@ def get_subdirs(data_dir):
 
 rule all:
     input:
-        input_data+"/data_properties_"+dataset_name+"_"+current_date+".csv",
-        output_data+"/larch_"+dataset_name+"_"+current_date+"_train.p",
-        output_data+"/larch_"+dataset_name+"_"+current_date+"_test.p",
+        input_data+"/data_properties_"+dataset_name+"_"+current_date+csv_suffix,
+        output_data+"/larch_"+dataset_name+"_"+current_date+"_train"+pickle_suffix,
+        output_data+"/larch_"+dataset_name+"_"+current_date+"_test"+pickle_suffix,
 
 
 rule preprocessing:
@@ -70,26 +85,27 @@ rule run_larch:
         """
 
 
+
 rule extract_dpvt_data:
     input:
         pb=input_data+"/{subdir}/larch-output.pb",
     output:
-        data=input_data+"/{subdir}/{subdir}.p",
-        num_children_file=input_data+"/{subdir}/num_children_dag_trees.csv"
+        data=input_data+"/{subdir}/{subdir}"+pickle_suffix,
+        num_children_file=input_data+"/{subdir}/num_children_dag_trees"+csv_suffix
     shell:
         """
-        python {snakefile_dir}/scripts/extract_data_from_hdag.py {input.pb} {output.data} {output.num_children_file}
+        python {snakefile_dir}/scripts/extract_data_from_hdag.py {input.pb} {output.data} {output.num_children_file} {make_worse_spr}
         """
 
 
 rule aggregate_training_data:
     input:
-        expand(input_data+"/{subdir}/{subdir}.p", subdir=get_subdirs(input_data)),
+        expand(input_data+"/{subdir}/{subdir}"+pickle_suffix, subdir=get_subdirs(input_data)),
         length_files=expand(input_data+"/{subdir}/cleaned_alignment_length.txt", subdir=get_subdirs(input_data)),
     output:
-        data_props=input_data+"/data_properties_"+dataset_name+"_"+current_date+".csv",
-        dpvt_train_data=output_data+"/larch_"+dataset_name+"_"+current_date+"_train.p",
-        dpvt_test_data=output_data+"/larch_"+dataset_name+"_"+current_date+"_test.p",
+        data_props=input_data+"/data_properties_"+dataset_name+"_"+current_date+csv_suffix,
+        dpvt_train_data=output_data+"/larch_"+dataset_name+"_"+current_date+"_train"+pickle_suffix,
+        dpvt_test_data=output_data+"/larch_"+dataset_name+"_"+current_date+"_test"+pickle_suffix,
     shell:
         """
         python {snakefile_dir}/scripts/aggregate_training_data.py {input_data} {output.dpvt_train_data} {output.dpvt_test_data} {output.data_props}

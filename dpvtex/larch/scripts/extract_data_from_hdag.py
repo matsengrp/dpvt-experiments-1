@@ -4,6 +4,7 @@ import random
 
 from dpvtex.perfect_phylogenies.perturb_phylogeny import (
     make_worse_tree,
+    make_worse_spr,
     tree_depth,
     sankoff_for_missing_sequences,
 )
@@ -171,7 +172,7 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
     return edge_labels
 
 
-def get_non_dag_edges(dag, num_children_file, num_trees=0):
+def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=True):
     """
     Perturbs trees in tree_list to create num_trees perturbed trees containing
     edges that are not present in the given dag Args:
@@ -216,7 +217,10 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0):
                 # make tree worse until at least a third of all edges are non MP
                 print("Tree modification iteration ", i)
                 i += 1
-                new_tree = make_worse_tree(modified_tree, td // 2)
+                if use_make_worse_spr:
+                    new_tree = make_worse_spr(modified_tree, len(modified_tree)//2)
+                else:
+                    new_tree = make_worse_tree(modified_tree, td // 2)
                 if new_tree is not None:
                     modified_tree = new_tree
                 # assign edge labels
@@ -231,7 +235,7 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0):
 
 
 def main():
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 3:
         print(
             "Error: Please provide file containing pickled hDAG or protobuf and filename for dpvt data."
         )
@@ -240,6 +244,7 @@ def main():
         dag_file = sys.argv[1]
         dpvt_data_file = sys.argv[2]
         num_children_file = sys.argv[3]
+        make_worse_tree = sys.argv[4]
 
     if dag_file[-2:] == ".p":
         with open(dag_file, "rb") as f:
@@ -256,7 +261,7 @@ def main():
     dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
     num_topologies = min(dag.count_topologies(), 200) # get at most 200 trees from hdag
 
-    tree_label_dict = get_non_dag_edges(dag, num_children_file, num_topologies)
+    tree_label_dict = get_non_dag_edges(dag, num_children_file, num_topologies, make_worse_tree)
     with open(dpvt_data_file, "wb") as f:
         pickle.dump(tree_label_dict, f)
 

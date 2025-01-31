@@ -28,7 +28,7 @@ default_config = {
     "start_time": str(datetime.now().strftime("%Y-%m-%d_%H:%M:%S")),
     # defaults
     "output_path": "_output",
-    "data_nicknames_path": "data_nicknames.json"
+    "data_nicknames_path": "data_nicknames.json",
     "models": ["TraverseNN"],
     "train_data_names": ["FourLeafTrain"],
     "test_data_names": ["FourLeafTest"],

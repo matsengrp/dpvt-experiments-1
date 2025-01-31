@@ -48,6 +48,7 @@ device: "cpu"
 timestamp: "TODAY"
 cross_datasets: True
 output_dir: "_output"
+data_nicknames_path: "data_nicknames.json"
 
 hyperparameter_optimize: True
 n_hyperparameter_trials: 5

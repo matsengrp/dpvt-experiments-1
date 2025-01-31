@@ -1,9 +1,6 @@
 from dpvt import models
 from dpvt.wrapper import Wrap, HyperWrap
-from dpvtex.dpvt_data import (
-    data_of_nicknames,
-    train_val_data_of_nicknames,
-)
+from dpvtex.dpvt_data import data_of_nicknames,train_val_data_of_nicknames
 import json
 import torch
 import os
@@ -211,6 +208,7 @@ def optimize_hyperparameters(
     timestamp=str(todays_date),
     param_id=None,
     output_dir=".",
+    data_nicknames_path="data_nicknames.json",
 ):
     dir_dict, path_dict = build_paths_dict(
         model_name=model_name,
@@ -221,7 +219,7 @@ def optimize_hyperparameters(
         timestamp=timestamp,
         output_dir=output_dir
     )
-    train_data, val_data = train_val_data_of_nicknames(data_name, device)
+    train_data, val_data = train_val_data_of_nicknames(data_name, device, data_nicknames_path)
     model = build_model(model_name)
     log_path = path_dict["hyper_llog"]
     checkpoint_dir = dir_dict["hyper_checkpoint"]
@@ -254,6 +252,7 @@ def train_model(
     timestamp=str(todays_date),
     param_id=None,
     output_dir=".",
+    data_nicknames_path="data_nicknames.json",
     **wrap_kwargs,
 ):
     """
@@ -273,7 +272,7 @@ def train_model(
         train_checkpoint = path_dict["train_checkpoint"]
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
-    train_data, val_data = train_val_data_of_nicknames(data_name, device)
+    train_data, val_data = train_val_data_of_nicknames(data_name, device, data_nicknames_path)
     model = build_model(model_name)
     log_path = path_dict["train_llog"]
     custom_log_path = path_dict["train_clog"]
@@ -311,6 +310,7 @@ def continue_train_model(
     timestamp=str(todays_date),
     param_id=None,
     output_dir=".",
+    data_nicknames_path="data_nicknames.json",
     **wrap_kwargs,
 ):
     """
@@ -340,7 +340,7 @@ def continue_train_model(
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
     # load dataset
-    train_data, val_data = train_val_data_of_nicknames(data_name, device)
+    train_data, val_data = train_val_data_of_nicknames(data_name, device, data_nicknames_path)
     log_path = path_dict["train_llog"]
     custom_log_path = path_dict["train_clog"]
 
@@ -375,6 +375,7 @@ def test_model(
     timestamp=str(todays_date),
     param_id=None,
     output_dir=".",
+    data_nicknames_path="data_nicknames.json",
     **wrap_kwargs,
 ):
     """
@@ -403,7 +404,7 @@ def test_model(
         dim_mlp_layers=hparams["dim_mlp_layers"],
     )
     # load dataset
-    test_data = data_of_nicknames(test_data_name, device)
+    test_data = data_of_nicknames(test_data_name, device, data_nicknames_path)
     log_path = path_dict["test_llog"]
 
     test_wrap = Wrap(

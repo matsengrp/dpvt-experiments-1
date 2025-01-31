@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, shutil
 from datetime import datetime
 import papermill as pm
 import itertools
@@ -23,16 +23,21 @@ from dpvtex.dpvt_zoo import (
 )
 
 default_config = {
-    "models": "TraverseNN",
+    # meta data
+    "working_dir": os.getcwd(),
+    "start_time": str(datetime.now().strftime("%Y-%m-%d_%H:%M:%S")),
+    # defaults
+    "output_path": "_output",
+    "data_nicknames_path": "data_nicknames.json"
+    "models": ["TraverseNN"],
     "train_data_names": ["FourLeafTrain"],
     "test_data_names": ["FourLeafTest"],
     "device": "cpu",
     "timestamp": str(datetime.now().strftime("%Y-%m-%d")),
     "n_hyperparameter_trials": 100,
-    "cross_datasets": False,
-    "output_dir": "_output",
+    "use_cross_datasets": False,
     # if hyperparameter_optimize is False, then uses hyperparameter arguments below.
-    "hyperparameter_optimize": True,
+    "use_hyperparameter_optimize": True,
     "hyperparameters": {
         "learning_rate": [0.0002, 0.0004],
         "batch_size": [512],
@@ -60,14 +65,15 @@ for arg in default_config["hyperparameters"]:
 
 # config settings
 output_dir = config["output_dir"]
+data_nicknames_path = config["data_nicknames_path"]
 model_names = config["models"]
 train_data_names = config["train_data"]
 test_data_names = config["test_data"]
 device = config["device"]
 timestamp = config["timestamp"]
 n_hyperparameter_trials = config["n_hyperparameter_trials"]
-use_cross_datasets = config["cross_datasets"]
-use_hyperparameter_optimize = config["hyperparameter_optimize"]
+use_cross_datasets = config["use_cross_datasets"]
+use_hyperparameter_optimize = config["use_hyperparameter_optimize"]
 hyperparameters = config["hyperparameters"]
 
 
@@ -286,10 +292,12 @@ notebook_input_path = f"./plot_summary_csv.input.ipynb"
 csv_output_path = f"{run_dir}/result_csvs_and_pdfs/summary.csv"
 notebook_output_path = f"{run_dir}/result_csvs_and_pdfs/plot_final_csv.ipynb"
 config_output_path = f"{run_dir}/config.yaml"
+data_nicknames_output_path = f"{run_dir}/data_nicknames.json"
 
 
 rule all:
     input:
+        config_output_path,
         notebook_output_path,
 
 
@@ -326,6 +334,7 @@ rule optimize_hyperparameters_step:
                 timestamp=timestamp,
                 param_id=wildcards.param_id,
                 output_dir=output_dir,
+                data_nicknames_path=data_nicknames_path,
             )
         else:
             with open(output.hyperparameter_path, "w") as file:
@@ -373,6 +382,7 @@ rule train_model_step:
             timestamp=timestamp,
             param_id=wildcards.param_id,
             output_dir=output_dir,
+            data_nicknames_path=data_nicknames_path,
         )
 
 
@@ -427,6 +437,7 @@ rule test_model_step:
             timestamp=timestamp,
             param_id=wildcards.param_id,
             output_dir=output_dir,
+            data_nicknames_path=data_nicknames_path,
         )
 
 
@@ -481,6 +492,7 @@ rule create_csvs_step:
             tested_model_ckpt=input.tested_model,
             csv_output_path=output.csv_path,
             output_dir=output_dir,
+            data_nicknames_path=data_nicknames_path,
         )
 
 
@@ -515,8 +527,10 @@ rule create_pdfs_step:
         )
 
 
-rule log_config_step:
+rule log_metadata_step:
     output:
         config_output_path=config_output_path,
+        data_nicknames_output_path=data_nicknames_output_path,
     run:
         json.dump(config, config_output_path)
+        shutil.copy(data_nicknames_path, data_nicknames_output_path)

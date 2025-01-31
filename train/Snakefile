@@ -532,5 +532,6 @@ rule log_metadata_step:
         config_output_path=config_output_path,
         data_nicknames_output_path=data_nicknames_output_path,
     run:
-        json.dump(config, config_output_path)
+        with open(config_output_path, "w") as f:
+            json.dump(config, f)
         shutil.copy(data_nicknames_path, data_nicknames_output_path)

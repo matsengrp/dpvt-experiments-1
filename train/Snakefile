@@ -519,6 +519,7 @@ rule create_pdfs_step:
         notebook_output_path=notebook_output_path,
     run:
         parameters = {
+            "working_dir": working_dir,
             "output_dir": run_dir,
             "results_dir": f"{run_dir}/result_csvs_and_pdfs",
             "summary_csv_path": input.csv_output_path,

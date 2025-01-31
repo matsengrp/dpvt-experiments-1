@@ -3,7 +3,7 @@ from datetime import datetime
 import papermill as pm
 import itertools
 import pprint as pp
-import json
+import json, yaml
 from pathlib import Path
 
 snakefile_dir = workflow.basedir
@@ -290,18 +290,26 @@ csv_single_paths = generate_csv_log_paths(
     timestamp=timestamp,
     output_dir=output_dir,
 )
-run_dir = f"{output_dir}/run.{device}_{timestamp}"
+run_dir = f"{working_dir}/{output_dir}/run.{device}_{timestamp}"
 notebook_input_path = f"./plot_summary_csv.input.ipynb"
 csv_output_path = f"{run_dir}/result_csvs_and_pdfs/summary.csv"
-notebook_output_path = f"{run_dir}/result_csvs_and_pdfs/plot_final_csv.ipynb"
+notebook_output_path = f"{run_dir}/result_csvs_and_pdfs/plot_summary_csv.ipynb"
 config_output_path = f"{run_dir}/config.yaml"
 data_nicknames_output_path = f"{run_dir}/data_nicknames.json"
 
 
 rule all:
     input:
-        config_output_path,
         notebook_output_path,
+
+rule log_metadata_step:
+    output:
+        config_output_path=config_output_path,
+        data_nicknames_output_path=data_nicknames_output_path,
+    run:
+        with open(output.config_output_path, "w") as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+        shutil.copy(data_nicknames_path, output.data_nicknames_output_path)
 
 
 rule optimize_hyperparameters_step:
@@ -523,6 +531,8 @@ rule create_pdfs_step:
             "output_dir": run_dir,
             "results_dir": f"{run_dir}/result_csvs_and_pdfs",
             "summary_csv_path": input.csv_output_path,
+            "config_path": input.config_output_path,
+            "data_nicknames_path": input.data_nicknames_output_path,
         }
         pm.execute_notebook(
             input_path=notebook_input_path,
@@ -530,13 +540,3 @@ rule create_pdfs_step:
             parameters=parameters,
             report_mode=False,
         )
-
-
-rule log_metadata_step:
-    output:
-        config_output_path=config_output_path,
-        data_nicknames_output_path=data_nicknames_output_path,
-    run:
-        with open(output.config_output_path, "w") as f:
-            json.dump(config, f)
-        shutil.copy(data_nicknames_path, output.data_nicknames_output_path)

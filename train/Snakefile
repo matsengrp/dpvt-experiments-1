@@ -61,9 +61,12 @@ for arg in default_config:
 for arg in default_config["hyperparameters"]:
     if arg not in config["hyperparameters"]:
         config["hyperparameters"][arg] = default_config["hyperparameters"][arg]
+if not config["use_hyperparameter_optimize"]:
+    config["n_hyperparameter_trials"] = 0
 
 
 # config settings
+working_dir = config["working_dir"]
 output_dir = config["output_dir"]
 data_nicknames_path = config["data_nicknames_path"]
 model_names = config["models"]
@@ -492,7 +495,6 @@ rule create_csvs_step:
             tested_model_ckpt=input.tested_model,
             csv_output_path=output.csv_path,
             output_dir=output_dir,
-            data_nicknames_path=data_nicknames_path,
         )
 
 
@@ -511,6 +513,8 @@ rule concat_csvs_step:
 rule create_pdfs_step:
     input:
         csv_output_path=csv_output_path,
+        config_output_path=config_output_path,
+        data_nicknames_output_path=data_nicknames_output_path,
     output:
         notebook_output_path=notebook_output_path,
     run:
@@ -532,6 +536,6 @@ rule log_metadata_step:
         config_output_path=config_output_path,
         data_nicknames_output_path=data_nicknames_output_path,
     run:
-        with open(config_output_path, "w") as f:
+        with open(output.config_output_path, "w") as f:
             json.dump(config, f)
-        shutil.copy(data_nicknames_path, data_nicknames_output_path)
+        shutil.copy(data_nicknames_path, output.data_nicknames_output_path)

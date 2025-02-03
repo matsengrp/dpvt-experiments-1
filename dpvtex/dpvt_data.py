@@ -7,20 +7,19 @@ import pandas as pd
 from collections import Counter
 import json
 
+def load_nicknames_dict(data_nicknames_path):
+    with open(data_nicknames_path, "r") as f:
+        dataset_dict = json.load(f)
+    data_dir = dataset_dict.pop("data_dir")
+    dataset_dict = {key: f"{data_dir}/{dataset_dict[key]}" for key in dataset_dict}
+    return dataset_dict
 
-with open("data_nicknames.json", "r") as f:
-    dataset_dict = json.load(f)
-
-data_dir = dataset_dict.pop("data_dir")
-
-dataset_dict = {key: data_dir + "/" + dataset_dict[key] for key in dataset_dict}
-
-
-def data_of_nicknames(data_name, device):
+def data_of_nicknames(data_name, device, data_nicknames_path):
     """
     Takes a dataset nickname string, which is a key in `dataset_dict`, and returns the
     corresponding data as a `TreeDataset` object.
     """
+    dataset_dict = load_nicknames_dict(data_nicknames_path)
     file_path = dataset_dict[data_name]
     file_path = os.path.realpath(file_path)
     with open(file_path, "rb") as f:
@@ -36,7 +35,8 @@ def data_of_nicknames(data_name, device):
     return tree_data
 
 
-def train_val_data_of_nicknames(data_name, device):
+def train_val_data_of_nicknames(data_name, device, data_nicknames_path):
+    dataset_dict = load_nicknames_dict(data_nicknames_path)
     file_path = dataset_dict[data_name]
     file_path = os.path.realpath(file_path)
     with open(file_path, "rb") as f:

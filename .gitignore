@@ -195,5 +195,5 @@ result_csvs_and_pdfs/
 data
 
 # training temporary folder
-_output*/
+train/_*/
 train--*/

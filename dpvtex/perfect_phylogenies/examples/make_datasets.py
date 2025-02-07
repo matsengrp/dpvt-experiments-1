@@ -14,8 +14,15 @@ from dpvtex.perfect_phylogenies.perturb_phylogeny import (
     sankoff_for_missing_sequences,
 )
 
+def print_leaf_sequences(phylo):
+    # print(f'features: {phylo.features}')
+    leaf_seqs = [x.sequence for x in phylo.get_leaves()]
+    leaf_lens = [len(x) for x in leaf_seqs]
+    print(f'leaf_seqs: {len(leaf_seqs)} {leaf_seqs}')
+    print(f'leaf_lens: {len(leaf_lens)} {leaf_lens}')
 
-def make_phylogeny_data(n_leaves, n_phylos_per_tree, depth, spr=False):
+
+def make_phylogeny_data(n_leaves, n_phylos_per_tree, depth, n_sites=None, spr=False):
     """
     Create a collection of phylogenies obtained by randomly mixing a subtree of
     a perfect phylogeny.
@@ -28,7 +35,8 @@ def make_phylogeny_data(n_leaves, n_phylos_per_tree, depth, spr=False):
 
     for _ in range(n_phylos_per_tree):
         # create a random prefect phylogeny
-        phylo = rpp.make_random_perfect_phylogeny()
+        phylo = rpp.make_random_perfect_phylogeny(n_mut_sets=n_sites)
+        # print_leaf_sequences(phylo)
         if spr:
             mixed_phylo = make_worse_spr(phylo, len(tree) / 2, max_attempts=500)
         else:
@@ -53,7 +61,7 @@ def make_phylogeny_data(n_leaves, n_phylos_per_tree, depth, spr=False):
 
 
 def create_training_data(
-    n_trees, n_phylos_per_tree, n_leaves, depth=4, n_threads=1, spr=False
+    n_trees, n_phylos_per_tree, n_leaves, depth=4, n_sites=None, n_threads=1, spr=False
 ):
     """
     Create a collection of random trees and phylogenies obtained by randomly
@@ -63,12 +71,12 @@ def create_training_data(
     if n_threads > 1:
         process_pool = Pool(n_threads)
         pooled_results = process_pool.starmap(
-            make_phylogeny_data, [(n_leaves, n_phylos_per_tree, depth, spr)] * n_trees
+            make_phylogeny_data, [(n_leaves, n_phylos_per_tree, depth, n_sites, spr)] * n_trees
         )
     else:
         # Skip the performance hit from using multiprocessing with one process.
         pooled_results = [
-            make_phylogeny_data(n_leaves, n_phylos_per_tree, depth, spr)
+            make_phylogeny_data(n_leaves, n_phylos_per_tree, depth, n_sites, spr)
             for _ in range(n_trees)
         ]
     tree_data_dict = {
@@ -86,6 +94,7 @@ def main():
     )
     parser.add_argument("n_leaves", type=int, help="Number of leaves")
     parser.add_argument("n_trees", type=int, help="Number of trees to be generated")
+    parser.add_argument("n_sites", type=int, default=None, help="Number of sites")
     parser.add_argument(
         "SPR",
         type=str,
@@ -102,6 +111,7 @@ def main():
         n_phylos_per_tree=1,
         n_leaves=args.n_leaves,
         depth=2,
+        n_sites=args.n_sites,
         n_threads=4,
         spr=spr,
     )

@@ -1,4 +1,5 @@
 import numpy as np
+import random
 from ete3 import Tree
 
 
@@ -18,32 +19,32 @@ class RandomPerfectPhylogeny:
             leaves appearing after the internal nodes. The index of a node in this list
             is the so-called node_index of the node.
         bad_root_patterns (list): A list of the mutation node index sets that are near
-            the root and do not meet the requirement of a perfect phylogeny. 
+            the root and do not meet the requirement of a perfect phylogeny.
         bases (tuple): The nucleotide bases 'A', 'G', 'C', and 'T'.
         first_leaf_index (int): The first index position of a leaf node in all_nodes.
-        mut_counts (list): A list with the number of mutations at each node. The entry 
+        mut_counts (list): A list with the number of mutations at each node. The entry
             at index i corresponds not to the node with node_index i, but to the node
             whose node_index is at index i of node_indices.
         mut_selections (list): A list of mutation node index sets that form the current
             random perfect phylogeny.
-        no_perms (boolean): When True, there is no randomness in assigning nucleotide 
+        no_perms (boolean): When True, there is no randomness in assigning nucleotide
             bases for a mutation node index set. Specifically, each site corresponds to
-            a set of substitutions on at most 3 non-root nodes. Suppose these three 
-            nodes are x, y, and z, with the order following the specific pre-order 
-            traversal stored in the all_nodes attribute. With no randomization, the 
-            root, x, y, and z are assigned 'A', 'G', 'C', 'T', in that order. This can 
+            a set of substitutions on at most 3 non-root nodes. Suppose these three
+            nodes are x, y, and z, with the order following the specific pre-order
+            traversal stored in the all_nodes attribute. With no randomization, the
+            root, x, y, and z are assigned 'A', 'G', 'C', 'T', in that order. This can
             be useful when testing.
         node_count (int): The length of node_indices.
-        node_index_to_count_index (dict): The reverse map taking a node_index to the 
+        node_index_to_count_index (dict): The reverse map taking a node_index to the
             appropriate index of mut_counts and node_indices.
-        node_indices (tuple): The node indices of the nodes on which we require a 
+        node_indices (tuple): The node indices of the nodes on which we require a
             substitution (either all internal nodes or all non-root nodes). While node
             indices are assigned to nodes in a specific order, this tuple is in random order.
         node_sequences (dict): A dictionary mapping a node index to the current sequence
             for the node.
-        node_substitutions (dict): A dictionary mapping a node index to the current 
+        node_substitutions (dict): A dictionary mapping a node index to the current
             substitutions for the node.
-        rng (numpy.random._generator.Generator): The random number generator used for 
+        rng (numpy.random._generator.Generator): The random number generator used for
             all random choices.
         size_probs (list): A length 3 list with the probabilities of selecting a set of
             mutations on 1, 2, or 3 nodes at one site.
@@ -66,13 +67,13 @@ class RandomPerfectPhylogeny:
         self.set_bad_root_patterns()
         self.set_size_probs(size_probs)
 
-    def make_random_perfect_phylogeny(self, use_seq=True, use_sub=False):
+    def make_random_perfect_phylogeny(self, use_seq=True, use_sub=False, n_mut_sets=None):
         """
         Returns a new ete3 Tree instance with the topology of the original tree and with
         all nodes labelled (by sequence or substitutions) to make a perfect phylogeny.
         """
         self.set_internal_state()
-        self.set_mutation_selection()
+        self.set_mutation_selection(n_mut_sets=n_mut_sets)
         self.set_sequence_data()
         tree = self.make_labelled_tree(use_seq=use_seq, use_sub=use_sub)
         return tree
@@ -161,23 +162,37 @@ class RandomPerfectPhylogeny:
         self.mut_counts = [0] * self.node_count
         return None
 
-    def set_mutation_selection(self):
+    def set_mutation_selection(self, n_mut_sets=None):
         """
         Sets the self.mut_selections to a random list of valid mutation node index sets
         that form a perfect phylogeny. Assumes various internal state attributes are
         clear.
         """
         there_are_nodes_without_subs = True
-        while there_are_nodes_without_subs:
-            # Get the next node index requiring a mutation
-            n_index = self.node_indices[self.mut_counts.index(0)]
+        while True:
+            # get the next node index requiring a mutation
+            if there_are_nodes_without_subs:
+                n_index = self.node_indices[self.mut_counts.index(0)]
+            else:
+                n_index = random.choice(range(0,len(self.mut_counts)))
+
+            # create a mutation set
             keep_trying = True
             while keep_trying:
                 mut_set = self.make_random_mutation_set(n_index)
-                keep_trying = self.any_previous_mut_set_superfluous(mut_set)
+                mut_set_is_superfluous = self.any_previous_mut_set_superfluous(mut_set)
+                keep_trying = (there_are_nodes_without_subs and mut_set_is_superfluous)
             self.mut_selections.append(mut_set)
             self.increment_mutation_counts(mut_set)
-            there_are_nodes_without_subs = 0 in self.mut_counts
+
+            # termination criteria
+            there_are_nodes_without_subs = (0 in self.mut_counts)
+            n_mut_sets_reached = (n_mut_sets and (len(self.mut_selections) >= n_mut_sets))
+            if (not there_are_nodes_without_subs) and (not n_mut_sets):
+                break
+            if (not there_are_nodes_without_subs) and n_mut_sets_reached:
+                break
+
         return None
 
     def alter_mutation_counts(self, mut_set, i):

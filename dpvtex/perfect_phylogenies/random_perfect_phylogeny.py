@@ -67,13 +67,13 @@ class RandomPerfectPhylogeny:
         self.set_bad_root_patterns()
         self.set_size_probs(size_probs)
 
-    def make_random_perfect_phylogeny(self, use_seq=True, use_sub=False, n_mut_sets=None):
+    def make_random_perfect_phylogeny(self, use_seq=True, use_sub=False, n_sites=None):
         """
         Returns a new ete3 Tree instance with the topology of the original tree and with
         all nodes labelled (by sequence or substitutions) to make a perfect phylogeny.
         """
         self.set_internal_state()
-        self.set_mutation_selection(n_mut_sets=n_mut_sets)
+        self.set_mutation_selection(min_mut_sets=n_sites)
         self.set_sequence_data()
         tree = self.make_labelled_tree(use_seq=use_seq, use_sub=use_sub)
         return tree
@@ -162,7 +162,7 @@ class RandomPerfectPhylogeny:
         self.mut_counts = [0] * self.node_count
         return None
 
-    def set_mutation_selection(self, n_mut_sets=None):
+    def set_mutation_selection(self, min_mut_sets=None):
         """
         Sets the self.mut_selections to a random list of valid mutation node index sets
         that form a perfect phylogeny. Assumes various internal state attributes are
@@ -170,11 +170,11 @@ class RandomPerfectPhylogeny:
         """
         there_are_nodes_without_subs = True
         while True:
-            # get the next node index requiring a mutation
+            # get the next node index requiring a mutation if exists
             if there_are_nodes_without_subs:
                 n_index = self.node_indices[self.mut_counts.index(0)]
             else:
-                n_index = random.choice(range(0,len(self.mut_counts)))
+                n_index = self.rng.choice(range(0,len(self.mut_counts)))
 
             # create a mutation set
             keep_trying = True
@@ -187,8 +187,8 @@ class RandomPerfectPhylogeny:
 
             # termination criteria
             there_are_nodes_without_subs = (0 in self.mut_counts)
-            n_mut_sets_reached = (n_mut_sets and (len(self.mut_selections) >= n_mut_sets))
-            if (not there_are_nodes_without_subs) and (not n_mut_sets):
+            n_mut_sets_reached = (min_mut_sets and (len(self.mut_selections) >= min_mut_sets))
+            if (not there_are_nodes_without_subs) and (not min_mut_sets):
                 break
             if (not there_are_nodes_without_subs) and n_mut_sets_reached:
                 break

@@ -15,7 +15,7 @@ from dpvtex.perfect_phylogenies.perturb_phylogeny import (
 )
 
 def print_leaf_sequences(phylo):
-    # print(f'features: {phylo.features}')
+    print(f'features: {phylo.features}')
     leaf_seqs = [x.sequence for x in phylo.get_leaves()]
     leaf_lens = [len(x) for x in leaf_seqs]
     print(f'leaf_seqs: {len(leaf_seqs)} {leaf_seqs}')
@@ -35,8 +35,9 @@ def make_phylogeny_data(n_leaves, n_phylos_per_tree, depth, n_sites=None, spr=Fa
 
     for _ in range(n_phylos_per_tree):
         # create a random prefect phylogeny
-        phylo = rpp.make_random_perfect_phylogeny(n_mut_sets=n_sites)
-        # print_leaf_sequences(phylo)
+        phylo = rpp.make_random_perfect_phylogeny(n_sites=n_sites)
+        print_leaf_sequences(phylo)
+        print(f'mut_selections: {rpp.mut_selections}')
         if spr:
             mixed_phylo = make_worse_spr(phylo, len(tree) / 2, max_attempts=500)
         else:
@@ -87,6 +88,11 @@ def create_training_data(
     return tree_data_dict
 
 
+arg_defaults = {
+  'n_sites': None,
+}
+
+
 def main():
     # Create argument parser - requires number of leaves as input!
     parser = argparse.ArgumentParser(
@@ -94,12 +100,13 @@ def main():
     )
     parser.add_argument("n_leaves", type=int, help="Number of leaves")
     parser.add_argument("n_trees", type=int, help="Number of trees to be generated")
-    parser.add_argument("n_sites", type=int, default=None, help="Number of sites")
+    parser.add_argument("n_sites", type=int, help="Number of sites")
     parser.add_argument(
         "SPR",
         type=str,
         help="SPR moves for creating sub-optimal edges? If True -> SPR, otherwise subtree replacement.",
     )
+    parser.set_defaults(*arg_defaults)
 
     # Parse arguments
     args = parser.parse_args()

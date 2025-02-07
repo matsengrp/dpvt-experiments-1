@@ -9,14 +9,16 @@
 # training and testing datasets.
 
 # Parameters
-num_alignments=200
-num_sequences_list=(5 10 15)
+num_alignments=500
+num_sequences_list=(10 20)
 alignment_length_list=(20 50 100)
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 for num_sequences in "${num_sequences_list[@]}"; do
+    echo "Number of sequences:" $num_sequences
     for alignment_length in "${alignment_length_list[@]}"; do
+        echo "Alignment lengths:" $alignment_length
         base_directory="$(cd "${script_dir}/../../data/simulated_alignments" && pwd)/alisim_alignment_${num_sequences}_seq_${alignment_length}_sites_${num_alignments}_algnmnts"
 
 

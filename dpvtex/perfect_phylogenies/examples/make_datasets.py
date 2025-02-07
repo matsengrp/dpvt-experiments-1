@@ -98,15 +98,15 @@ def main():
     parser = argparse.ArgumentParser(
         description="Create perfect phylogenies with some non-MP edges for the provided number of leaves"
     )
-    parser.add_argument("n_leaves", type=int, help="Number of leaves")
     parser.add_argument("n_trees", type=int, help="Number of trees to be generated")
-    parser.add_argument("n_sites", type=int, help="Number of sites")
+    parser.add_argument("n_leaves", type=int, help="Number of leaves per tree")
+    parser.add_argument("n_sites", type=int, help="Number of sites per leaf")
     parser.add_argument(
         "SPR",
         type=str,
         help="SPR moves for creating sub-optimal edges? If True -> SPR, otherwise subtree replacement.",
     )
-    parser.set_defaults(*arg_defaults)
+    parser.set_defaults(**arg_defaults)
 
     # Parse arguments
     args = parser.parse_args()

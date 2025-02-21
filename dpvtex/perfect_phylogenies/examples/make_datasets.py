@@ -3,6 +3,8 @@ import argparse
 from pathlib import Path
 from collections import defaultdict
 import itertools as it
+import json
+import re
 
 import pickle
 import torch
@@ -42,8 +44,6 @@ def make_phylogeny_data(n_leaves, n_phylos_per_tree, depth, n_sites=None, spr=Fa
     for _ in range(n_phylos_per_tree):
         # create a random prefect phylogeny
         phylo = rpp.make_random_perfect_phylogeny(n_sites=n_sites)
-        print_leaf_sequences(phylo)
-        print(f'mut_selections: {rpp.mut_selections}')
         if spr:
             mixed_phylo = make_worse_spr(phylo, len(tree) / 2, max_attempts=500)
         else:
@@ -95,21 +95,30 @@ def create_training_data(
 
 
 def get_output_path(output_dir, prefix, n_trees, n_phylos, n_leaves, n_sites, depth, spr):
-    path = f"{output_dir}/{prefix}_{n_leaves}_leaves_{n_trees}_trees"
-    if n_sites:
-        path += f"_{n_sites}_sites"
+    values = [str(x) for x in [prefix, n_leaves, "leaves", n_trees, "trees", n_phylos, "phylos", n_sites, "sites", depth, "depth"]]
+    path = "_".join(values)
+    path = f"{output_dir}/{path}"
     if spr:
         path += f"_spr"
     return f"{path}.p"
 
 
+def get_nickname(prefix, n_trees, n_phylos, n_leaves, n_sites, depth, spr):
+    values = [str(x) for x in [prefix, n_leaves, "leaves", n_trees, "trees", n_sites, "sites"]]
+
+
 def split_train_test_data(data_dict, test_size=0.2, random_state=42):
     x_data = list(data_dict.keys())
     y_data = list(data_dict.values())
-    x_train, x_test, y_train, y_test = train_test_split(x_data, y_data, test_size, random_state)
+    x_train, x_test, y_train, y_test = train_test_split(x_data, y_data, test_size=test_size, random_state=random_state)
     train_dict = dict(zip(x_train, y_train))
     test_dict = dict(zip(x_test, y_test))
     return train_dict, test_dict
+
+
+def replace_ext(string, old, new):
+    string = re.sub(f"{re.escape(old)}{r'$'}", new, string)
+    return string
 
 
 def save_data(data_dict, data_path):
@@ -117,18 +126,18 @@ def save_data(data_dict, data_path):
         pickle.dump(data_dict, file)
 
 
-
 class Parser:
     args_default = {
-      "n_sites": [None],
+      "n_sites": [0],
       "n_phylos": 1,
       "depth": 2,
       "spr": False,
       "n_threads": 4,
 
-      "split_data": False,
       "output_dir": "./",
       "prefix": "perfect",
+      "split_data": True,
+      "nicknames": True,
     }
 
     args_help = {
@@ -143,6 +152,7 @@ class Parser:
       "output_dir": "Output directory for datasets.",
       "prefix": "Prefix to dataset names.",
       "split_data": "Split datasets into train and test sets.",
+      "nicknames": "Create json file of nicknames.",
     }
 
     def __init__(self, commandline_args):
@@ -158,14 +168,15 @@ class Parser:
         parser.add_argument("--n_trees", type=Parser.parse_int_list, required=True)
         parser.add_argument("--n_leaves", type=Parser.parse_int_list, required=True)
         parser.add_argument("--n_sites", type=Parser.parse_int_list)
-        parser.add_argument("--n_phylos", type=Parser.int)
-        parser.add_argument("--depth", type=Parser.int)
+        parser.add_argument("--n_phylos", type=int)
+        parser.add_argument("--depth", type=int)
         parser.add_argument("--spr", type=Parser.parse_flag, nargs="?", const=True)
         parser.add_argument("--n_threads", type=int)
 
-        parser.add_argument("--output_dir", type=Parser.parse_output_path)
+        parser.add_argument("--output_dir", type=Parser.parse_dir)
         parser.add_argument("--prefix", type=str)
         parser.add_argument("--split_data", type=Parser.parse_flag, nargs="?", const=True)
+        parser.add_argument("--nicknames", type=Parser.parse_flag, nargs="?", const=True)
         parser.set_defaults(**self.args_default)
 
         for action in parser._actions:
@@ -178,7 +189,6 @@ class Parser:
 
         args = parser.parse_args(self.commandline_args)
         args = defaultdict(lambda: None, vars(args))
-        print(args)
         return args
 
     @staticmethod
@@ -192,17 +202,10 @@ class Parser:
     parse_int_list = staticmethod(lambda x: Parser.parse_list(x, type=int))
 
     @staticmethod
-    def parse_output_path(arg):
-        path_dir = os.path.dirname(os.path.abspath(arg))
-        print(f"path_dir: {path_dir}")
-        if not os.path.isdir(os.path.dirname(os.path.abspath(arg))):
-            raise argparse.ArgumentTypeError(f"Directory for input path '{arg}' does not exist.")
-        return arg
-
-    @staticmethod
-    def parse_input_path(arg):
-        if not os.path.exists(arg):
-            raise argparse.ArgumentTypeError(f"Output path '{arg}' does not exist.")
+    def parse_dir(arg):
+        path_dir = os.path.abspath(arg)
+        if not os.path.isdir(path_dir):
+            raise argparse.ArgumentTypeError(f"Directory '{arg}' does not exist.")
         return arg
 
     @staticmethod
@@ -220,24 +223,34 @@ class Parser:
 def main():
     args = Parser(sys.argv[1:]).parse()
 
+    nicknames_path = f"{args['output_dir']}/nicknames.{args['prefix']}.json"
+    nicknames_dict = {}
+    if os.path.exists(nicknames_path):
+        with open(nicknames_path, 'r') as file:
+            nicknames_dict = json.load(file)
+    nicknames_dict['data_dir'] = os.path.abspath(args["output_dir"])
+
     data_settings = it.product(
         args["n_trees"],
         args["n_leaves"],
         args["n_sites"],
     )
+    data_settings = [(x,y,z) for (x,y,z) in data_settings]
+    print(data_settings)
     for i,(n_trees,n_leaves,n_sites) in enumerate(data_settings):
+
         output_path = get_output_path(
             output_dir=args["output_dir"],
             prefix=args["prefix"],
             n_trees=n_trees,
-            n_phylos=args["phylos"],
+            n_phylos=args["n_phylos"],
             n_leaves=n_leaves,
             n_sites=n_sites,
             depth=args["depth"],
             spr=args["spr"],
         )
 
-        print(f"# building {output_path}...")
+        print(f"# building dataset ({i+1} of {len(data_settings)}): `{os.path.basename(output_path)}`")
         data_dict = create_training_data(
             n_trees=n_trees,
             n_phylos_per_tree=args["n_phylos"],
@@ -247,15 +260,26 @@ def main():
             n_threads=4,
             spr=args["spr"],
         )
-        print(data_dict)
         save_data(data_dict, output_path)
 
+        train_output_path,test_output_path = None,None
         if args["split_data"]:
-            train_data,test_data = split_train_test_data(data_dict, train_percentage=0.8)
-            save_data(train_data, output_path.replace(".p", "_train.p"))
-            save_data(test_data, output_path.replace(".p", "_test.p"))
+            train_data,test_data = split_train_test_data(data_dict, test_size=0.2)
+            train_output_path = replace_ext(output_path, ".p", "_train.p")
+            test_output_path = replace_ext(output_path, ".p", "_test.p")
+            save_data(train_data, train_output_path)
+            save_data(test_data, test_output_path)
 
-        if args[""]
+        for path in [output_path, train_output_path, test_output_path]:
+            if path is None:
+                continue
+            path = os.path.basename(path)
+            nickname = replace_ext(output_path, ".p", "")
+            nicknames_dict[nickname] = path
+
+        if args["nicknames"]:
+            with open(nicknames_path, 'w') as file:
+                json.dump(nicknames_dict, file)
 
 
 if __name__ == "__main__":

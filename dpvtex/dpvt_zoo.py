@@ -1,6 +1,6 @@
 from dpvt import models
 from dpvt.wrapper import Wrap, HyperWrap
-from dpvtex.dpvt_data import data_of_nicknames,train_val_data_of_nicknames
+from dpvtex.dpvt_data import load_nicknames_dict,data_of_nicknames,train_val_data_of_nicknames
 import json
 import torch
 import os
@@ -502,8 +502,8 @@ def aggregate_data_to_csv(
             # runtime
             "train_walltime": [train_walltime],
             # data paths
-            "trained_model_checkpoint": trained_model_ckpt,
-            "tested_model_checkpoint": tested_model_ckpt,
+            "trained_model_checkpoint": [trained_model_ckpt],
+            "tested_model_checkpoint": [tested_model_ckpt],
         }
     )
     for key, path in path_dict.items():

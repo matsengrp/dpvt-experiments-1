@@ -29,6 +29,12 @@ from collections import Counter
 input_fasta_file = "input.fasta"
 base_filename = "output"
 
+snakefile_dir = workflow.basedir
+config_path = os.path.join(snakefile_dir, "config.yaml")
+
+configfile: config_path
+
+faToVcf=config["faToVcf_path"]
 
 ambiguity_lookups = {"R" : ["A", "G"],
                      "Y" : ["C", "T"],
@@ -128,11 +134,7 @@ rule create_vcf_from_fasta:
         vcf_file=base_filename+".vcf"
     shell:
         """
-        if [ ! -f faToVcf ]; then
-          rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
-        fi
-        chmod +x faToVcf
-        ./faToVcf {input.input_file} {base_filename}.vcf -ambiguousToN
+        faToVcf {input.input_file} {base_filename}.vcf -ambiguousToN
         """
 
 

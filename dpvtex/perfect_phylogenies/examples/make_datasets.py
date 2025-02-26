@@ -95,11 +95,13 @@ def create_training_data(
 
 
 def get_output_path(output_dir, prefix, n_trees, n_phylos, n_leaves, n_sites, depth, spr):
-    values = [str(x) for x in [prefix, n_leaves, "leaves", n_trees, "trees", n_phylos, "phylos", n_sites, "sites", depth, "depth"]]
+    values = [str(x) for x in [prefix, n_leaves, "leaves", n_trees, "trees", n_phylos, "phylos", n_sites, "sites"]]
     path = "_".join(values)
     path = f"{output_dir}/{path}"
     if spr:
-        path += f"_spr"
+        path += "_spr"
+    else:
+        path += f"_{depth}_depth"
     return f"{path}.p"
 
 
@@ -165,16 +167,17 @@ class Parser:
         parser = argparse.ArgumentParser(
             description="Create perfect phylogenies with some non-MP edges for the provided number of leaves"
         )
-        parser.add_argument("--n_trees", type=Parser.parse_int_list, required=True)
-        parser.add_argument("--n_leaves", type=Parser.parse_int_list, required=True)
-        parser.add_argument("--n_sites", type=Parser.parse_int_list)
+        parser.add_argument("-t","--n_trees", type=Parser.parse_int_list, required=True)
+        parser.add_argument("-l","--n_leaves", type=Parser.parse_int_list, required=True)
+        parser.add_argument("-s","--n_sites", type=Parser.parse_int_list)
         parser.add_argument("--n_phylos", type=int)
         parser.add_argument("--depth", type=int)
         parser.add_argument("--spr", type=Parser.parse_flag, nargs="?", const=True)
         parser.add_argument("--n_threads", type=int)
 
-        parser.add_argument("--output_dir", type=Parser.parse_dir)
+        parser.add_argument("-o","--output_dir", type=Parser.parse_dir)
         parser.add_argument("--prefix", type=str)
+        parser.add_argument("--rebuild", type=Parser.parse_flag, nargs="?", const=False)
         parser.add_argument("--split_data", type=Parser.parse_flag, nargs="?", const=True)
         parser.add_argument("--nicknames", type=Parser.parse_flag, nargs="?", const=True)
         parser.set_defaults(**self.args_default)
@@ -238,6 +241,7 @@ def main():
     data_settings = [(x,y,z) for (x,y,z) in data_settings]
     print(data_settings)
     for i,(n_trees,n_leaves,n_sites) in enumerate(data_settings):
+        print(f"# building dataset ({i+1} of {len(data_settings)})")
 
         output_path = get_output_path(
             output_dir=args["output_dir"],
@@ -250,17 +254,20 @@ def main():
             spr=args["spr"],
         )
 
-        print(f"# building dataset ({i+1} of {len(data_settings)}): `{os.path.basename(output_path)}`")
-        data_dict = create_training_data(
-            n_trees=n_trees,
-            n_phylos_per_tree=args["n_phylos"],
-            n_leaves=n_leaves,
-            n_sites=n_sites,
-            depth=args["depth"],
-            n_threads=4,
-            spr=args["spr"],
-        )
-        save_data(data_dict, output_path)
+        if os.path.exists(output_path):
+            print(f"# dataset `{os.path.basename(output_path)}` already exists")
+        if not os.path.exists(output_path) or args["rebuild"]:
+            print(f"# building dataset ({i+1} of {len(data_settings)}): `{os.path.basename(output_path)}`")
+            data_dict = create_training_data(
+                n_trees=n_trees,
+                n_phylos_per_tree=args["n_phylos"],
+                n_leaves=n_leaves,
+                n_sites=n_sites,
+                depth=args["depth"],
+                n_threads=args["n_threads"],
+                spr=args["spr"],
+            )
+            save_data(data_dict, output_path)
 
         train_output_path,test_output_path = None,None
         if args["split_data"]:
@@ -274,12 +281,12 @@ def main():
             if path is None:
                 continue
             path = os.path.basename(path)
-            nickname = replace_ext(output_path, ".p", "")
+            nickname = replace_ext(path, ".p", "")
             nicknames_dict[nickname] = path
 
         if args["nicknames"]:
             with open(nicknames_path, 'w') as file:
-                json.dump(nicknames_dict, file)
+                json.dump(nicknames_dict, file, indent=4)
 
 
 if __name__ == "__main__":

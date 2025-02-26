@@ -147,7 +147,7 @@ class Parser:
       "n_leaves": "Number of leaves in each tree.",
       "n_sites": "Number of sites in each tree. If none, determined by number of random mutations required to cover all internal nodes.",
       "n_phylos": "Number of phylo trees per unique tree.",
-      "depth": "Depth of each tree.",
+      "depth": "Depth of each subtree replacement.",
       "spr": "SPR moves for creating sub-optimal edges. Otherwise, uses subtree replacement.",
       "n_threads": "Number of threads for building datasets.",
 

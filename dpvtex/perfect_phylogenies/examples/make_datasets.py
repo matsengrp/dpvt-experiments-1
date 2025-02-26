@@ -175,7 +175,7 @@ class Parser:
         parser.add_argument("--spr", type=Parser.parse_flag, nargs="?", const=True)
         parser.add_argument("--n_threads", type=int)
 
-        parser.add_argument("-o","--output_dir", type=Parser.parse_dir)
+        parser.add_argument("-o","--output_dir", type=Parser.parse_existing_dir)
         parser.add_argument("--prefix", type=str)
         parser.add_argument("--rebuild", type=Parser.parse_flag, nargs="?", const=False)
         parser.add_argument("--split_data", type=Parser.parse_flag, nargs="?", const=True)
@@ -205,7 +205,7 @@ class Parser:
     parse_int_list = staticmethod(lambda x: Parser.parse_list(x, type=int))
 
     @staticmethod
-    def parse_dir(arg):
+    def parse_existing_dir(arg):
         path_dir = os.path.abspath(arg)
         if not os.path.isdir(path_dir):
             raise argparse.ArgumentTypeError(f"Directory '{arg}' does not exist.")
@@ -216,9 +216,9 @@ class Parser:
         if isinstance(arg, bool):
             return arg
         arg = arg.lower()
-        if arg in {"true", "yes", "1"}:
+        if arg in {"t", "true", "y", "yes", "1"}:
             return True
-        elif arg in {"false", "no", "0"}:
+        elif arg in {"f", "false", "n", "no", "0"}:
             return False
         raise argparse.ArgumentTypeError(f"Invalid boolean arg: '{arg}' (expected true/false)")
 

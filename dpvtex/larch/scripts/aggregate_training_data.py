@@ -39,6 +39,7 @@ for root, dirs, files in os.walk(data_dir):
         ):
             file_path = os.path.join(root, file_name)
             dataset_name = file_name[:-2]
+            dataset_name = dataset_name.split("_spr")[0] # remove suffix if it exists
             this_alignment_dict = get_dict(file_path)
             if this_alignment_dict is not None:
                 data_props[dataset_name] = [len(this_alignment_dict)]  # num_trees

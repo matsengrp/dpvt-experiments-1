@@ -134,7 +134,7 @@ rule create_vcf_from_fasta:
         vcf_file=base_filename+".vcf"
     shell:
         """
-        faToVcf {input.input_file} {base_filename}.vcf -ambiguousToN
+        {faToVcf} {input.input_file} {base_filename}.vcf -ambiguousToN
         """
 
 

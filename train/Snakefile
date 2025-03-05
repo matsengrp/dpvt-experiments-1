@@ -317,8 +317,6 @@ rule all:
     input:
         notebook_output_paths=notebook_output_paths,
         csv_output_path=csv_output_path,
-        # config_output_path=config_output_path,
-        # data_nicknames_output_path=data_nicknames_output_path,
 
 
 rule log_metadata_step:
@@ -537,7 +535,7 @@ rule concat_csvs_step:
         )
 
 
-rule run_pdf_notebook_step:
+rule run_notebook_step:
     input:
         csv_output_path=csv_output_path,
         config_output_path=config_output_path,

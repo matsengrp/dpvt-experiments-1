@@ -6,9 +6,6 @@ import pprint as pp
 import json, yaml
 from pathlib import Path
 
-snakefile_dir = workflow.basedir
-sys.path.append(snakefile_dir + "/..")
-
 from dpvtex.dpvt_zoo import (
     get_model_str,
     build_log_path,
@@ -21,6 +18,14 @@ from dpvtex.dpvt_zoo import (
     aggregate_data_to_csv,
     concatenate_csvs,
 )
+
+
+snakefile_dir = workflow.basedir
+sys.path.append(f"{snakefile_dir}/..")
+default_config_path = os.path.join(snakefile_dir, "config.yaml")
+if not config:
+    configfile: default_config_path
+
 
 default_config = {
     # meta data
@@ -46,12 +51,10 @@ default_config = {
         "feature_length": [128],
         "dim_mlp_layers": [256],
     },
+    "notebook_paths": [
+        "templates/plot_summary_csv.default.ipynb",
+    ],
 }
-
-config_path = os.path.join(snakefile_dir, "config.yaml")
-
-
-configfile: config_path
 
 
 # use defaults where option not in config file
@@ -78,6 +81,7 @@ n_hyperparameter_trials = config["n_hyperparameter_trials"]
 use_cross_datasets = config["use_cross_datasets"]
 use_hyperparameter_optimize = config["use_hyperparameter_optimize"]
 hyperparameters = config["hyperparameters"]
+notebook_input_paths = config["notebook_paths"]
 
 
 def generate_data_pairs(train_data_names, test_data_names, use_cross_datasets):
@@ -252,6 +256,14 @@ def generate_csv_log_paths(
     return csv_log_paths
 
 
+def get_notebook_output_path(output_dir, notebook_name):
+    return f"{output_dir}/result_csvs_and_pdfs/{os.path.basename(notebook_name)}"
+
+
+def get_notebook_input_path(notebook_dict, notebook_name):
+    return notebook_dict[os.path.basename(notebook_name)]
+
+
 # rule input/output paths
 data_pairs = generate_data_pairs(train_data_names, test_data_names, use_cross_datasets)
 param_ids, param_dicts = generate_hyperparameter_dicts(
@@ -291,16 +303,23 @@ csv_single_paths = generate_csv_log_paths(
     output_dir=output_dir,
 )
 run_dir = f"{working_dir}/{output_dir}/run.{device}_{timestamp}"
-notebook_input_path = f"./plot_summary_csv.input.ipynb"
 csv_output_path = f"{run_dir}/result_csvs_and_pdfs/summary.csv"
-notebook_output_path = f"{run_dir}/result_csvs_and_pdfs/plot_summary_csv.ipynb"
 config_output_path = f"{run_dir}/config.yaml"
 data_nicknames_output_path = f"{run_dir}/data_nicknames.json"
+
+notebook_output_paths = [get_notebook_output_path(run_dir, nb) for nb in notebook_input_paths]
+notebook_dict = {os.path.basename(nb):nb for nb in notebook_input_paths}
+if len(notebook_dict) != len(notebook_input_paths):
+    raise ValueError(f"Duplicate notebook name: all input notebooks in {notebook_input_paths} must have unique names.")
 
 
 rule all:
     input:
-        notebook_output_path,
+        notebook_output_paths=notebook_output_paths,
+        csv_output_path=csv_output_path,
+        # config_output_path=config_output_path,
+        # data_nicknames_output_path=data_nicknames_output_path,
+
 
 rule log_metadata_step:
     output:
@@ -452,7 +471,7 @@ rule test_model_step:
         )
 
 
-rule create_csvs_step:
+rule create_csv_step:
     input:
         tested_model=get_tested_model_ckpt(
             model="{model_name}",
@@ -518,14 +537,22 @@ rule concat_csvs_step:
         )
 
 
-rule create_pdfs_step:
+rule run_pdf_notebook_step:
     input:
         csv_output_path=csv_output_path,
         config_output_path=config_output_path,
         data_nicknames_output_path=data_nicknames_output_path,
+        notebook_input_paths=notebook_input_paths,
     output:
-        notebook_output_path=notebook_output_path,
+        notebook_output_path=get_notebook_output_path(
+            output_dir=run_dir,
+            notebook_name="{notebook_name}",
+        ),
     run:
+        notebook_input_path = get_notebook_input_path(
+            notebook_dict=notebook_dict,
+            notebook_name=wildcards.notebook_name,
+        )
         parameters = {
             "working_dir": working_dir,
             "output_dir": run_dir,
@@ -544,3 +571,4 @@ rule create_pdfs_step:
             )
         except Exception as e:
             print(f"Notebook execution failed: {e}")
+

@@ -26,7 +26,7 @@ current_date = datetime.datetime.now().strftime("%Y-%m-%d")
 # special suffices if spr moves to introduce non-MP edges
 pickle_suffix = ".p"
 csv_suffix = ".csv"
-if make_worse_spr == "True":
+if bool(make_worse_spr) == True:
     pickle_suffix = "_spr.p"
     csv_suffix = "_spr.csv"
 

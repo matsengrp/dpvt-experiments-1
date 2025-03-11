@@ -7,12 +7,14 @@ import pandas as pd
 from collections import Counter
 import json
 
+
 def load_nicknames_dict(data_nicknames_path):
     with open(data_nicknames_path, "r") as f:
         dataset_dict = json.load(f)
     data_dir = dataset_dict.pop("data_dir")
     dataset_dict = {key: f"{data_dir}/{dataset_dict[key]}" for key in dataset_dict}
     return dataset_dict
+
 
 def data_of_nicknames(data_name, device, data_nicknames_path):
     """

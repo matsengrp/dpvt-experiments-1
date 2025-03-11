@@ -94,7 +94,7 @@ def create_training_data(
     return tree_data_dict
 
 
-def get_output_path(output_dir, prefix, n_trees, n_phylos, n_leaves, n_sites, depth, spr):
+def get_output_path(output_dir, prefix, n_trees, n_phylos, n_leaves, n_sites, depth, spr, extra=None):
     values = [str(x) for x in [prefix, n_leaves, "leaves", n_trees, "trees", n_phylos, "phylos", n_sites, "sites"]]
     path = "_".join(values)
     path = f"{output_dir}/{path}"
@@ -102,7 +102,10 @@ def get_output_path(output_dir, prefix, n_trees, n_phylos, n_leaves, n_sites, de
         path += "_spr"
     else:
         path += f"_{depth}_depth"
-    return f"{path}.p"
+    if extra:
+        path += f"_{extra}"
+    path += ".p"
+    return path
 
 
 def get_nickname(prefix, n_trees, n_phylos, n_leaves, n_sites, depth, spr):
@@ -139,6 +142,7 @@ class Parser:
 
       "output_dir": "./",
       "prefix": "perfect",
+      "rebuild": False,
       "split_data": True,
       "nicknames": True,
     }
@@ -155,6 +159,7 @@ class Parser:
 
       "output_dir": "Output directory for datasets.",
       "prefix": "Prefix to dataset names.",
+      "rebuild": "Rebuild dataset even if file already exists.",
       "split_data": "Split datasets into train and test sets.",
       "nicknames": "Create json file of nicknames.",
     }
@@ -180,7 +185,7 @@ class Parser:
 
         parser.add_argument("-o","--output_dir", type=Parser.parse_existing_dir)
         parser.add_argument("--prefix", type=str)
-        parser.add_argument("--rebuild", type=Parser.parse_flag, nargs="?", const=False)
+        parser.add_argument("--rebuild", type=Parser.parse_flag, nargs="?", const=True)
         parser.add_argument("--split_data", type=Parser.parse_flag, nargs="?", const=True)
         parser.add_argument("--nicknames", type=Parser.parse_flag, nargs="?", const=True)
         parser.set_defaults(**self.args_default)
@@ -272,24 +277,52 @@ def main():
             )
             save_data(data_dict, output_path)
 
-        train_output_path,test_output_path = None,None
-        if args["split_data"]:
-            train_data,test_data = split_train_test_data(data_dict, test_size=args["test_size"])
-            train_output_path = replace_ext(output_path, ".p", "_train.p")
-            save_data(train_data, train_output_path)
-            test_output_path = replace_ext(output_path, ".p", "_test.p")
-            save_data(test_data, test_output_path)
+            train_output_path,test_output_path = None,None
+            if args["split_data"]:
+                train_n_trees = int(float(n_trees) * (1-args["test_size"]))
+                test_n_trees = (n_trees - train_n_trees)
 
-        for path in [output_path, train_output_path, test_output_path]:
-            if path is None:
-                continue
-            path = os.path.basename(path)
-            nickname = replace_ext(path, ".p", "")
-            nicknames_dict[nickname] = path
+                train_output_path = get_output_path(
+                    output_dir=args["output_dir"],
+                    prefix=args["prefix"],
+                    n_trees=train_n_trees,
+                    n_phylos=args["n_phylos"],
+                    n_leaves=n_leaves,
+                    n_sites=n_sites,
+                    depth=args["depth"],
+                    spr=args["spr"],
+                    extra="train",
+                )
+                test_output_path = get_output_path(
+                    output_dir=args["output_dir"],
+                    prefix=args["prefix"],
+                    n_trees=test_n_trees,
+                    n_phylos=args["n_phylos"],
+                    n_leaves=n_leaves,
+                    n_sites=n_sites,
+                    depth=args["depth"],
+                    spr=args["spr"],
+                    extra="test",
+                )
 
-        if args["nicknames"]:
-            with open(nicknames_path, 'w') as file:
-                json.dump(nicknames_dict, file, indent=4)
+                print(f"# splitting dataset ({i+1} of {len(data_settings)}): `{os.path.basename(train_output_path)}` `{os.path.basename(test_output_path)}`")
+                train_data,test_data = split_train_test_data(
+                    data_dict=data_dict,
+                    test_size=args["test_size"]
+                )
+                save_data(train_data, train_output_path)
+                save_data(test_data, test_output_path)
+
+            if args["nicknames"]:
+                for path in [output_path, train_output_path, test_output_path]:
+                    if path is None:
+                        continue
+                    path = os.path.basename(path)
+                    nickname = replace_ext(path, ".p", "")
+                    nicknames_dict[nickname] = path
+
+                with open(nicknames_path, 'w') as file:
+                    json.dump(nicknames_dict, file, indent=4)
 
 
 if __name__ == "__main__":

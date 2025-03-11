@@ -323,6 +323,7 @@ def main():
 
                 with open(nicknames_path, 'w') as file:
                     json.dump(nicknames_dict, file, indent=4)
+                    file.write("\n")
 
 
 if __name__ == "__main__":

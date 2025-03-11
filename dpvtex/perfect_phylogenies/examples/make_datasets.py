@@ -134,6 +134,7 @@ class Parser:
       "n_phylos": 1,
       "depth": 2,
       "spr": False,
+      "test_size": 0.2,
       "n_threads": 4,
 
       "output_dir": "./",
@@ -149,6 +150,7 @@ class Parser:
       "n_phylos": "Number of phylo trees per unique tree.",
       "depth": "Depth of each subtree replacement.",
       "spr": "SPR moves for creating sub-optimal edges. Otherwise, uses subtree replacement.",
+      "test_size": "Fraction of total trees set aside for test split.",
       "n_threads": "Number of threads for building datasets.",
 
       "output_dir": "Output directory for datasets.",
@@ -173,6 +175,7 @@ class Parser:
         parser.add_argument("--n_phylos", type=int)
         parser.add_argument("--depth", type=int)
         parser.add_argument("--spr", type=Parser.parse_flag, nargs="?", const=True)
+        parser.add_argument("--test_size", type=float)
         parser.add_argument("--n_threads", type=int)
 
         parser.add_argument("-o","--output_dir", type=Parser.parse_existing_dir)
@@ -271,10 +274,10 @@ def main():
 
         train_output_path,test_output_path = None,None
         if args["split_data"]:
-            train_data,test_data = split_train_test_data(data_dict, test_size=0.2)
+            train_data,test_data = split_train_test_data(data_dict, test_size=args["test_size"])
             train_output_path = replace_ext(output_path, ".p", "_train.p")
-            test_output_path = replace_ext(output_path, ".p", "_test.p")
             save_data(train_data, train_output_path)
+            test_output_path = replace_ext(output_path, ".p", "_test.p")
             save_data(test_data, test_output_path)
 
         for path in [output_path, train_output_path, test_output_path]:

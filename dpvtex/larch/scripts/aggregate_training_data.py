@@ -107,6 +107,7 @@ def _load_and_balance_trees(
     pickle_files, median_trees, balance_by_median_num_MP_trees, logger
 ):
     """Load trees from pickle files and apply balancing if enabled.
+    Balancing ensures that a similar number of trees (median) is used from each alignment.
 
     Returns:
         Tuple of (all_trees_dict, data_props, subsampled_alignments, trees_removed)
@@ -290,6 +291,24 @@ def pickle_and_save_data(
         train_trees, test_trees, train_labels, test_labels = _split_train_test(
             trees, labels, categories
         )
+
+        try:
+            # Attempt to split the data with stratification
+            train_trees, test_trees, train_labels, test_labels = train_test_split(
+                trees, labels, train_size=0.8, stratify=categories
+            )
+        except ValueError as e:
+            # If a ValueError occurs (e.g., due to insufficient data for
+            # stratification), print a custom message
+            print(f"Error during train-test split: {e}")
+            print(
+                "The dataset is not large enough to split in training and testing data. Increase number of trees extracted from hDAG or even better the number of alignments used."
+            )
+            # Optionally, re-raise the error or handle it further
+            sys.exit(
+                "Dataset too small, will not generate training/testing data split."
+            )
+            raise
 
         train_dict = {i: j for (i, j) in zip(train_trees, train_labels)}
         test_dict = {i: j for (i, j) in zip(test_trees, test_labels)}

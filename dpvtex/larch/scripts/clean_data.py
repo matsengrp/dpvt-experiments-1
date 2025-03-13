@@ -114,7 +114,6 @@ def remove_duplicate_sequences(multiple_seq_alignment):
 def remove_identical_site_patterns(multiple_seq_alignment):
     """
     Remove identical site patterns from the alignment.
-
     Parameters:
     -----------
     multiple_seq_alignment : MultipleSeqAlignment
@@ -141,9 +140,8 @@ def remove_identical_site_patterns(multiple_seq_alignment):
     for site_idx in range(alignment_length):
         # Extract the site pattern (column) as a tuple (hashable)
         site_pattern = tuple(
-            str(record.seq[site_idx]) for record in multiple_seq_alignment
+            str(record.seq[site_idx]) for record in multiple_seq_alignment            
         )
-
         # Check if we've seen this pattern before
         if site_pattern not in unique_patterns:
             unique_patterns[site_pattern] = site_idx

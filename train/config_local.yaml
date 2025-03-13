@@ -1,0 +1,61 @@
+models: [
+    "TraverseNN",
+    "TraverseMaxPooling",
+    "TraverseAvgPooling"
+  ]
+train_data: [
+    "5leaf_100trees_pp",
+    "5leaf_500trees_pp",
+    "5leaf_1000trees_pp",
+    "10leaf_100trees_pp",
+    "10leaf_500trees_pp",
+    "10leaf_1000trees_pp",
+    "15leaf_100trees_pp",
+    "15leaf_500trees_pp",
+    "15leaf_1000trees_pp",
+  # "alisim_10_seq_100_sites_200_alignments_train",
+  # "alisim_10_seq_20_sites_200_alignments_train",
+  # "alisim_10_seq_50_sites_200_alignments_train",
+  # "alisim_15_seq_100_sites_200_alignments_train",
+  # "alisim_15_seq_20_sites_200_alignments_train",
+  # "alisim_15_seq_50_sites_200_alignments_train",
+  # "alisim_5_seq_100_sites_200_alignments_train",
+  # "alisim_5_seq_20_sites_200_alignments_train",
+  # "alisim_5_seq_50_sites_200_alignments_train",
+    # "TenLeaf",
+    # "ThirtyLeaf",
+  ]
+test_data: [
+    # "5leaf_100trees_pp_test",
+    # "10leaf_100trees_pp_test",
+    # "15leaf_100trees_pp_test",
+    #"FourLeafTest",
+    # "FourLeafFourSiteTest",
+    # "TenLeafTest",
+    # "ThirtyLeafTest",
+  "alisim_10_seq_100_sites_200_alignments_test",
+  "alisim_10_seq_20_sites_200_alignments_test",
+  "alisim_10_seq_50_sites_200_alignments_test",
+  "alisim_15_seq_100_sites_200_alignments_test",
+  "alisim_15_seq_20_sites_200_alignments_test",
+  "alisim_15_seq_50_sites_200_alignments_test",
+  "alisim_5_seq_100_sites_200_alignments_test",
+  "alisim_5_seq_20_sites_200_alignments_test",
+  "alisim_5_seq_50_sites_200_alignments_test",
+  ]
+
+device: "cpu"
+timestamp: "TODAY"
+cross_datasets: True
+output_dir: "_output"
+
+hyperparameter_optimize: True
+n_hyperparameter_trials: 5
+
+hyperparameters:
+  learning_rate: [0.0002, 0.0004]
+  batch_size: [512]
+  accum_grad_batches: [1]
+  epochs: [100, 200]
+  feature_length: [128]
+  dim_mlp_layers: [256]

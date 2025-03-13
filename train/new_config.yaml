@@ -1,0 +1,51 @@
+models: [
+    "TraverseNN",
+    "TraverseMaxPooling",
+    "TraverseAvgPooling",
+    "BaselineReversion", # can only run on CPU!
+  ]
+train_data: [
+  "larch_alisim_alignment_10_seq_100_sites_500_algnmnts_spr",
+  "larch_alisim_alignment_10_seq_50_sites_500_algnmnts_spr",
+  "larch_alisim_alignment_15_seq_100_sites_500_algnmnts_spr",
+  "larch_alisim_alignment_15_seq_50_sites_500_algnmnts_spr",
+  "larch_alisim_alignment_20_seq_100_sites_500_algnmnts_spr",
+  "larch_alisim_alignment_20_seq_50_sites_500_algnmnts_spr",
+  # "larch_alisim_alignment_10_seq_100_sites_500_algnmnts",
+  # "larch_alisim_alignment_10_seq_50_sites_500_algnmnts",
+  # "larch_alisim_alignment_15_seq_100_sites_500_algnmnts",
+  # "larch_alisim_alignment_15_seq_50_sites_500_algnmnts",
+  # "larch_alisim_alignment_20_seq_100_sites_500_algnmnts",
+  # "larch_alisim_alignment_20_seq_50_sites_500_algnmnts",
+  ]
+test_data: [
+  "larch_alisim_alignment_10_seq_100_sites_200_algnmnts_spr",
+  "larch_alisim_alignment_10_seq_50_sites_200_algnmnts_spr",
+  "larch_alisim_alignment_15_seq_100_sites_200_algnmnts_spr",
+  "larch_alisim_alignment_15_seq_50_sites_200_algnmnts_spr",
+  "larch_alisim_alignment_20_seq_100_sites_200_algnmnts_spr",
+  "larch_alisim_alignment_20_seq_50_sites_200_algnmnts_spr",
+  "larch_alisim_alignment_10_seq_100_sites_200_algnmnts",
+  "larch_alisim_alignment_10_seq_50_sites_200_algnmnts",
+  "larch_alisim_alignment_15_seq_100_sites_200_algnmnts",
+  "larch_alisim_alignment_15_seq_50_sites_200_algnmnts",
+  "larch_alisim_alignment_20_seq_100_sites_200_algnmnts",
+  "larch_alisim_alignment_20_seq_50_sites_200_algnmnts",
+  ]
+
+device: "cpu"
+timestamp: "TODAY"
+use_cross_datasets: True
+output_dir: "_output"
+data_nicknames_path: "my_data_nicknames.json"
+evaluate_tree_search: False
+use_hyperparameter_optimize: False
+n_hyperparameter_trials: 50
+
+hyperparameters:
+  learning_rate: [0.00005]
+  batch_size: [4]
+  accum_grad_batches: [2]
+  epochs: [200]
+  feature_length: [64]
+  dim_mlp_layers: [256]

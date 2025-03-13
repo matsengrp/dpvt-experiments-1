@@ -4,17 +4,16 @@ import random
 import os
 import signal
 import multiprocessing
-import time
-import subprocess
-import psutil
+import sys
+from ete3 import Tree
 
+from dpvtex.perfect_phylogenies.utils import populate
 from dpvtex.perfect_phylogenies.perturb_phylogeny import (
     make_worse_tree,
     make_worse_spr,
     tree_depth,
     sankoff_for_missing_sequences,
 )
-import sys
 
 
 def get_MP_trees_from_hdag(dag, num_trees, unlabel=True):
@@ -80,6 +79,30 @@ def root_and_outgroup_leaf(tree, leaf):
     tree.sequence = leaf.sequence
 
 
+def create_random_tree_on_same_leaf_set(tree):
+    """
+    Create a random tree on the leaf set of the given tree.
+    Args:
+        tree: ete3 tree
+    Returns:
+        ete3 tree with random topology on the same leaf set with the same leaf
+        sequences as the input tree
+    """
+    leaf_names = [leaf.name for leaf in tree.get_leaves()]
+    new_tree = Tree()
+    populate(new_tree, len(leaf_names), model="uniform")
+    leaf_names = tree.get_leaf_names()
+    for leaf in new_tree.get_leaves():
+        # copy sequences from original tree
+        leaf.name = leaf_names.pop(random.randint(0, len(leaf_names) - 1))
+        leaf.sequence = tree.get_leaves_by_name(leaf.name)[0].sequence
+    # re-root tree on first leaf
+    outgroup_leaf = new_tree.search_nodes(name=tree.get_leaves()[0].name)[0]
+    root_and_outgroup_leaf(new_tree, outgroup_leaf)
+    sankoff_for_missing_sequences(new_tree)
+    return new_tree
+
+
 def extract_hdag_clade_child_clades(dag):
     """
     Generate dict containing frozensets C: C_1, .., C_k where C is clade in DAG
@@ -137,10 +160,12 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
     supported by dag_clades. `modified_tree' is assumed to be received from
     changing some edges in tree, so that a lot of edges are still shared between
     then two. `tree' is assumed to be extracted from the hdag, and is used to
-    make the label assignment more efficient. Args:
-        modified_tree: ete3 tree for which we want to get edge label list tree:
-        ete3 tree that is mostly identical to modified tree (tree before
-            make_worse)
+    make the label assignment more efficient.
+    Args:
+        modified_tree: ete3 tree for which we want to get edge label list
+        tree: ete3 tree that is mostly identical to modified tree (tree before
+            make_worse) - this can make the label assignment more efficient, but
+            can be replaced with a random tree
         dag_clades: dictionary with clades: child_clades. Can be computed with
         extract_hdag_clade_child_clades
     Returns:
@@ -188,13 +213,29 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
     return edge_labels
 
 
-def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=True):
+def get_non_dag_edges(
+    dag, num_children_file, num_trees=0, edge_distribution="constant"
+):
     """
     Perturbs trees in tree_list to create num_trees perturbed trees containing
     edges that are not present in the given dag Args:
         tree_list: list of ete trees dag: sequence_dag num_trees: number of
         trees to return. If 0, returns as many trees as
             there are in tree_list
+        num_children_file: file to write number of children per node in each
+            tree to
+        edge_distribution:
+            "constant": perform num_leaves/2 or a maximum of 100 SPR moves to
+                create non-MP edges.
+            "uniform": draw the number of SPR moves from [0, num_leaves].
+            "treesearch_mimic": mimic the distribution of edges in trees along a
+                tree search by returning 1/2 random tree edges (most of which
+                will be non-MP edges), 1/4 trees with num_leaves SPR moves, and
+                1/4 trees with SPR moves drawn from a uniform distribution on
+                [0, num_leaves].
+            "random_subtree": replace a random subtree of depth d // 2
+                with a random subtree of the same depth, where d is the depth of
+                the original subtree.
     Returns:
         dictionary with keys ete3 trees and values list of edge labels
         indicating MP (0) vs non-MP (1) edges, sorted by preorder traversal
@@ -208,10 +249,20 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
     print("Extracted clades from hDAG")
 
     print("Start adding non-MP edges...")
-    print("Number of MP trees:", len(mp_trees))
+    if edge_distribution == "treesearch_mimic":
+        print("Start adding random trees for treesearch_mimic...")
+        # generate 1/2 * len(mp_trees) random trees
+        num_random_trees = len(mp_trees)
+        for i in range(num_random_trees):
+            print("Adding random tree number", i)
+            new_tree = create_random_tree_on_same_leaf_set(mp_trees[0])
+            edge_labels = assign_edge_labels(new_tree, mp_trees[0], dag_clades)
+            tree_to_label_dict[new_tree] = edge_labels
+        print("Done adding random trees for treesearch_mimic...")
+
     with open(num_children_file, "w") as nc_file:
-        for tree in mp_trees:
-            print("Processing tree number", len(tree_to_label_dict))
+        for index, tree in enumerate(mp_trees):
+            print("Processing tree number", index, "of", len(mp_trees))
             # delete sequences on internal nodes - can probably be done more
             # efficiently
             for node in tree.traverse():
@@ -231,48 +282,82 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
             nc_file.write(line + "\n")
             tree.resolve_polytomy()
             sankoff_for_missing_sequences(tree)
+
             # introduce non-MP edges, if possible
             td = tree_depth(tree)
             done_modifying = False
+            i = 0  # count number of tries to modify a tree
             modified_tree = tree.copy()
-            i = 0
-            while not done_modifying:
-                # make tree worse until at least a third of all edges are non MP
-                print("Tree modification iteration ", i)
-                i += 1
-                if use_make_worse_spr:
-                    # Maximum of 100 SPR moves per iteration -- if we don't have enough non-MP
-                    # edges after that, we add more in next iteration (until done_modifying)
-                    num_spr_moves = min(len(modified_tree) // 2, 100)
+            if not edge_distribution == "random_subtree":
+                while not done_modifying and i < 100:
+                    # use SPR moves to introduce non-MP edges
+                    # Decide on the number of SPR moves to perform depending on edge_distribution
+                    if edge_distribution == "uniform":
+                        # draw number of SPR moves from [0, num_leaves]
+                        max_num_spr_moves = min(len(modified_tree.get_leaves()), 100)
+                        num_spr_moves = random.randint(0, max_num_spr_moves)
+                    elif edge_distribution == "constant":
+                        # number of SPR moves is num_leaves // 4 or a maximum of 100
+                        num_spr_moves = min(len(modified_tree.get_leaves()) // 4, 100)
+                    elif edge_distribution == "treesearch_mimic":
+                        # for the first half of trees, we use perform min(num_leaves, 100) SPR moves
+                        if index < len(mp_trees) // 2:
+                            num_spr_moves = min(len(modified_tree.get_leaves()), 100)
+                        else:
+                            # for the second half of trees, we use a uniform distribution
+                            max_num_spr_moves = min(
+                                len(modified_tree.get_leaves()), 100
+                            )
+                            num_spr_moves = random.randint(0, max_num_spr_moves)
+
+                    # Actually perform tree perturbations
+                    print("Number of SPR moves:", num_spr_moves)
                     efficient_sprs = False
-                    if num_spr_moves == 100:
+                    if num_spr_moves >= 100:
                         # for large trees, we use a more efficient version of make_worse_spr
                         # that doesn't check the parsimony score for each move
                         efficient_sprs = True
-                    new_tree = make_worse_spr(modified_tree, num_spr_moves, efficient_sprs)
-                else:
-                    # replace random subtree of depth td // 2 with a random subtree
-                    new_tree = make_worse_tree(modified_tree, td // 2)
-                if new_tree is not None:
-                    modified_tree = new_tree
-                # assign edge labels
-                edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
-                print("Fraction of non-MP edges (of all edges incl pendant): ", sum(edge_labels)/len(edge_labels))
-                if sum(edge_labels) / len(edge_labels) >= 1 / 6 or i > 100:
-                    # note that len(edge_labels) is roughly 2*internal edges, so we are aiming at a third of non-MP edges here
-                    done_modifying = True
+                        print("Using efficient SPRs")
+                    new_tree = make_worse_spr(
+                        modified_tree, num_spr_moves, efficient_sprs
+                    )
+                    if new_tree is not None:
+                        modified_tree = new_tree
+                        done_modifying = True
+                    else:
+                        print("Cannot get non-MP edges, stop modifying tree")
+                        modified_tree = tree
+                    # Assign edge labels after SPR moves
+                    edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
+                    i += 1
+
+            else:
+                # replace a random subtree to introduce non-MP edges
+                while not done_modifying:
+                    # replace a random subtree of depth d // 2 with a random subtree
+                    # of the same depth, where d is the depth of the original subtree
+                    depth = int(td // 2)  # Use half the tree depth
+                    new_tree = make_worse_tree(modified_tree, depth)
+                    if new_tree is not None:
+                        modified_tree = new_tree
+                    edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
+                    if sum(edge_labels) / len(edge_labels) >= 1 / 6 or i > 100:
+                        # note that len(edge_labels) is roughly 2*internal edges, so we are aiming at a third of non-MP edges here
+                        done_modifying = True
+                    i += 1
             tree_to_label_dict[modified_tree] = edge_labels
-    if len(tree_to_label_dict) < num_trees:
-        print("Produced ", len(tree_to_label_dict), " trees instead of ", num_trees)
+
+        if len(tree_to_label_dict) < num_trees:
+            print("Produced ", len(tree_to_label_dict), " trees instead of ", num_trees)
     return tree_to_label_dict
 
 
 def memory_safe_count_topologies(dag, max_time=10):
     """Count topologies with a timeout, using SIGKILL if needed."""
-    
+
     # Create a queue for communication between processes
     result_queue = multiprocessing.Queue()
-    
+
     # Define a function to put the result in the queue
     def count_and_return():
         try:
@@ -280,6 +365,7 @@ def memory_safe_count_topologies(dag, max_time=10):
             result_queue.put(count)
         except Exception as e:
             result_queue.put(f"Error: {str(e)}")
+
     # Start a separate process
     p = multiprocessing.Process(target=count_and_return)
     p.start()
@@ -293,28 +379,31 @@ def memory_safe_count_topologies(dag, max_time=10):
             os.kill(p.pid, signal.SIGKILL)
         except Exception as e:
             print(f"Error killing process: {e}")
-        return float('inf')
+        return float("inf")
     # Process completed within time limit, get the result
     if not result_queue.empty():
         result = result_queue.get()
         # Check if we got an error
         if isinstance(result, str) and result.startswith("Error"):
             print(f"Stop counting topologies, returning inf: {result}")
-            return float('inf')
+            return float("inf")
         return result
     else:
         print("Stop counting topologies, returning inf: No result returned")
-        return float('inf')
+        return float("inf")
 
 
-def extract_data_from_hdag(dag_file, dpvt_data_file, num_children_file, make_worse_tree):
+def extract_data_from_hdag(
+    dag_file, dpvt_data_file, num_children_file, edge_distribution="constant"
+):
     """
     Extracts dpvt data from a history DAG and saves it to a file.
     Args:
         dag_file (str): Path to the history DAG file.
         dpvt_data_file (str): Path to save the DPVT data.
         num_children_file (str): Path to save the number of children data.
-        make_worse_tree (bool): Whether to use make_worse_tree or not.
+        edge_distribution (str): Method for introducing non-MP edges. Options:
+            "constant", "uniform", "treesearch_mimic", "random_subtree"
     """
     print("Start reading DAG")
     if dag_file[-2:] == ".p":
@@ -342,8 +431,7 @@ def extract_data_from_hdag(dag_file, dpvt_data_file, num_children_file, make_wor
     print("Done counting DAG topologies")
 
     tree_label_dict = get_non_dag_edges(
-        dag, num_children_file, num_topologies, make_worse_tree
+        dag, num_children_file, num_topologies, edge_distribution
     )
     with open(dpvt_data_file, "wb") as f:
         pickle.dump(tree_label_dict, f)
-

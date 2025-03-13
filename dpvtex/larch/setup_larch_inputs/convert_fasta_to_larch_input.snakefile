@@ -26,15 +26,18 @@ from Bio import AlignIO
 from Bio.Align import AlignInfo
 from collections import Counter
 
-input_fasta_file = "input.fasta"
-base_filename = "output"
-
 snakefile_dir = workflow.basedir
 config_path = os.path.join(snakefile_dir, "config.yaml")
 
 configfile: config_path
 
-faToVcf=config["faToVcf_path"]
+# Get the suffix from command-line config if provided
+dup_sites_suffix = config.get("dup_sites_suffix", "")
+if dup_sites_suffix == None:
+    dup_sites_suffix = ""
+
+input_fasta_file = f"input{dup_sites_suffix}.fasta"
+base_filename = f"output{dup_sites_suffix}"
 
 ambiguity_lookups = {"R" : ["A", "G"],
                      "Y" : ["C", "T"],
@@ -134,9 +137,13 @@ rule create_vcf_from_fasta:
         vcf_file=base_filename+".vcf"
     shell:
         """
-        {faToVcf} {input.input_file} {base_filename}.vcf -ambiguousToN
+        if [ ! -f faToVcf ]; then
+          echo "Downloading faToVcf tool..."
+          rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
+        fi
+        chmod +x ./faToVcf
+        ./faToVcf {input.input_file} {base_filename}.vcf -ambiguousToN
         """
-
 
 rule create_mat_protobuf:
     input:

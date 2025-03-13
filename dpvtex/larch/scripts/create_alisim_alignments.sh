@@ -8,10 +8,14 @@
 # These can then be used for running the larch pipeline to generate dpvt
 # training and testing datasets.
 
-# Parameters
-num_alignments_list=(200 500)
-num_sequences_list=(10 15 20 25)
-alignment_length_list=(50 100)
+# Parameters - Test configuration
+
+num_alignments_list=(100 50)
+num_sequences_list=(10 15)
+alignment_length_list=(20)
+# edge_distributions=("constant" "uniform" "treesearch_mimic" "random_subtree")  # All edge distribution methods
+edge_distributions=("constant" "uniform" "treesearch_mimic" "random_subtree")
+no_dup_sites="False" # Whether to remove duplicate site patterns in the alignments
 
 max_attempts=20
 # How much larger to make the initial alignment to account for cleaning
@@ -20,7 +24,7 @@ scaling_factor=2
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Check if simulated_alignments directory exists, create it if not
-simulated_alignments_dir="$(cd "${script_dir}/../../../data" && pwd)/simulated_alignments"
+simulated_alignments_dir="$(cd "${script_dir}/../../../shared_data" && pwd)/simulated_alignments"
 if [ ! -d "$simulated_alignments_dir" ]; then
     echo "Creating simulated_alignments directory at: $simulated_alignments_dir"
     mkdir -p "$simulated_alignments_dir"
@@ -88,9 +92,12 @@ for num_alignments in "${num_alignments_list[@]}"; do
                     fi
                 done
             fi
-            # We generate config file independent of datasets
-            echo "Generate config file..."
-            python ${script_dir}/generate_configs.py $target_num_sequences $target_alignment_length $num_alignments
+            # We generate config files for all edge distribution methods
+            echo "Generate config files for all edge distribution methods..."
+            for edge_dist in "${edge_distributions[@]}"; do
+                echo "  Generating config for edge distribution: $edge_dist"
+                python ${script_dir}/generate_sim_configs.py $target_num_sequences $target_alignment_length $num_alignments --edge_distribution $edge_dist --remove_duplicate_site_patterns $no_dup_sites
+            done
         done
     done
 done

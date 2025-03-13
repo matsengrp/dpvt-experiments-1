@@ -6,45 +6,47 @@ config_path = os.path.join(snakefile_dir, "config.yaml")
 configfile: config_path
 
 input_data=os.path.realpath(config["input_data"])
+remove_site_patterns = config.get("remove_duplicate_site_patterns", False)
 
 
 def get_subdirs(data_dir):
     return [
-        f.path.split("/")[-1] for f in os.scandir(data_dir) if f.is_dir()
+        f.path.split("/")[-1] for f in os.scandir(data_dir) if f.is_dir() and ".snakemake" not in f.path
     ]
 
+dup_sites_suffix = ""
+if remove_site_patterns in [True, "True", "true"]:
+    dup_sites_suffix = "_no_dup_sites"
 
 rule all:
     input:
-        expand(input_data+"/{subdir}/checkpoint.done", subdir=get_subdirs(input_data))
+        expand(input_data+"/{subdir}/checkpoint" + dup_sites_suffix + ".done", subdir=get_subdirs(input_data))
 
 
 rule clean_data:
     input:
         fasta_file=input_data+"/{subdir}/{subdir}.fasta"
     output:
-        input_fasta=input_data+"/{subdir}/input.fasta",
-        algn_length=input_data+"/{subdir}/cleaned_alignment_length.txt"
+        input_fasta=input_data+"/{subdir}/input" + dup_sites_suffix + ".fasta",
+        algn_length=input_data+"/{subdir}/cleaned_alignment_length" + dup_sites_suffix + ".txt"
+    params:
+        remove_site_patterns=remove_site_patterns,
     shell:
         """
-        echo "Looking for input file at: {input.fasta_file}"
-        echo "Will create output file at: {output.input_fasta}"
-        if [ -f "{input.fasta_file}" ]; then
-            python scripts/clean_data.py "{input.fasta_file}" "{output.input_fasta}" "{output.algn_length}"
-        else
-            echo "Input file not found."
-        fi
+        python scripts/clean_data.py "{input.fasta_file}" "{output.input_fasta}"
+        "{output.algn_length}" "{params.remove_site_patterns}"
         """
 
 
 checkpoint check_alignment_length:
     input:
-        algn_length=input_data+"/{subdir}/cleaned_alignment_length.txt"
+        algn_length=input_data+"/{subdir}/cleaned_alignment_length" + dup_sites_suffix + ".txt"
     output:
-        touch(input_data+"/{subdir}/checkpoint.done"),
+        touch(input_data+"/{subdir}/checkpoint" + dup_sites_suffix + ".done"),
     params:
         fasta=input_data+"/{subdir}/checkpoint.flag",
     shell:
         """
-        python scripts/check_size_fasta.py "{input.algn_length}" "{params.fasta}"
+        python scripts/check_size_fasta.py "{input.algn_length}"
+        "{params.fasta}"
         """

@@ -10,8 +10,8 @@
 
 # Parameters
 num_alignments=500
-num_sequences_list=(10 20)
-alignment_length_list=(20 50 100)
+num_sequences_list=(50 100 500 1000)
+alignment_length_list=(50 100)
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -42,8 +42,9 @@ for num_sequences in "${num_sequences_list[@]}"; do
                 echo "Created $alignment_dir/alignment_$i.fasta"
             done
 
-            echo "Generate config file..."
-            python ${script_dir}/generate_configs.py $num_sequences $alignment_length $num_alignments
         fi
+        # We generate config file independent of datasets
+        echo "Generate config file..."
+        python ${script_dir}/generate_configs.py $num_sequences $alignment_length $num_alignments
     done
 done

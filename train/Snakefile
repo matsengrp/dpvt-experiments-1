@@ -304,8 +304,8 @@ csv_single_paths = generate_csv_log_paths(
 )
 run_dir = f"{working_dir}/{output_dir}/run.{device}_{timestamp}"
 csv_output_path = f"{run_dir}/result_csvs_and_pdfs/summary.csv"
-config_output_path = f"{run_dir}/config.yaml"
-data_nicknames_output_path = f"{run_dir}/data_nicknames.json"
+config_output_path = f"{run_dir}/result_csvs_and_pdfs/config.yaml"
+data_nicknames_output_path = f"{run_dir}/result_csvs_and_pdfs/data_nicknames.json"
 
 notebook_output_paths = [get_notebook_output_path(run_dir, nb) for nb in notebook_input_paths]
 notebook_dict = {os.path.basename(nb):nb for nb in notebook_input_paths}

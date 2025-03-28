@@ -95,7 +95,7 @@ def extract_hdag_clade_child_clades(dag):
     return dag_clades
 
 
-def exists_subset_union(S, C): 
+def exists_subset_union(S, C):
     """
     Find if there is a collection S_1, ..., S_k of sets in frozenset S = {S_1,
     ..., S_N} (k <= N) whose union is exactly C. We assume that |S| = |S_1| +
@@ -104,7 +104,7 @@ def exists_subset_union(S, C):
     Returns:
         True if there are sets S_1, ..., S_k with union C Else otherwise
     """
-    union = set() # we aim to create a union of subsets of S that equals C
+    union = set()  # we aim to create a union of subsets of S that equals C
     for subset in S:
         if subset.issubset(C):
             union.update(subset)
@@ -112,7 +112,7 @@ def exists_subset_union(S, C):
             # if subset intersects C but is not a subset of C, there is no union
             # of sets in S that results in C, as the elements in subset\C cannot
             # be added without adding elements in C\subset and we assume that no
-            # element appears in more than one set in S 
+            # element appears in more than one set in S
             return False
     if len(union) == len(C):
         return True
@@ -129,7 +129,8 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
         modified_tree: ete3 tree for which we want to get edge label list tree:
         ete3 tree that is mostly identical to modified tree (tree before
             make_worse)
-        dag_clades: dictionary with clades: child_clades
+        dag_clades: dictionary with clades: child_clades. Can be computed with
+        extract_hdag_clade_child_clades
     Returns:
         list of 0/1 assigned to each node for each edge above it (preorder)
             whether it is present in the dag with dag_clades or not
@@ -218,7 +219,7 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
                 print("Tree modification iteration ", i)
                 i += 1
                 if use_make_worse_spr:
-                    new_tree = make_worse_spr(modified_tree, len(modified_tree)//2)
+                    new_tree = make_worse_spr(modified_tree, len(modified_tree) // 2)
                 else:
                     new_tree = make_worse_tree(modified_tree, td // 2)
                 if new_tree is not None:
@@ -259,9 +260,11 @@ def main():
     # trim to only MP topologies + convert to sequence_dag
     dag.trim_optimal_weight()
     dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
-    num_topologies = min(dag.count_topologies(), 200) # get at most 200 trees from hdag
+    num_topologies = min(dag.count_topologies(), 200)  # get at most 200 trees from hdag
 
-    tree_label_dict = get_non_dag_edges(dag, num_children_file, num_topologies, make_worse_tree)
+    tree_label_dict = get_non_dag_edges(
+        dag, num_children_file, num_topologies, make_worse_tree
+    )
     with open(dpvt_data_file, "wb") as f:
         pickle.dump(tree_label_dict, f)
 

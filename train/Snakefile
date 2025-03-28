@@ -302,7 +302,7 @@ csv_single_paths = generate_csv_log_paths(
     timestamp=timestamp,
     output_dir=output_dir,
 )
-run_dir = f"{working_dir}/{output_dir}/run.{device}_{timestamp}"
+run_dir = f"{working_dir}/{output_dir}/run.{timestamp}"
 csv_output_path = f"{run_dir}/result_csvs_and_pdfs/summary.csv"
 config_output_path = f"{run_dir}/result_csvs_and_pdfs/config.yaml"
 data_nicknames_output_path = f"{run_dir}/result_csvs_and_pdfs/data_nicknames.json"

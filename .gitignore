@@ -180,7 +180,7 @@ result_csvs_and_pdfs/
 *.txt
 *.tsv
 *.vcf
-**/faToVcF
+**faToVcF
 *.treefile
 *.intermediate
 *.flag
@@ -197,3 +197,9 @@ data
 # training temporary folder
 train/_*/
 train--*/
+dpvtex/data/
+data/
+dpvtex/larch/configs/
+dpvtex/larch/gtr_configs/
+dpvtex/iqtree/input
+dpvtex/iqtree/output

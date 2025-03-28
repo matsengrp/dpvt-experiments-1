@@ -78,7 +78,7 @@ def build_log_path(
     output_dir=".",
 ):
     model_str = get_model_str(model_name, train_data_name, test_data_name, param_id)
-    path = f"run.{device}_{timestamp}/{log_name}/{step_name}/{model_str}"
+    path = f"run.{timestamp}/{log_name}/{step_name}/{model_str}"
     path = prepend_dir_to_path(path, output_dir)
     path = f"{os.getcwd()}/{path}"
     return path

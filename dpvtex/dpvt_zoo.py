@@ -561,7 +561,6 @@ def test_model(
         device=device,
         accum_grad_batches=accum_grad_batches,
         hyperparameter_path=hyperparameter_path,
-        added_callbacks=[],
         timestamp=timestamp,
         **wrap_params,
     )

@@ -1,5 +1,5 @@
 from dpvt import models
-from dpvt.wrapper import Wrap, HyperWrap
+from dpvt.wrapper import Wrap, HyperWrap, Wraplet
 from dpvtex.dpvt_data import load_nicknames_dict,data_of_nicknames,train_val_data_of_nicknames
 import json
 import torch
@@ -144,6 +144,43 @@ def get_model_params_path(
         output_dir=output_dir,
     )
     return path
+
+
+def get_baseline_result_path(
+    model_name,
+    test_data_name,
+    device,
+    timestamp,
+    output_dir=".",
+):
+    """
+    Generate a path for baseline model test results. This is independent from
+    other path functions, as we don't require training for baseline models.
+    
+    Args:
+        model_name: Name of the baseline model
+        test_data_name: Name of the test dataset
+        device: Device used for testing
+        timestamp: Timestamp for the run
+        output_dir: Base output directory
+        
+    Returns:
+        Path to the baseline result JSON file
+    """
+    from pathlib import Path
+    
+    # Create a cleaner path structure without param_id
+    path = f"run.{device}_{timestamp}/baseline_results/{model_name}-ON-{test_data_name}"
+    
+    # Add output directory if provided
+    if output_dir is not None:
+        path = str(Path(output_dir) / Path(path))
+        
+    # Convert to absolute path
+    path = f"{os.getcwd()}/{path}"
+    
+    return f"{path}.json"
+
 
 
 def build_paths_dict(
@@ -419,6 +456,68 @@ def test_model(
     test_wrap.test(trained_model_ckpt, test_checkpoint)
 
 
+def test_baseline_model(
+    model_name,
+    test_data_name,
+    result_path,
+    device,
+    timestamp=str(todays_date),
+    output_dir=".",
+    data_nicknames_path="data_nicknames.json",
+    **wrap_kwargs
+):
+    """
+    Tests a baseline model on a dataset without requiring training.
+    
+    Args:
+        model_name: Name of the baseline model to test
+        test_data_name: Nickname of the test dataset
+        result_path: Path to save test results
+        device: Device to use for testing
+        timestamp: Timestamp for logging
+        output_dir: Output directory
+        data_nicknames_path: Path to data nicknames JSON file
+        **wrap_kwargs: Additional parameters for the Wraplet
+    
+    Returns:
+        Test results
+    """
+    # Build model based on name
+    model = build_model(model_name)
+    
+    # Load test data
+    test_data = data_of_nicknames(test_data_name, device, data_nicknames_path)
+    
+    # Create lightweight wrapper for testing
+    test_wrap = Wraplet(
+        test_data=test_data,
+        model=model,
+        device=device,
+        **wrap_kwargs
+    )
+    
+    # Test the model and get results
+    results = test_wrap.test()
+    
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(result_path), exist_ok=True)
+    
+    # Save results to JSON
+    result_data = {
+        'model': model_name,
+        'dataset': test_data_name,
+        'device': device,
+        'timestamp': timestamp,
+        'results': results[0] if results else {}
+    }
+    
+    with open(result_path, 'w') as f:
+        json.dump(result_data, f, indent=2)
+    
+    print(f"Baseline model {model_name} tested on {test_data_name}, results saved to {result_path}")
+    return results
+
+
 def get_df_from_log(log_path):
     reader = tbparse.SummaryReader(log_path)
     return reader.scalars
@@ -505,6 +604,95 @@ def aggregate_data_to_csv(
 
     df_row.to_csv(csv_output_path)
     return
+
+
+def aggregate_baseline_data_to_csv(
+    model_name,
+    test_data_name,
+    device,
+    timestamp,
+    result_path,
+    csv_output_path,
+    output_dir=".",
+):
+    """
+    Aggregate baseline model result data in a CSV entry.
+    
+    Args:
+        model_name: Name of the baseline model
+        test_data_name: Name of the test dataset
+        device: Device used for testing
+        timestamp: Timestamp for the run
+        result_path: Path to the baseline result JSON file
+        csv_output_path: Path to save the CSV output
+        output_dir: Base output directory
+    """
+    # Read results from JSON file
+    with open(result_path, 'r') as f:
+        result_data = json.load(f)
+    
+    # Extract AUROC from results
+    test_auroc = np.nan
+    if 'results' in result_data and 'test_auroc' in result_data['results']:
+        test_auroc = result_data['results']['test_auroc']
+    
+    # Create DataFrame with results.
+    # Columns match those from more complex models and are filled with NaN where
+    # appropriate
+    df_row = pd.DataFrame(
+        {
+            # config settings
+            "model": [model_name],
+            "train_data": ["baseline"],
+            "test_data": [test_data_name],
+            "device": [device],
+            "timestamp": [timestamp],
+            "param_id": ["baseline"],  # Use "baseline" as a placeholder
+            "n_hyperparam_trials": [np.nan],
+            # hyperparameters - not applicable for baseline
+            "learning_rate": [np.nan],
+            "batch_size": [np.nan],
+            "accum_grad_batches": [np.nan],
+            "max_epochs": [np.nan],
+            "feature_length": [np.nan],
+            "dim_mlp_layers": [np.nan],
+            # number of training steps, epochs - not applicable
+            "train_steps": [np.nan],
+            "train_epochs": [np.nan],
+            "train_stopped_early": [np.nan],
+            # test auroc
+            "test_auroc": [test_auroc],
+            "test_loss": [np.nan],
+            # runtime
+            "train_walltime": [np.nan],
+            # data paths
+            "trained_model_checkpoint": ["none"],
+            "tested_model_checkpoint": [result_path],
+        }
+    )
+    
+    # Add paths if necessary to match standard CSV format
+    path_dict = {
+        "hyper_json": "none",
+        "hyper_llog": "none",
+        "hyper_benchmark": "none",
+        "hyper_checkpoint": "none",
+        "train_llog": "none",
+        "train_benchmark": "none",
+        "train_clog": "none",
+        "train_checkpoint": "none",
+        "test_llog": "none",
+        "test_checkpoint": result_path,
+    }
+    
+    for key, path in path_dict.items():
+        df_row[f"{key}_path"] = path
+    
+    # Save to CSV
+    df_row.to_csv(csv_output_path)
+    print(f"Baseline results written to {csv_output_path}")
+    return
+
 
 
 def concatenate_csvs(

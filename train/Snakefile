@@ -570,3 +570,54 @@ rule run_notebook_step:
         except Exception as e:
             print(f"Notebook execution failed: {e}")
 
+
+rule test_baseline_model_step:
+    output:
+        result_path=get_baseline_result_path(
+            model="{model_name}",
+            test_data_name="{test_data_name}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
+    run:
+        test_baseline_model(
+            model_name=wildcards.model_name,
+            test_data_name=wildcards.test_data_name,
+            result_path=output.result_path,
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+            data_nicknames_path=data_nicknames_path,
+        )
+
+
+rule create_baseline_csv_step:
+    input:
+        result_path=get_baseline_result_path(
+            model="{model_name}",
+            test_data_name="{test_data_name}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
+    output:
+        csv_path=get_csv_log_path(
+            model_name="{model_name}",
+            train_data_name="baseline",
+            test_data_name="{test_data_name}",
+            param_id="baseline",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
+    run:
+        aggregate_baseline_data_to_csv(
+            model_name=wildcards.model_name,
+            test_data_name=wildcards.test_data_name,
+            device=device,
+            timestamp=timestamp,
+            result_path=input.result_path,
+            csv_output_path=output.csv_path,
+            output_dir=output_dir,
+        )

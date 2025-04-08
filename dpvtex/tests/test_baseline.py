@@ -5,11 +5,6 @@ from dpvtex.larch.scripts.extract_data_from_hdag import root_and_outgroup_leaf
 from dpvt.wrapper import Wraplet, TreeDataset
 from dpvt.models import BaselineReversion
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 8ef855b (add another test)
 
 def assign_sequences(trees, seq_dict, expect_internal_sequences=True):
     # assign sequences to all nodes in trees

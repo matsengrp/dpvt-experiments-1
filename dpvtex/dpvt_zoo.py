@@ -509,6 +509,9 @@ def test_baseline_model(
     )
 
     # Create lightweight wrapper for testing
+    test_wrap = Wraplet(test_data=test_data, model=model, device=device, **wrap_kwargs)
+
+    # Create lightweight wrapper for testing
     test_wrap = Wraplet(test_data=test_data, model=model, device="cpu", **wrap_kwargs)
 
     # Test the model and get results

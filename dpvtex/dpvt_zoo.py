@@ -9,6 +9,7 @@ import pandas as pd
 import time
 from datetime import datetime
 from pathlib import Path
+import numpy as np
 
 
 from lightning.pytorch.callbacks import Callback
@@ -31,16 +32,26 @@ def build_model(model_name):
         model = models.TraverseMaxPooling
     elif model_name == "TraverseAvgPooling":
         model = models.TraverseAvgPooling
+    elif model_name == "BaselineReversion":
+        model = models.BaselineReversion
     return model
 
 
 def get_trained_model_str(model_name, train_data_name, param_id):
-    model = f"{model_name}-{train_data_name}-{param_id}"
+    model = f"{model_name}-{train_data_name}"
+    if param_id != None:
+        model = f"{model_name}-{train_data_name}-{param_id}"
+    if train_data_name == None:
+        model = f"{model_name}"
     return model
 
 
 def get_tested_model_str(model_name, train_data_name, test_data_name, param_id):
-    model = f"{model_name}-{train_data_name}-ON-{test_data_name}-{param_id}"
+    model = f"{model_name}-{train_data_name}-ON-{test_data_name}"
+    if param_id != None:
+        model = f"{model_name}-{train_data_name}-ON-{test_data_name}-{param_id}"
+    if train_data_name == None:
+        model = f"{model_name}-ON-{test_data_name}"
     return model
 
 
@@ -486,7 +497,7 @@ def test_baseline_model(
     model = build_model(model_name)
     
     # Load test data
-    test_data = data_of_nicknames(test_data_name, device, data_nicknames_path)
+    test_data = data_of_nicknames(test_data_name, device, data_nicknames_path, data_struct="TreeDataset")
     
     # Create lightweight wrapper for testing
     test_wrap = Wraplet(

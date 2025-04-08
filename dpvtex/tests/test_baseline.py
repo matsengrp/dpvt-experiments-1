@@ -5,6 +5,11 @@ from dpvtex.larch.scripts.extract_data_from_hdag import root_and_outgroup_leaf
 from dpvt.wrapper import Wraplet, TreeDataset
 from dpvt.models import BaselineReversion
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> 8ef855b (add another test)
 
 def assign_sequences(trees, seq_dict, expect_internal_sequences=True):
     # assign sequences to all nodes in trees
@@ -40,7 +45,6 @@ def create_test_trees():
     tree1 = Tree(nwk_tree1, format=8)
     assign_sequences([tree1], node_to_sequence1)
     root_and_outgroup_leaf(tree1, tree1 & "s5")
-
     nwk_tree2 = "((((s1,s2)i1,(s3,s4)i2)i3,(s5,s6)i4)i5,s7)i5;"
     node_to_sequence2 = {
         "s1": "ACG",

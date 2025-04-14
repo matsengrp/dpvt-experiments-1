@@ -471,7 +471,6 @@ def test_baseline_model(
     model_name,
     test_data_name,
     result_path,
-    device,
     timestamp=str(todays_date),
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
@@ -484,7 +483,6 @@ def test_baseline_model(
         model_name: Name of the baseline model to test
         test_data_name: Nickname of the test dataset
         result_path: Path to save test results
-        device: Device to use for testing
         timestamp: Timestamp for logging
         output_dir: Output directory
         data_nicknames_path: Path to data nicknames JSON file
@@ -495,7 +493,7 @@ def test_baseline_model(
     """
     # Build model based on name
     model = build_model(model_name)
-    
+    device = "cpu"  # Always use CPU for baseline models
     # Load test data
     test_data = data_of_nicknames(test_data_name, device, data_nicknames_path, data_struct="TreeDataset")
     
@@ -503,7 +501,7 @@ def test_baseline_model(
     test_wrap = Wraplet(
         test_data=test_data,
         model=model,
-        device=device,
+        device="cpu",
         **wrap_kwargs
     )
     
@@ -517,7 +515,7 @@ def test_baseline_model(
     result_data = {
         'model': model_name,
         'dataset': test_data_name,
-        'device': device,
+        'device': "cpu",
         'timestamp': timestamp,
         'results': results[0] if results else {}
     }
@@ -620,7 +618,6 @@ def aggregate_data_to_csv(
 def aggregate_baseline_data_to_csv(
     model_name,
     test_data_name,
-    device,
     timestamp,
     result_path,
     csv_output_path,
@@ -632,7 +629,6 @@ def aggregate_baseline_data_to_csv(
     Args:
         model_name: Name of the baseline model
         test_data_name: Name of the test dataset
-        device: Device used for testing
         timestamp: Timestamp for the run
         result_path: Path to the baseline result JSON file
         csv_output_path: Path to save the CSV output
@@ -646,7 +642,7 @@ def aggregate_baseline_data_to_csv(
     test_auroc = np.nan
     if 'results' in result_data and 'test_auroc' in result_data['results']:
         test_auroc = result_data['results']['test_auroc']
-    
+    device="cpu" #always cpu for baseline
     # Create DataFrame with results.
     # Columns match those from more complex models and are filled with NaN where
     # appropriate

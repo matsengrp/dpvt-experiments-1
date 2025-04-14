@@ -356,7 +356,7 @@ rule all:
     input:
         notebook_output_paths=notebook_output_paths,
         csv_output_path=csv_output_path,
-        baseline_results=baseline_result_paths if baseline_model_list else [],
+        baseline_csv_output_path=baseline_csv_output_path if baseline_model_list else [],
 
 rule log_metadata_step:
     output:
@@ -582,7 +582,7 @@ rule run_notebook_step:
         csv_output_path=csv_output_path,
         config_output_path=config_output_path,
         data_nicknames_output_path=data_nicknames_output_path,
-        baseline_csv_output_path=baseline_csv_output_path,
+        baseline_csv_output_path=baseline_csv_output_path if baseline_model_list else [],
     output:
         notebook_output_path=get_notebook_output_path(
             output_dir=run_dir,
@@ -627,7 +627,6 @@ rule test_baseline_model_step:
             model_name=wildcards.model_name,
             test_data_name=wildcards.test_data_name,
             result_path=output.result_path,
-            device=device,
             timestamp=timestamp,
             output_dir=output_dir,
             data_nicknames_path=data_nicknames_path,
@@ -660,7 +659,6 @@ rule create_baseline_csv_step:
         aggregate_baseline_data_to_csv(
             model_name=wildcards.model_name,
             test_data_name=wildcards.test_data_name,
-            device=device,
             timestamp=timestamp,
             result_path=input.result_path,
             csv_output_path=output.csv_path,

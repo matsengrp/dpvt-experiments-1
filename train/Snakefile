@@ -41,6 +41,7 @@ default_config = {
     "train_data": ["FourLeafTrain"],
     "test_data": ["FourLeafTest"],
     "device": "cpu",
+    "evaluate_individual_trees": False,
     "timestamp": str(datetime.now().strftime("%Y-%m-%d")),
     "n_hyperparameter_trials": 100,
     "use_cross_datasets": False,
@@ -80,6 +81,7 @@ model_names = config["models"]
 train_data_names = config["train_data"]
 test_data_names = config["test_data"]
 device = config["device"]
+evaluate_individual_trees = config["evaluate_individual_trees"]
 timestamp = config["timestamp"]
 n_hyperparameter_trials = config["n_hyperparameter_trials"]
 use_cross_datasets = config["use_cross_datasets"]
@@ -415,10 +417,11 @@ tree_eval_paths = generate_individual_tree_eval_plot_paths(
 
 rule all:
     input:
-        notebook_output_paths=notebook_output_paths,
-        csv_output_path=csv_output_path,
-        baseline_csv_output_path=baseline_csv_output_path if baseline_model_list else [],
-        tree_eval_paths=tree_eval_paths,
+        notebook_output_paths=notebook_output_paths if not evaluate_individual_trees else [],
+        csv_output_path=csv_output_path if not evaluate_individual_trees else [],
+        baseline_csv_output_path=baseline_csv_output_path if (baseline_model_list and not evaluate_individual_trees) else [],
+        tree_eval_paths=tree_eval_paths if evaluate_individual_trees else [],
+
 
 rule log_metadata_step:
     output:

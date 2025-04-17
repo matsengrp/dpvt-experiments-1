@@ -15,8 +15,8 @@ import sys
 
 def read_trees(filename, fasta_path):
     """
-    Read trees from filename and return them as ete3 trees with sequences of fasta assigned to leaves.
-    Args:
+    Read trees from filename and return them as ete3 trees with sequences of
+    fasta assigned to leaves. Args:
         filename (str): Path to the file containing trees in newick format.
         fasta_path (str): Path to the fasta file containing sequences.
     """
@@ -30,14 +30,14 @@ def read_trees(filename, fasta_path):
         sequences = {}
         try:
             for record in SeqIO.parse(fasta_path, "fasta"):
-                sequences[record.id] = str(record.seq)
+                sequences[record.id] = str(record.seq).upper()
             print(f"Loaded {len(sequences)} sequences from {fasta_path}")
         except Exception as e:
             print(f"Error loading sequences from {fasta_path}: {str(e)}")
             return []
 
         for line in f.readlines():
-            tree = Tree(line.rstrip())
+            tree = Tree(line.rstrip(), format=8)
             # Assign sequences to leaf nodes
             for leaf in tree.get_leaves():
                 if "_<unknown_description>" in leaf.name:
@@ -54,8 +54,10 @@ def read_trees(filename, fasta_path):
 
 def main():
     """
-    Read a file containing pickled hDAG or protobuf, a file containing a list of trees to compare to DAG, and a fasta file with leaf sequences.
-    The script will assign edge labels (MP vs non-MP edges) to the trees based on the hDAG and save the results in a pickle file.
+    Read a file containing pickled hDAG or protobuf, a file containing a list of
+    trees to compare to DAG, and a fasta file with leaf sequences. The script
+    will assign edge labels (MP vs non-MP edges) to the trees based on the hDAG
+    and save the results in a pickle file.
     """
     if len(sys.argv) < 3:
         print(
@@ -83,7 +85,8 @@ def main():
     dag.trim_optimal_weight()
     dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
     dag_clades = extract_hdag_clade_child_clades(dag)
-    # take a random tree from dag to be able to apply function assign_edge_labels()
+    # take a random tree from dag to be able to apply function
+    # assign_edge_labels()
     dag_tree = next(dag.get_histories()).to_ete()
 
     trees = read_trees(tree_file, fasta_path)

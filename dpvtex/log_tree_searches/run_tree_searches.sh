@@ -1,34 +1,31 @@
 #!/bin/bash
 
-for FASTA_FILE in simulated_alignments/*/*.fasta; do
+# Tp run this script, use the following command:
+# ./run_tree_searches.sh <path_to_alignment_directory> <path_to_larch_build>
+
+INPUT_DIR=$1
+LARCH_BUILD=$2
+
+for FASTA_FILE in $INPUT_DIR/*/*fasta; do
+    # Skip the input.fasta file`
+    FILENAME=$(basename "$FASTA_FILE")
+    if [ "$FILENAME" = "input.fasta" ]; then
+        continue
+    fi
     echo "Processing $FASTA_FILE"
+
     TREE_LOG="${FASTA_FILE/.fasta/_log.trees}"
-    Rscript log_mp_tree_search.R -f "$FASTA_FILE" -o "$TREE_LOG"
+    # Run MP tree search and log trees
+    if [ ! -f "$TREE_LOG" ]; then
+        echo "Running log_mp_tree_search"
+        Rscript log_mp_tree_search.R -f "$FASTA_FILE" -o "$TREE_LOG"
+    else
+        echo "log_mp_tree_search already run, skipping"
+    fi
 
-    # # Generate the config file in the output directory
-    # CONFIG_FILE="${OUTPUT_DIR}/preprocessing_config.yaml"
-
-    # # Get current directory for absolute paths
     CURRENT_DIR=$(pwd)
 
-    # # Set default values for config parameters with absolute paths
-    # INPUT_DATA_ABS="$(readlink -f "${CURRENT_DIR}/../data/${DATASET_NAME}/")"
-    # LARCH_BUILD_ABS="$(readlink -f "${CURRENT_DIR}/../../../larch/build")"
-    # OUTPUT_DATA_ABS="$(readlink -f "${CURRENT_DIR}/../data")"
-    # MAKE_WORSE_SPR=True
-    # NUM_CORES=5
-
-    # # Generate the config file
-    # cat > "$CONFIG_FILE" << EOF
-    # input_data: "${INPUT_DATA_ABS}"
-    # larch_build: "${LARCH_BUILD_ABS}"
-    # output_data: "${OUTPUT_DATA_ABS}"
-    # dataset_name: "${DATASET_NAME}"
-    # make_worse_spr: ${MAKE_WORSE_SPR}
-    # num_cores: ${NUM_CORES}
-    # EOF
-
-    # echo "Config file generated at: $CONFIG_FILE"
+    LARCH_BUILD_ABS="$(readlink -f "$LARCH_BUILD")"
 
     # Need to save fasta alignment as input.fasta for larch-usher
     FASTA_FILE_ABS=$(readlink -f "$FASTA_FILE")
@@ -37,7 +34,6 @@ for FASTA_FILE in simulated_alignments/*/*.fasta; do
 
     # # Run larch-usher to generate an hdag
     # echo "Running larch-usher to generate hdag"
-
     if [ ! -f "$OUTPUT_DIR"/output.pb ]; then
         # Pre-processing for larch-usher
         echo "Pre-processing for larch-usher"
@@ -54,10 +50,13 @@ for FASTA_FILE in simulated_alignments/*/*.fasta; do
         echo "Finish running larch-usher"
     fi
 
-    echo "Compute labels"
     BASENAME=$(basename "$FASTA_FILE" .fasta)
-    python create_testing_data.py "$OUTPUT_DIR/larch-output.pb" "$OUTPUT_DIR"/"$BASENAME"_test.p "$OUTPUT_DIR/$TREE_LOG" "$FASTA_FILE"
-    echo "Done computing labels"
+    echo "$OUTPUT_DIR"/"$BASENAME"_test.p
+    if [ ! -f "$OUTPUT_DIR"/"$BASENAME"_test.p ]; then
+        echo "Compute labels"
+        python create_testing_data.py "$OUTPUT_DIR/larch-output.pb" "$OUTPUT_DIR"/"$BASENAME"_test.p "$OUTPUT_DIR/$(basename $TREE_LOG)" "$FASTA_FILE"
+        echo "Done computing labels"
+    fi
 
 done
 

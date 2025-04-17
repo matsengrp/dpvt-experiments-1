@@ -5,14 +5,26 @@
 
 INPUT_DIR=$1
 LARCH_BUILD=$2
+DPVT_DATA_DIR=$3
 
-for FASTA_FILE in $INPUT_DIR/*/*fasta; do
+find "$INPUT_DIR" -type f \( -name "*.fasta" -o -name "*.fa" -o -name "*.nexus" -o -name "*.nex" \) | while read -r MSA_FILE; do
+    echo $MSA_FILE
     # Skip the input.fasta file`
-    FILENAME=$(basename "$FASTA_FILE")
+    FILENAME=$(basename "$MSA_FILE")
+    FASTA_FILE="${MSA_FILE%.*}.fasta"
+
     if [ "$FILENAME" = "input.fasta" ]; then
         continue
     fi
-    echo "Processing $FASTA_FILE"
+    echo "Processing $MSA_FILE"
+
+    # "Clean alignment" to remove gaps and convert to fasta
+    if [ ! -f "$FASTA_FILE" ]; then
+        echo "Running clean_alignment.py"
+        python -m dpvtex.larch.scripts.clean_data "$MSA_FILE" "$FASTA_FILE"
+    else
+        echo "clean_alignment.py already run, skipping"
+    fi
 
     TREE_LOG="${FASTA_FILE/.fasta/_log.trees}"
     # Run MP tree search and log trees
@@ -51,13 +63,13 @@ for FASTA_FILE in $INPUT_DIR/*/*fasta; do
     fi
 
     BASENAME=$(basename "$FASTA_FILE" .fasta)
-    echo "$OUTPUT_DIR"/"$BASENAME"_test.p
-    if [ ! -f "$OUTPUT_DIR"/"$BASENAME"_test.p ]; then
+    if [ ! -f "$DPVT_DATA_DIR"/"$BASENAME"_test.p ]; then
         echo "Compute labels"
-        python create_testing_data.py "$OUTPUT_DIR/larch-output.pb" "$OUTPUT_DIR"/"$BASENAME"_test.p "$OUTPUT_DIR/$(basename $TREE_LOG)" "$FASTA_FILE"
+        python create_testing_data.py "$OUTPUT_DIR/larch-output.pb" "$DPVT_DATA_DIR"/"$BASENAME"_test.p "$OUTPUT_DIR/$(basename $TREE_LOG)" "$FASTA_FILE"
         echo "Done computing labels"
     fi
 
+    python add_to_dataset_nicknames.py $DPVT_DATA_DIR ../../train/my_data_nicknames.json
 done
 
 echo "All fasta files processed."

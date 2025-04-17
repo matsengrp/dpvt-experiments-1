@@ -741,10 +741,9 @@ rule concat_baseline_csvs_step:
 # Add this new rule
 rule evaluate_individual_trees_step:
     input:
-        tested_model=get_tested_model_ckpt(
+        trained_model=get_trained_model_ckpt(
             model="{model_name}",
             train_data="{train_data_name}",
-            test_data="{test_data_name}",
             param_id="{param_id}",
             device=device,
             timestamp=timestamp,
@@ -772,7 +771,7 @@ rule evaluate_individual_trees_step:
         evaluate_individual_trees(
             model_name=wildcards.model_name,
             train_data_name=wildcards.train_data_name,
-            trained_model_ckpt=input.tested_model,
+            trained_model_ckpt=input.trained_model,
             test_data_name=wildcards.test_data_name,
             device=device,
             hyperparameter_path=input.hyperparameter_path,

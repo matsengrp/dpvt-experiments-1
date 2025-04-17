@@ -40,6 +40,8 @@ def read_trees(filename, fasta_path):
             tree = Tree(line.rstrip())
             # Assign sequences to leaf nodes
             for leaf in tree.get_leaves():
+                if "_<unknown_description>" in leaf.name:
+                    leaf.name = leaf.name.split("_<unknown_description>")[0]
                 if leaf.name in sequences:
                     leaf.add_feature("sequence", sequences[leaf.name])
                 else:

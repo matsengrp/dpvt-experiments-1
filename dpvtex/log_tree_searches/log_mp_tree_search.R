@@ -1,8 +1,10 @@
 reinstall_phangorn <- function(){
   # install phangorn from branch log-mp-search-trees in lenacoll's fork of the repo
+  print("(re)install phangorn")
   if (isNamespaceLoaded("package:phangorn")) detach("package:phangorn", unload = TRUE)
-  remove.packages("phangorn")
-  install.packages("remotes")
+  if ("phangorn" %in% installed.packages()[,"Package"]){
+    remove.packages("phangorn")
+  }
   remotes::install_github("lenacoll/phangorn@log-mp-search-trees")
   library(phangorn)
 }
@@ -29,13 +31,17 @@ main <- function() {
   
   
   # install phangorn from remote, if it isn't yet
-  desc <- packageDescription("phangorn")
-  github_info <- list(
-    repo = desc$GithubRepo,
-    username = desc$GithubUsername,
-    branch = desc$GithubRef,
-    sha = desc$GithubSHA1
-  )
+  if (("phangorn" %in% installed.packages()[,"Package"])){
+    desc <- packageDescription("phangorn")
+    github_info <- list(
+      repo = desc$GithubRepo,
+      username = desc$GithubUsername,
+      branch = desc$GithubRef,
+      sha = desc$GithubSHA1
+    )
+  } else{
+    github_info <- list(repo = NULL)
+  }
   if (is.null(github_info$repo) || github_info$username != "lenacoll" || github_info$branch != "log-mp-search-trees") reinstall_phangorn()
   library(phangorn) # load phangorn if it is already installed
   

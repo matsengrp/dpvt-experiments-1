@@ -6,6 +6,7 @@
 INPUT_DIR=$1
 LARCH_BUILD=$2
 DPVT_DATA_DIR=$3
+NICKNAMES=$4
 
 find "$INPUT_DIR" -type f \( -name "*.fasta" -o -name "*.fa" -o -name "*.nexus" -o -name "*.nex" \) | while read -r MSA_FILE; do
     echo $MSA_FILE
@@ -69,7 +70,9 @@ find "$INPUT_DIR" -type f \( -name "*.fasta" -o -name "*.fa" -o -name "*.nexus" 
         echo "Done computing labels"
     fi
 
-    python add_to_dataset_nicknames.py $DPVT_DATA_DIR ../../train/my_data_nicknames.json
+    if [ -f "$NICKNAMES ]; then
+        python add_to_dataset_nicknames.py $DPVT_DATA_DIR $NICKNAMES
+    fi
 done
 
 echo "All fasta files processed."

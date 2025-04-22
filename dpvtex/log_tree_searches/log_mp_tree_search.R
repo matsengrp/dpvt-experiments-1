@@ -29,11 +29,26 @@ log_mp_search_list <- function(msa, output_log){
   write.phyDat(phy_data, file=fasta_output, format="fasta")
 
   # creat NJ starting tree for MP tree search, then tree search
-  a <- as.DNAbin(phy_data)
-  d <- dist.dna(a, model="raw")
-  start_tree <- nj(d)
+  # a <- as.DNAbin(phy_data)
+  # d <- dist.dna(a, model="raw")
+  # start_tree <- nj(d)
+
+  # random starting tree
+  seq_names <- names(phy_data)
+  start_tree <- rtree(length(seq_names), tip.label = seq_names)
+
   start_tree$edge.length <- NULL
   mp_tree <- optim.parsimony(tree = start_tree, data = phy_data, log = output_log)
+
+  # # log from parsimony ratchet
+  # all_trees <- list()
+  # tree_counter <- 1
+  # custom_trace <- function(tree, dataset, ...) {
+  #   all_trees[[tree_counter]] <<- tree
+  #   tree_counter <<- tree_counter + 1
+  #   return(tree)
+  # }
+  # mp_tree <- pratchet(data = phy_data, maxit = 100,  tree_log = output_log)
 }
 
 
@@ -61,6 +76,7 @@ main <- function() {
     github_info <- list(repo = NULL)
   }
   if (is.null(github_info$repo) || github_info$username != "lenacoll" || github_info$branch != "log-mp-search-trees") reinstall_phangorn()
+  # install.packages("/home/lcollien/git/phangorn", repos = NULL, type = "source", dependencies = TRUE)
   library(phangorn) # load phangorn if it is already installed
   
   # perform tree search and log trees

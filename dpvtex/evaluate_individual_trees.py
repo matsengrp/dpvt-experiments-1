@@ -99,7 +99,6 @@ def evaluate_individual_trees(
             mask = mask.to(device)
 
         with torch.no_grad():
-            print(traversal.shape, mutations.shape, labels.shape, mask.shape)
             # Forward pass for a single tree
             logits = torch.stack(
                 [

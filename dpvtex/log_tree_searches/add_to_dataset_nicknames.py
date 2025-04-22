@@ -30,18 +30,8 @@ def main():
             if data_dir.split("/")[-2] == "data":
                 basename = os.path.splitext(filename)[0]
             else:
-                basename =  data_dir.split("/")[-2] + "_" + os.path.splitext(filename)[0]
-            # we assume that all data is saved in the data_dir.
-            # with [1:] we remove the leading "/"
-            rel_data_dir = data_dir.split("data")[1][1:]
-            dataset_name = data_dir.split("/")[-1]
-            
-            # Use basename as the key, and the relative path as the value
-            relative_path = os.path.join(rel_data_dir, filename)
-            
-            # Add to the data dictionary
-            print(basename, relative_path)
-            data[basename] = relative_path
+                basename =  filename[:-2]
+            data[basename] = filename
 
     # Write updated JSON back to file
     with open(json_file, 'w') as f:

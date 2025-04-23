@@ -21,12 +21,12 @@ log_mp_search_list <- function(msa, output_log){
   }
   phy_data <- read.phyDat(msa, format=type)
 
-  cleaned_msa <- as.matrix(phy_data)
-  cleaned_msa[cleaned_msa == "-" | cleaned_msa == "n" | cleaned_msa == "N"] <- NA
-  cleaned_msa <- as.DNAbin(cleaned_msa)
-  # Write to file
-  fasta_output <- sub("\\.(fasta|fa|nex|nexus)$", ".fasta", msa)
-  write.phyDat(phy_data, file=fasta_output, format="fasta")
+  # cleaned_msa <- as.matrix(phy_data)
+  # cleaned_msa[cleaned_msa == "-" | cleaned_msa == "n" | cleaned_msa == "N"] <- NA
+  # cleaned_msa <- as.DNAbin(cleaned_msa)
+  # # Write to file
+  # fasta_output <- sub("\\.(fasta|fa|nex|nexus)$", ".fasta", msa)
+  # write.phyDat(phy_data, file=fasta_output, format="fasta")
 
   # creat NJ starting tree for MP tree search, then tree search
   # a <- as.DNAbin(phy_data)

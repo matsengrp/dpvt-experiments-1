@@ -805,5 +805,7 @@ rule plot_individual_tree_eval:
     run:
         plot_auroc_over_time(
             input.eval_path,
+            data_nicknames_path,
+            wildcards.train_data_name,
             output.eval_path,
         )

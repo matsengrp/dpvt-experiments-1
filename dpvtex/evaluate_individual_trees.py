@@ -1,6 +1,8 @@
 import torch
 import json
 import pandas as pd
+import pickle
+import os
 from torchmetrics import AUROC
 from torchmetrics.classification import BinaryROC
 import matplotlib.pyplot as plt
@@ -9,16 +11,55 @@ from dpvtex.dpvt_data import data_of_nicknames
 from dpvtex.dpvt_zoo import build_model
 
 
-def plot_auroc_over_time(csv_file, output_file):
+def plot_auroc_over_time(csv_file, data_nicknames_file, train_data_name, output_file):
     """
     Plots AUROC over time for each tree in the
     dataset whose AUROCs are provided in df in order and saves the plot to a file.
+    Also adds line for number of non-MP edges in the dataset.
+    Args:
+        csv_file (str): Path to the CSV file containing AUROC data.
+        data_nicknames_file (str): Path to the dataset nicknames JSON file.
+        train_data_name (str): Nickname of the training dataset.
+        output_file (str): Path to save the plot.
     """
+    with open(data_nicknames_file, "r") as f:
+        dataset_dict = json.load(f)
+    train_data_path = os.path.join(dataset_dict["data_dir"], dataset_dict[train_data_name])
+    with open(train_data_path, "rb") as f:
+        data_dict = pickle.load(f)
+    num_mp_edges = [sum(l) for l in data_dict.values()]
+
     df = pd.read_csv(csv_file)
-    sns.scatterplot(data=df, x="tree_idx", y="accuracy")
-    plt.title("AUROC over tree index")
-    plt.xlabel("Tree Index")
-    plt.ylabel("AUROC")
+
+    # Create figure with two y-axes
+    fig, ax1 = plt.subplots(figsize=(10, 6))
+
+    # Plot AUROC/accuracy on the primary y-axis
+    sns.scatterplot(data=df, x="tree_idx", y="accuracy", ax=ax1, color='blue', label='Accuracy')
+    ax1.set_xlabel("Tree Index")
+    ax1.set_ylabel("Accuracy", color='blue')
+    ax1.tick_params(axis='y', labelcolor='blue')
+
+    # Create a secondary y-axis for MP edges
+    ax2 = ax1.twinx()
+
+    # Plot MP edges as a line on the secondary y-axis
+    # Make sure the x range matches the data range in the CSV
+    x_range = range(min(len(num_mp_edges), len(df)))
+    ax2.plot(x_range, num_mp_edges[:len(x_range)], color='red', label='MP Edges')
+    ax2.set_ylabel("Number of MP Edges", color='red')
+    ax2.tick_params(axis='y', labelcolor='red')
+
+    # Add a title and legend
+    plt.title("Accuracy and MP Edges by Tree Index")
+
+    # Create a combined legend
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc='best')
+
+    # Adjust layout and save
+    fig.tight_layout()
     plt.savefig(output_file)
     plt.close()
 

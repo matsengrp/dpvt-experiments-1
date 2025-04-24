@@ -88,7 +88,7 @@ something like
 ```bash
 for file in configs/*; do
     echo $file
-    snakemake --corex <number of cores> --configfile $file
+    snakemake --cores <number of cores> --configfile $file
 done
 ```
 

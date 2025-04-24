@@ -4,16 +4,21 @@ import pandas as pd
 import sys
 from sklearn.model_selection import train_test_split
 from collections import Counter
+import argparse
 
 
-data_dir = sys.argv[1]  # directory containing subdirs with .p pickle files
-dpvt_train_data = sys.argv[2]  # output pickle file that will contain aggregated data
-dpvt_test_data = sys.argv[3]
-data_props_file = sys.argv[
-    4
-]  # output csv that contains for each dataset the number of MP trees extracted,
-# the number of leaves in those trees, and the length of the corresponding
-# alignment
+parser = argparse.ArgumentParser(description='Process data files')
+parser.add_argument('-d', '--data_dir', required=True, help='Directory containing subdirs with .p pickle files')
+parser.add_argument('-o', '--output_train_data', required=True, help='Output pickle file that will contain aggregated training data')
+parser.add_argument('-ote', '--output_test_data', help='Output pickle file for test data (optional)')
+parser.add_argument('-p', '--data_props_file', help='Data properties file (optional)')
+
+args = parser.parse_args()
+
+data_dir = args.data_dir
+dpvt_train_data = args.output_train_data
+dpvt_test_data = args.output_test_data
+data_props_file = args.data_props_file
 
 
 # Function to read a .p file and return the length of the dictionary it contains
@@ -63,38 +68,43 @@ trees = list(all_trees_dict.keys())
 labels = list(all_trees_dict.values())
 
 
-# For Stratifying
-sum_of_ones = [sum(label) for label in labels]
-counter = Counter(sum_of_ones)
+if dpvt_test_data == None:
+    with open(dpvt_train_data, "wb") as f:
+        pickle.dump(all_trees_dict, f)
+else:
+    Commented out section could be used to split train and testing data
+    # For Stratifying
+    sum_of_ones = [sum(label) for label in labels]
+    counter = Counter(sum_of_ones)
 
-# Convert sums to a categorical variable for balancing number of non-MP edges in
-# train/test/val
-categories = pd.qcut(
-    sum_of_ones, q=min(len(counter), 4), labels=False, duplicates="drop"
-)
-
-try:
-    # Attempt to split the data with stratification
-    train_trees, test_trees, train_labels, test_labels = train_test_split(
-        trees, labels, train_size=0.8, stratify=categories
+    # Convert sums to a categorical variable for balancing number of non-MP edges in
+    # train/test/val
+    categories = pd.qcut(
+        sum_of_ones, q=min(len(counter), 4), labels=False, duplicates="drop"
     )
-except ValueError as e:
-    # If a ValueError occurs (e.g., due to insufficient data for
-    # stratification), print a custom message
-    print(f"Error during train-test split: {e}")
-    print("The dataset is not large enough to split in training and testing data. Increase number of trees extracted from hDAG or even better the number of alignments used.")
-    # Optionally, re-raise the error or handle it further
-    sys.exit("Dataset too small, will not generate training/testing data split.")
-    raise
 
-train_dict = {i: j for (i, j) in zip(train_trees, train_labels)}
-test_dict = {i: j for (i, j) in zip(test_trees, test_labels)}
+    try:
+        # Attempt to split the data with stratification
+        train_trees, test_trees, train_labels, test_labels = train_test_split(
+            trees, labels, train_size=0.8, stratify=categories
+        )
+    except ValueError as e:
+        # If a ValueError occurs (e.g., due to insufficient data for
+        # stratification), print a custom message
+        print(f"Error during train-test split: {e}")
+        print("The dataset is not large enough to split in training and testing data. Increase number of trees extracted from hDAG or even better the number of alignments used.")
+        # Optionally, re-raise the error or handle it further
+        sys.exit("Dataset too small, will not generate training/testing data split.")
+        raise
 
-with open(dpvt_train_data, "wb") as f:
-    pickle.dump(train_dict, f)
+    train_dict = {i: j for (i, j) in zip(train_trees, train_labels)}
+    test_dict = {i: j for (i, j) in zip(test_trees, test_labels)}
 
-with open(dpvt_test_data, "wb") as f:
-    pickle.dump(test_dict, f)
+    with open(dpvt_train_data, "wb") as f:
+        pickle.dump(train_dict, f)
+
+    with open(dpvt_test_data, "wb") as f:
+        pickle.dump(test_dict, f)
 
 for root, dirs, files in os.walk(data_dir):
     if "cleaned_alignment_length.txt" in files:

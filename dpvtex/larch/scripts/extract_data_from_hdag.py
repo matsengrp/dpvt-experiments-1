@@ -1,6 +1,8 @@
 import historydag as hdag
 import pickle
 import random
+import time
+import signal
 
 from dpvtex.perfect_phylogenies.perturb_phylogeny import (
     make_worse_tree,
@@ -26,7 +28,8 @@ def get_MP_trees_from_hdag(dag, num_trees, unlabel=False):
     if unlabel:
         dag = dag.unlabel()
     dag.uniform_distribution_annotate()
-    num_samples = min(num_trees, dag.count_topologies())
+    dag_num_topologies = memory_safe_count_topologies(dag)
+    num_samples = min(num_trees, memory_safe_count_topologies(dag))
     if num_samples != num_trees:
         print(
             "Not enough trees in DAG to sample",
@@ -35,7 +38,11 @@ def get_MP_trees_from_hdag(dag, num_trees, unlabel=False):
             num_samples,
             "trees instead.",
         )
-    sample_ids = random.sample(range(dag.count_histories()), num_samples)
+    if dag_num_topologies == float("inf"):
+        # we can reasonably expect to have more than 1000 topolgies in the DAG
+        sample_ids = random.sample(range(1000), num_samples)
+    else:
+        sample_ids = random.sample(range(dag_num_topologies), num_samples)
 
     tree_samples = [
         dag[i].to_ete(name_func=lambda n: n.label.node_id, features=["sequence"])
@@ -186,7 +193,9 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
     """
     mp_trees = get_MP_trees_from_hdag(dag, num_trees, unlabel=True)
     tree_to_label_dict = {}  # output dict
+    print("Start extracting DAG clades")
     dag_clades = extract_hdag_clade_child_clades(dag)
+    print("Done extracting DAG clades")
 
     with open(num_children_file, "w") as nc_file:
         for tree in mp_trees:
@@ -235,6 +244,26 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
     return tree_to_label_dict
 
 
+def memory_safe_count_topologies(dag, max_time=10):
+    """Count topologies with a timeout."""
+
+    def timeout_handler(signum, frame):
+        raise TimeoutError("Function timed out")
+
+    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(max_time)
+    
+    try:
+        return dag.count_topologies()
+    except (TimeoutError, MemoryError) as e:
+        print(f"Stop counting topologies, returning inf: {e}")
+        return float('inf')
+    finally:
+        # Reset alarm and handler
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
+
+
 def main():
     if len(sys.argv) < 3:
         print(
@@ -247,6 +276,7 @@ def main():
         num_children_file = sys.argv[3]
         make_worse_tree = sys.argv[4]
 
+    print("Start reading DAG")
     if dag_file[-2:] == ".p":
         with open(dag_file, "rb") as f:
             dag = pickle.load(f)
@@ -258,9 +288,16 @@ def main():
         print("Error: First input file should be pickled hDAG or protobuf.")
         sys.exit(1)
     # trim to only MP topologies + convert to sequence_dag
+    print("Done reading DAG")
+    print("Start trimming DAG")
     dag.trim_optimal_weight()
+    print("Done trimming DAG")
+    print("Start converting DAG to sequence_dag")
     dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
-    num_topologies = min(dag.count_topologies(), 200)  # get at most 200 trees from hdag
+    print("Done converting DAG to sequence_dag")
+    print("Start counting DAG topologies")
+    num_topologies = min(memory_safe_count_topologies(dag), 200)
+    print("Done counting DAG topologies")
 
     tree_label_dict = get_non_dag_edges(
         dag, num_children_file, num_topologies, make_worse_tree

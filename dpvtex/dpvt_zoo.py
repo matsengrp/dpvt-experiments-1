@@ -160,7 +160,6 @@ def get_model_params_path(
 def get_baseline_result_path(
     model_name,
     test_data_name,
-    device,
     timestamp,
     output_dir=".",
 ):
@@ -171,7 +170,6 @@ def get_baseline_result_path(
     Args:
         model_name: Name of the baseline model
         test_data_name: Name of the test dataset
-        device: Device used for testing
         timestamp: Timestamp for the run
         output_dir: Base output directory
         
@@ -181,7 +179,7 @@ def get_baseline_result_path(
     from pathlib import Path
     
     # Create a cleaner path structure without param_id
-    path = f"run.{device}_{timestamp}/baseline_results/{model_name}-ON-{test_data_name}"
+    path = f"run.{timestamp}/baseline_results/{model_name}-ON-{test_data_name}"
     
     # Add output directory if provided
     if output_dir is not None:

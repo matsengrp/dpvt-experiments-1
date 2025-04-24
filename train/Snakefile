@@ -302,7 +302,6 @@ baseline_result_paths = [
     get_baseline_result_path(
         model_name=model_name,
         test_data_name=test_data_name,
-        device=device,
         timestamp=timestamp,
         output_dir=output_dir,
     )
@@ -618,7 +617,6 @@ rule test_baseline_model_step:
         result_path=get_baseline_result_path(
             model_name="{model_name}",
             test_data_name="{test_data_name}",
-            device=device,
             timestamp=timestamp,
             output_dir=output_dir,
         )
@@ -638,7 +636,6 @@ rule create_baseline_csv_step:
         result_path=get_baseline_result_path(
             model_name="{model_name}",
             test_data_name="{test_data_name}",
-            device=device,
             timestamp=timestamp,
             output_dir=output_dir,
         )

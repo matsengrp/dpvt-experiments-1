@@ -184,7 +184,6 @@ def get_baseline_result_path(
 
     # Create a cleaner path structure without param_id
     path = f"run.{timestamp}/baseline_results/{model_name}-ON-{test_data_name}"
-
     # Add output directory if provided
     if output_dir is not None:
         path = str(Path(output_dir) / Path(path))

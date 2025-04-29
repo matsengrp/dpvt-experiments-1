@@ -10,18 +10,29 @@
 
 # Parameters
 num_alignments=500
-num_sequences_list=(50 100 500 1000)
-alignment_length_list=(50 100)
+num_sequences_list=(10 25 50)
+alignment_length_list=(100)
+
+max_attempts=20
+# How much larger to make the initial alignment to account for cleaning
+scaling_factor=2
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-for num_sequences in "${num_sequences_list[@]}"; do
-    echo "Number of sequences:" $num_sequences
-    for alignment_length in "${alignment_length_list[@]}"; do
-        echo "Alignment lengths:" $alignment_length
-        base_directory="$(cd "${script_dir}/../../data/simulated_alignments" && pwd)/alisim_alignment_${num_sequences}_seq_${alignment_length}_sites_${num_alignments}_algnmnts"
+# Check if simulated_alignments directory exists, create it if not
+simulated_alignments_dir="$(cd "${script_dir}/../../data" && pwd)/simulated_alignments"
+if [ ! -d "$simulated_alignments_dir" ]; then
+    echo "Creating simulated_alignments directory at: $simulated_alignments_dir"
+    mkdir -p "$simulated_alignments_dir"
+else
+    echo "Found simulated_alignments directory at: $simulated_alignments_dir"
+fi
 
-
+for target_num_sequences in "${num_sequences_list[@]}"; do
+    echo "Target number of sequences: $target_num_sequences"
+    for target_alignment_length in "${alignment_length_list[@]}"; do
+        echo "Target alignment length: $target_alignment_length"
+        base_directory="$simulated_alignments_dir/clean_alignment_${target_num_sequences}_seq_${target_alignment_length}_sites_${num_alignments}_algnmnts"
         # Create base directory for alignments
         if [ -d "$base_directory" ]; then
             echo "$base_directory exists already."
@@ -33,15 +44,51 @@ for num_sequences in "${num_sequences_list[@]}"; do
                 # Create directory for each alignment
                 alignment_dir="$base_directory/alignment_$i"
                 mkdir -p "$alignment_dir"
-
-                # Create the alignment and save it as a FASTA file
-                iqtree --alisim $alignment_dir/alignment_$i -t RANDOM{yh/$num_sequences} --length $alignment_length --out-format fasta -redo
-
-                mv $alignment_dir/alignment_$i.fa $alignment_dir/alignment_$i.fasta
-
-                echo "Created $alignment_dir/alignment_$i.fasta"
+                
+                # Track whether we've successfully created this alignment
+                success=false
+                attempt=1
+                # Reset scaling factor for each new alignment
+                local_scaling_factor=$scaling_factor
+                
+                while [ "$success" = false ] && [ $attempt -le $max_attempts ]; do
+                    echo "Alignment $i, attempt $attempt of $max_attempts"
+                    
+                    # Calculate scaled-up parameters to account for cleaning
+                    initial_num_sequences=$((target_num_sequences + 5))
+                    initial_alignment_length=$((target_alignment_length * local_scaling_factor))
+                    
+                    # Create the alignment and save it as a FASTA file
+                    iqtree --alisim $alignment_dir/raw_alignment_$i -t RANDOM{yh/$initial_num_sequences} -m "JC" --length $initial_alignment_length --out-format fasta -redo
+                    mv $alignment_dir/raw_alignment_$i.fa $alignment_dir/raw_alignment_$i.fasta
+                    
+                    # Clean the alignment and trim to exact target dimensions
+                    python ${script_dir}/clean_data.py $alignment_dir/raw_alignment_$i.fasta $alignment_dir/alignment_$i.fasta $alignment_dir/alignment_stats_$i.txt $target_alignment_length $target_num_sequences
+                    
+                    # Check if cleaned alignment meets criteria
+                    IFS=',' read cleaned_length cleaned_seqs < $alignment_dir/alignment_stats_$i.txt
+                    
+                    if [ $cleaned_length -ge $target_alignment_length ] && [ $cleaned_seqs -ge $target_num_sequences ]; then
+                        echo "Success! Cleaned alignment has $cleaned_seqs sequences and $cleaned_length sites."
+                        success=true
+                    else
+                        echo "Failed: Cleaned alignment has only $cleaned_seqs sequences and $cleaned_length sites. Retrying..."
+                        # Increase local scaling factor with each failed attempt
+                        local_scaling_factor=$((local_scaling_factor + 1))
+                        attempt=$((attempt + 1))
+                    fi
+                done
+                
+                if [ "$success" = false ]; then
+                    echo "Failed to create alignment $i after $max_attempts attempts. Skipping."
+                    rm -rf $alignment_dir  # Clean up the failed attempt
+                else
+                    echo "Created $alignment_dir/alignment_$i.fasta"
+                fi
             done
 
+            echo "Generate config file..."
+            python ${script_dir}/generate_configs.py $target_num_sequences $target_alignment_length $num_alignments
         fi
         # We generate config file independent of datasets
         echo "Generate config file..."

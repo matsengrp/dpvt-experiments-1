@@ -35,14 +35,45 @@ def remove_duplicate_sequences(multiple_seq_alignment):
     return MultipleSeqAlignment(unique_alignments), len(unique_alignments)
 
 
+def trim_alignment_to_target(alignment, target_length, target_seqs):
+    """
+    Trims the alignment to have exactly the target number of sites and sequences, if required.
+    """
+    # Trim sequences if needed
+    if len(alignment) > target_seqs:
+        alignment = MultipleSeqAlignment(alignment[:target_seqs])
+    
+    # Trim alignment length if needed
+    if alignment.get_alignment_length() > target_length:
+        alignment = alignment[:, :target_length]
+    
+    return alignment
+
+
 if __name__ == '__main__':
     import sys
     input_filename = sys.argv[1]
     output_filename = sys.argv[2]
     algn_length_filename = sys.argv[3]
+    
+    # Get target dimensions if provided (optional arguments)
+    target_length = None
+    target_seqs = None
+    if len(sys.argv) > 4:
+        target_length = int(sys.argv[4])
+    if len(sys.argv) > 5:
+        target_seqs = int(sys.argv[5])
+    else:
+        print("Provide both target length and target sequences if you want to trim the alignment.")
+    
     alignment = AlignIO.read(input_filename, 'fasta')
     clean_alignment = remove_ambiguous_or_uninformative_sites(alignment)
     clean_alignment, num_unique_seqs = remove_duplicate_sequences(clean_alignment)
+    
+    # Trim to target dimensions if specified
+    if target_length is not None and target_seqs is not None:
+        clean_alignment = trim_alignment_to_target(clean_alignment, target_length, target_seqs)
+    
     AlignIO.write(clean_alignment, output_filename, 'fasta')
     with open(algn_length_filename, "w") as f:
-        f.write(str(clean_alignment.get_alignment_length()) + "," + str(num_unique_seqs))
+        f.write(str(clean_alignment.get_alignment_length()) + "," + str(len(clean_alignment)))

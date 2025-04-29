@@ -66,11 +66,11 @@ find "$INPUT_DIR" -type f \( -name "*.fasta" -o -name "*.fa" -o -name "*.nexus" 
     BASENAME=$(basename "$FASTA_FILE" .fasta)
     if [ ! -f "$DPVT_DATA_DIR"/"$BASENAME"_test.p ]; then
         echo "Compute labels"
-        python create_testing_data.py "$OUTPUT_DIR/larch-output.pb" "$DPVT_DATA_DIR"/"$BASENAME"_test.p "$OUTPUT_DIR/$(basename $TREE_LOG)" "$FASTA_FILE"
+        python create_testing_data.py "$OUTPUT_DIR/larch-output.pb" "$DPVT_DATA_DIR"/"$BASENAME"_tree_search_test.p "$OUTPUT_DIR/$(basename $TREE_LOG)" "$FASTA_FILE"
         echo "Done computing labels"
     fi
 
-    if [ -f "$NICKNAMES ]; then
+    if [ -f "$NICKNAMES" ]; then
         python add_to_dataset_nicknames.py $DPVT_DATA_DIR $NICKNAMES
     fi
 done

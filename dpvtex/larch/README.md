@@ -21,6 +21,8 @@ Note that this will require creating a new conda environment, so make sure that
 once you are done installing `larch`, you activate `larch-data` again to run the
 code in this repo.
 
+<!-- The current larch-usher version requires an old version of faToVcF, which needs to be provided in setup_larch_inputs/config.yaml. -->
+
 ## Construct historydag with larch-usher and extract trees
 
 This code allows to input an alignment in fasta format and returns a pickled
@@ -52,9 +54,9 @@ to be stored, and some parameters for the run in `config.yaml`:
 
 -   `input_data`: directory containing for each alignment a directory with the
     name of the alignment and a fasta file with the same name as its directory,
-    e.g.: `alignment_1/alignment_1.fasta`
-     _Note that we assume DNA sequences. Columns containing gaps or ambiguous characters
-    in the input alignment get deleted in our pipeline._
+    e.g.: `alignment_1/alignment_1.fasta` _Note that we assume DNA sequences.
+    Columns containing gaps or ambiguous characters in the input alignment get
+    deleted in our pipeline._
 -   `larch_build`: path to the `build` directory created when building `larch`
     (see instructions in `larch` repo)
 -   `output_data`: path to directory in which output, which is a pickled file
@@ -240,7 +242,8 @@ In `dpvtex/larch/scripts`: scripts called from snakefiles:
         -   runs Sankoff to get sequences for internal nodes
         -   use either `make_worse_spr()` ors `make_worse_tree()` function from
             `dpvtex/perfect_phylogenies/perturb_phylogeny.py` to create non-MP
-            edges by performing SPR moves or replacing a subtree by a random tree
+            edges by performing SPR moves or replacing a subtree by a random
+            tree
         -   assigns `0`/`1` labels to edges of tree depending on whether the
             split represented by that edge is in the larch hDAG or not
         -   if more than $\frac{1}{6}$ of the edges are non-MP or we tried more

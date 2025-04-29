@@ -92,6 +92,6 @@ for target_num_sequences in "${num_sequences_list[@]}"; do
         fi
         # We generate config file independent of datasets
         echo "Generate config file..."
-        python ${script_dir}/generate_configs.py $num_sequences $alignment_length $num_alignments
+        python ${script_dir}/generate_configs.py $target_num_sequences $target_alignment_length $num_alignments
     done
 done

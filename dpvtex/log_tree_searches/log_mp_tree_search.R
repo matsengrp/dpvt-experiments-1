@@ -39,16 +39,6 @@ log_mp_search_list <- function(msa, output_log){
 
   start_tree$edge.length <- NULL
   mp_tree <- optim.parsimony(tree = start_tree, data = phy_data, log = output_log)
-
-  # # log from parsimony ratchet
-  # all_trees <- list()
-  # tree_counter <- 1
-  # custom_trace <- function(tree, dataset, ...) {
-  #   all_trees[[tree_counter]] <<- tree
-  #   tree_counter <<- tree_counter + 1
-  #   return(tree)
-  # }
-  # mp_tree <- pratchet(data = phy_data, maxit = 100,  tree_log = output_log)
 }
 
 
@@ -76,7 +66,6 @@ main <- function() {
     github_info <- list(repo = NULL)
   }
   if (is.null(github_info$repo) || github_info$username != "lenacoll" || github_info$branch != "log-mp-search-trees") reinstall_phangorn()
-  # install.packages("/home/lcollien/git/phangorn", repos = NULL, type = "source", dependencies = TRUE)
   library(phangorn) # load phangorn if it is already installed
   
   # perform tree search and log trees

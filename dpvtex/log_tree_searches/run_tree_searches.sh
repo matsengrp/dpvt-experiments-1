@@ -19,13 +19,6 @@ find "$INPUT_DIR" -type f \( -name "*.fasta" -o -name "*.fa" -o -name "*.nexus" 
     fi
     echo "Processing $MSA_FILE"
 
-    # "Clean alignment" to remove gaps and convert to fasta
-    if [ ! -f "$FASTA_FILE" ]; then
-        echo "Running clean_alignment.py"
-        python -m dpvtex.larch.scripts.clean_data "$MSA_FILE" "$FASTA_FILE"
-    else
-        echo "clean_alignment.py already run, skipping"
-    fi
 
     TREE_LOG="${FASTA_FILE/.fasta/_log.trees}"
     # Run MP tree search and log trees

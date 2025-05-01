@@ -41,7 +41,6 @@ default_config = {
     "train_data": ["FourLeafTrain"],
     "test_data": ["FourLeafTest"],
     "device": "cpu",
-    "evaluate_tree_search": False,
     "timestamp": str(datetime.now().strftime("%Y-%m-%d")),
     "n_hyperparameter_trials": 100,
     "use_cross_datasets": False,
@@ -81,7 +80,6 @@ model_names = config["models"]
 train_data_names = config["train_data"]
 test_data_names = config["test_data"]
 device = config["device"]
-evaluate_tree_search = config["evaluate_tree_search"]
 timestamp = config["timestamp"]
 n_hyperparameter_trials = config["n_hyperparameter_trials"]
 use_cross_datasets = config["use_cross_datasets"]
@@ -355,72 +353,8 @@ if len(notebook_dict) != len(notebook_input_paths):
     raise ValueError(f"Duplicate notebook name: all input notebooks in {notebook_input_paths} must have unique names.")
 
 
-from dpvtex.evaluate_individual_trees import (evaluate_individual_trees, 
-    plot_auroc_over_time)
-
-def get_individual_tree_eval_path(
-    model_name,
-    train_data_name,
-    test_data_name,
-    param_id,
-    device,
-    timestamp,
-    output_dir,
-):
-    path = build_log_path(
-        model_name=model_name,
-        train_data_name=train_data_name,
-        test_data_name=test_data_name,
-        param_id=param_id,
-        device=device,
-        timestamp=timestamp,
-        log_name="tree_eval_logs",
-        step_name="individual_tree_eval",
-        output_dir=output_dir,
-    )
-    return f"{path}.csv"
-
-def generate_individual_tree_eval_plot_paths(
-    model_names,
-    data_pairs,
-    param_ids,
-    device,
-    timestamp,
-    output_dir,
-):
-    eval_paths = [
-        get_individual_tree_eval_path(
-            model_name=model_name,
-            train_data_name=train_data_name,
-            test_data_name=test_data_name,
-            param_id=param_id,
-            device=device,
-            timestamp=timestamp,
-            output_dir=output_dir,
-        )[:-4] + ".pdf"
-        for model_name in model_names
-        for train_data_name, test_data_name in data_pairs
-        for param_id in param_ids
-    ]
-    return eval_paths
-
-
-tree_eval_paths = generate_individual_tree_eval_plot_paths(
-    model_names=model_names,
-    data_pairs=data_pairs,
-    param_ids=param_ids,
-    device=device,
-    timestamp=timestamp,
-    output_dir=output_dir,
-)
-
-if evaluate_tree_search:
-    all_inputs = tree_eval_paths
-else:
-    all_inputs = notebook_output_paths + [csv_output_path]
-
 rule all:
-    input: all_inputs
+    input: notebook_output_paths + [csv_output_path]
 
 rule log_metadata_step:
     output:
@@ -736,75 +670,4 @@ rule concat_baseline_csvs_step:
         concatenate_csvs(
             input_csv_paths=input.csv_input_paths,
             output_csv_path=output.csv_output_path,
-        )
-# Add this new rule
-rule evaluate_individual_trees_step:
-    input:
-        trained_model=get_trained_model_ckpt(
-            model="{model_name}",
-            train_data="{train_data_name}",
-            param_id="{param_id}",
-            device=device,
-            timestamp=timestamp,
-            output_dir=output_dir,
-        ),
-        hyperparameter_path=get_model_params_json(
-            model="{model_name}",
-            train_data="{train_data_name}",
-            param_id="{param_id}",
-            device=device,
-            timestamp=timestamp,
-            output_dir=output_dir,
-        ),
-    output:
-        eval_path=get_individual_tree_eval_path(
-            model_name="{model_name}",
-            train_data_name="{train_data_name}",
-            test_data_name="{test_data_name}",
-            param_id="{param_id}",
-            device=device,
-            timestamp=timestamp,
-            output_dir=output_dir,
-        ),
-    run:
-        evaluate_individual_trees(
-            model_name=wildcards.model_name,
-            train_data_name=wildcards.train_data_name,
-            trained_model_ckpt=input.trained_model,
-            test_data_name=wildcards.test_data_name,
-            device=device,
-            hyperparameter_path=input.hyperparameter_path,
-            output_dir=output_dir,
-            data_nicknames_path=data_nicknames_path,
-            output_file=output.eval_path,
-        )
-
-
-rule plot_individual_tree_eval:
-    input:
-        eval_path=get_individual_tree_eval_path(
-            model_name="{model_name}",
-            train_data_name="{train_data_name}",
-            test_data_name="{test_data_name}",
-            param_id="{param_id}",
-            device=device,
-            timestamp=timestamp,
-            output_dir=output_dir,
-        ),
-    output:
-        eval_path=get_individual_tree_eval_path(
-            model_name="{model_name}",
-            train_data_name="{train_data_name}",
-            test_data_name="{test_data_name}",
-            param_id="{param_id}",
-            device=device,
-            timestamp=timestamp,
-            output_dir=output_dir,
-        )[:-4]+".pdf",
-    run:
-        plot_auroc_over_time(
-            input.eval_path,
-            data_nicknames_path,
-            wildcards.train_data_name,
-            output.eval_path,
         )

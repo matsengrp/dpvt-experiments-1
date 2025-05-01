@@ -3,6 +3,8 @@ import json
 import pandas as pd
 import pickle
 import os
+import historydag
+from Bio import SeqIO
 from torchmetrics import AUROC
 from torchmetrics.classification import BinaryROC
 import matplotlib.pyplot as plt
@@ -11,7 +13,20 @@ from dpvtex.dpvt_data import data_of_nicknames
 from dpvtex.dpvt_zoo import build_model
 
 
-def plot_auroc_over_time(csv_file, data_nicknames_file, train_data_name, output_file):
+def get_parsimony_scores(tree_list, fasta_path):
+    pscore_list = []
+    sequences = {}
+    for record in SeqIO.parse(fasta_path, "fasta"):
+        sequences[record.id] = str(record.seq)
+    for tree in tree_list:
+        for node in tree.get_leaves():
+            node.add_feature("sequence", sequences[node.name])
+        pscore = historydag.parsimony.parsimony_score(tree)
+        pscore_list.append(pscore)
+    return pscore_list
+
+
+def plot_auroc_over_time(csv_file, data_nicknames_file, test_data_name, output_file, fasta_dir, metric="auroc"):
     """
     Plots AUROC over time for each tree in the
     dataset whose AUROCs are provided in df in order and saves the plot to a file.
@@ -19,25 +34,42 @@ def plot_auroc_over_time(csv_file, data_nicknames_file, train_data_name, output_
     Args:
         csv_file (str): Path to the CSV file containing AUROC data.
         data_nicknames_file (str): Path to the dataset nicknames JSON file.
-        train_data_name (str): Nickname of the training dataset.
+        test_data_name (str): Nickname of the testing dataset.
         output_file (str): Path to save the plot.
     """
+    print("output_file", output_file)
     with open(data_nicknames_file, "r") as f:
         dataset_dict = json.load(f)
-    train_data_path = os.path.join(dataset_dict["data_dir"], dataset_dict[train_data_name])
-    with open(train_data_path, "rb") as f:
+    test_data_path = os.path.join(dataset_dict["data_dir"], dataset_dict[test_data_name])
+    with open(test_data_path, "rb") as f:
         data_dict = pickle.load(f)
-    num_mp_edges = [sum(l) for l in data_dict.values()]
+    
+    # We require the test_data_name to be in the format "{fasta_basename}_tree_search_test.fasta"
+    # This is how they are generated in our pipeline, so this should generally be fine
+    data_basename = dataset_dict[test_data_name].split("_tree_search")[0]
+    fasta_path = fasta_dir + "/" + data_basename + "/" + data_basename + ".fasta"
+    
+    parsimony_scores = get_parsimony_scores(list(data_dict.keys()), fasta_path)
+    num_int_edges = len(list(data_dict.keys())[0]) - 2
+    frac_non_mp_edges = [sum(l)/num_int_edges for l in data_dict.values()]
 
     df = pd.read_csv(csv_file)
 
     # Create figure with two y-axes
     fig, ax1 = plt.subplots(figsize=(10, 6))
+    metric_labels = {
+        "auroc": "AUROC",
+        "accuracy": "Accuracy",
+        "precision": "Precision",
+        "recall": "Recall",
+        "f1": "F1 Score",
+    }
+    metric_label = metric_labels[metric]
 
     # Plot AUROC/accuracy on the primary y-axis
-    sns.scatterplot(data=df, x="tree_idx", y="accuracy", ax=ax1, color='blue', label='Accuracy')
+    sns.scatterplot(data=df, x="tree_idx", y=metric, ax=ax1, color='blue', label=metric_label)
     ax1.set_xlabel("Tree Index")
-    ax1.set_ylabel("Accuracy", color='blue')
+    ax1.set_ylabel(metric_label, color='blue')
     ax1.tick_params(axis='y', labelcolor='blue')
 
     # Create a secondary y-axis for MP edges
@@ -45,20 +77,37 @@ def plot_auroc_over_time(csv_file, data_nicknames_file, train_data_name, output_
 
     # Plot MP edges as a line on the secondary y-axis
     # Make sure the x range matches the data range in the CSV
-    x_range = range(min(len(num_mp_edges), len(df)))
-    ax2.plot(x_range, num_mp_edges[:len(x_range)], color='red', label='MP Edges')
-    ax2.set_ylabel("Number of MP Edges", color='red')
+    x_range = range(len(frac_non_mp_edges))
+    ax2.plot(x_range, frac_non_mp_edges, color='red', label='non-MP Edges')
+    ax2.set_ylabel("Fraction of non-MP Edges", color='red')
     ax2.tick_params(axis='y', labelcolor='red')
 
-    # Add a title and legend
-    plt.title("Accuracy and MP Edges by Tree Index")
-
-    # Create a combined legend
-    lines1, labels1 = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, loc='best')
-
-    # Adjust layout and save
+    if parsimony_scores and not all(pd.isna(score) for score in parsimony_scores):
+        ax3 = ax1.twinx()
+        # Move the third y-axis to the right for visual clarity
+        ax3.spines['right'].set_position(('outward', 60))
+        
+        # Plot parsimony scores on third y-axis
+        x_range_scores = range(len(parsimony_scores))
+        ax3.plot(x_range_scores, parsimony_scores, color='green', linestyle='--', label='Parsimony Score')
+        ax3.set_ylabel("Parsimony Score", color='green')
+        ax3.tick_params(axis='y', labelcolor='green')
+        
+        # Update title and legend to include parsimony scores
+        plt.title(f"{metric_label}, non-MP Edges, and Parsimony Scores by Tree Index")
+        
+        # Create legend with all three lines
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        lines3, labels3 = ax3.get_legend_handles_labels()
+        ax1.legend(lines1 + lines2 + lines3, labels1 + labels2 + labels3, loc='best')
+    else:
+        # Original title and legend if no parsimony scores (same as your code)
+        plt.title(f"{metric_label} and non-MP Edges by Tree Index")
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax1.legend(lines1 + lines2, labels1 + labels2, loc='best')
+    
     fig.tight_layout()
     plt.savefig(output_file)
     plt.close()

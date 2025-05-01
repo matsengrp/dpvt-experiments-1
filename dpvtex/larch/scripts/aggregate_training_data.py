@@ -72,7 +72,7 @@ if dpvt_test_data == None:
     with open(dpvt_train_data, "wb") as f:
         pickle.dump(all_trees_dict, f)
 else:
-    Commented out section could be used to split train and testing data
+    # Commented out section could be used to split train and testing data
     # For Stratifying
     sum_of_ones = [sum(label) for label in labels]
     counter = Counter(sum_of_ones)

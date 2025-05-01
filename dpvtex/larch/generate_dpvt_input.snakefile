@@ -45,8 +45,7 @@ def get_subdirs(data_dir):
 rule all:
     input:
         input_data+"/data_properties_"+dataset_name+"_"+current_date+csv_suffix,
-        output_data+"/larch_"+dataset_name+"_"+current_date+"_train"+pickle_suffix,
-        output_data+"/larch_"+dataset_name+"_"+current_date+"_test"+pickle_suffix,
+        output_data+"/larch_"+dataset_name+"_"+current_date+pickle_suffix,
 
 
 rule preprocessing:
@@ -104,10 +103,9 @@ rule aggregate_training_data:
         length_files=expand(input_data+"/{subdir}/cleaned_alignment_length.txt", subdir=get_subdirs(input_data)),
     output:
         data_props=input_data+"/data_properties_"+dataset_name+"_"+current_date+csv_suffix,
-        dpvt_train_data=output_data+"/larch_"+dataset_name+"_"+current_date+"_train"+pickle_suffix,
-        dpvt_test_data=output_data+"/larch_"+dataset_name+"_"+current_date+"_test"+pickle_suffix,
+        dpvt_data=output_data+"/larch_"+dataset_name+"_"+current_date+pickle_suffix,
     shell:
         """
-        python {snakefile_dir}/scripts/aggregate_training_data.py {input_data} {output.dpvt_train_data} {output.dpvt_test_data} {output.data_props}
+        python {snakefile_dir}/scripts/aggregate_training_data.py -d {input_data} -o {output.dpvt_data} -p {output.data_props}
         """
 

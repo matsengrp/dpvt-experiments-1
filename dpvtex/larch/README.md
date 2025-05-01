@@ -63,8 +63,8 @@ to be stored, and some parameters for the run in `config.yaml`:
     containing trees and corresponding edge vectors containing MP edge labels,
     should be saved
 -   `dataset_name`: name for the dataset that will be used for the output files
-    containing training and testing data. The output files will be named
-    `{dataset_name}_YYYY-MM-DD_train.p` and `{dataset_name}_YYYY-MM-DD_test.p`
+    containing the data. The output files will be named
+    `{dataset_name}_YYYY-MM-DD.p`
 -   `num_larch_iterations`: number of iterations we want to run larch, defaults
     to `20`. The number of iteration automatically increases by 5 if in the last
     5 iteration of larch there is a decrease in parsimony score.

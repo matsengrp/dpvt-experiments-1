@@ -236,7 +236,7 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
                 # assign edge labels
                 edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
                 if sum(edge_labels) / len(edge_labels) >= 1 / 6 or i > 100:
-                    # note that len(edge_labels) is roughly 2*internal edges
+                    # note that len(edge_labels) is roughly 2*internal edges, so we are aiming at a third of non-MP edges here
                     done_modifying = True
             tree_to_label_dict[modified_tree] = edge_labels
     if len(tree_to_label_dict) < num_trees:

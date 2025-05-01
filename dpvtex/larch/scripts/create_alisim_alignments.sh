@@ -9,7 +9,7 @@
 # training and testing datasets.
 
 # Parameters
-num_alignments=500
+num_alignments=200
 num_sequences_list=(10 25 50)
 alignment_length_list=(100)
 
@@ -32,7 +32,7 @@ for target_num_sequences in "${num_sequences_list[@]}"; do
     echo "Target number of sequences: $target_num_sequences"
     for target_alignment_length in "${alignment_length_list[@]}"; do
         echo "Target alignment length: $target_alignment_length"
-        base_directory="$simulated_alignments_dir/clean_alignment_${target_num_sequences}_seq_${target_alignment_length}_sites_${num_alignments}_algnmnts"
+        base_directory="$simulated_alignments_dir/alisim_alignment_${target_num_sequences}_seq_${target_alignment_length}_sites_${num_alignments}_algnmnts"
         # Create base directory for alignments
         if [ -d "$base_directory" ]; then
             echo "$base_directory exists already."

@@ -16,7 +16,7 @@ def generate_config_files(num_sequences, num_sites, num_algnmnts):
     os.makedirs("../configs", exist_ok=True)
     
     # Create the dataset name
-    dataset_name = f"clean_alignment_{num_sequences}_seq_{num_sites}_sites_{num_algnmnts}_algnmnts"
+    dataset_name = f"alisim_alignment_{num_sequences}_seq_{num_sites}_sites_{num_algnmnts}_algnmnts"
     
     for use_spr in [True, False]:
         # Create the config dictionary

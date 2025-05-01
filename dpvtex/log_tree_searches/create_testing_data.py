@@ -16,7 +16,9 @@ import sys
 def read_trees(filename, fasta_path):
     """
     Read trees from filename and return them as ete3 trees with sequences of
-    fasta assigned to leaves. Args:
+    fasta assigned to leaves. Also uses ete3's resolve_polytomy() to ensure
+    output trees are binary.
+    Args:
         filename (str): Path to the file containing trees in newick format.
         fasta_path (str): Path to the fasta file containing sequences.
     """
@@ -38,6 +40,7 @@ def read_trees(filename, fasta_path):
 
         for line in f.readlines():
             tree = Tree(line.rstrip(), format=8)
+            tree.resolve_polytomy(recursive=True)
             # Assign sequences to leaf nodes
             for leaf in tree.get_leaves():
                 if "_<unknown_description>" in leaf.name:

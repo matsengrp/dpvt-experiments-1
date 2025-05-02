@@ -21,8 +21,6 @@ dataset_name=config["dataset_name"]
 make_worse_spr=config["make_worse_spr"]
 
 
-current_date = datetime.datetime.now().strftime("%Y_%m_%d")
-
 # special suffices if spr moves to introduce non-MP edges
 pickle_suffix = ".p"
 csv_suffix = ".csv"
@@ -44,8 +42,8 @@ def get_subdirs(data_dir):
 
 rule all:
     input:
-        input_data+"/data_properties_"+dataset_name+"_"+current_date+csv_suffix,
-        output_data+"/larch_"+dataset_name+"_"+current_date+pickle_suffix,
+        input_data+"/data_properties_"+dataset_name+"_"+csv_suffix,
+        output_data+"/larch_"+dataset_name+"_"+pickle_suffix,
 
 
 rule preprocessing:
@@ -102,8 +100,8 @@ rule aggregate_training_data:
         expand(input_data+"/{subdir}/{subdir}"+pickle_suffix, subdir=get_subdirs(input_data)),
         length_files=expand(input_data+"/{subdir}/cleaned_alignment_length.txt", subdir=get_subdirs(input_data)),
     output:
-        data_props=input_data+"/data_properties_"+dataset_name+"_"+current_date+csv_suffix,
-        dpvt_data=output_data+"/larch_"+dataset_name+"_"+current_date+pickle_suffix,
+        data_props=input_data+"/data_properties_"+dataset_name+"_"+csv_suffix,
+        dpvt_data=output_data+"/larch_"+dataset_name+"_"+pickle_suffix,
     shell:
         """
         python {snakefile_dir}/scripts/aggregate_training_data.py -d {input_data} -o {output.dpvt_data} -p {output.data_props}

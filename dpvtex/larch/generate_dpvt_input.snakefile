@@ -21,7 +21,7 @@ dataset_name=config["dataset_name"]
 make_worse_spr=config["make_worse_spr"]
 
 
-current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+current_date = datetime.datetime.now().strftime("%Y_%m_%d")
 
 # special suffices if spr moves to introduce non-MP edges
 pickle_suffix = ".p"

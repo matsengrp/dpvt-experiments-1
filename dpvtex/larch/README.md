@@ -21,7 +21,6 @@ Note that this will require creating a new conda environment, so make sure that
 once you are done installing `larch`, you activate `larch-data` again to run the
 code in this repo.
 
-<!-- The current larch-usher version requires an old version of faToVcF, which needs to be provided in setup_larch_inputs/config.yaml. -->
 
 ## Construct historydag with larch-usher and extract trees
 

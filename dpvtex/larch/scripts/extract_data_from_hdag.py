@@ -1,8 +1,7 @@
 import historydag as hdag
 import pickle
 import random
-import time
-import signal
+import concurrent.futures
 
 from dpvtex.perfect_phylogenies.perturb_phylogeny import (
     make_worse_tree,
@@ -197,8 +196,11 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
     dag_clades = extract_hdag_clade_child_clades(dag)
     print("Done extracting DAG clades")
 
+    print("Start adding non-MP edges...")
+    print("Number of MP trees:", len(mp_trees))
     with open(num_children_file, "w") as nc_file:
         for tree in mp_trees:
+            print("Processing tree number", len(tree_to_label_dict))
             # delete sequences on internal nodes - can probably be done more
             # efficiently
             for node in tree.traverse():
@@ -246,36 +248,30 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
 
 def memory_safe_count_topologies(dag, max_time=10):
     """Count topologies with a timeout."""
-
-    def timeout_handler(signum, frame):
-        raise TimeoutError("Function timed out")
-
-    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(max_time)
-    
-    try:
+    def count_topologies():
         return dag.count_topologies()
-    except (TimeoutError, MemoryError) as e:
-        print(f"Stop counting topologies, returning inf: {e}")
-        return float('inf')
-    finally:
-        # Reset alarm and handler
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old_handler)
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(count_topologies)
+        try:
+            return future.result(timeout=max_time)
+        except concurrent.futures.TimeoutError:
+            print("Stop counting topologies, returning inf: Function timed out")
+            return float('inf')
+        except MemoryError as e:
+            print(f"Stop counting topologies, returning inf: {e}")
+            return float('inf')
 
 
-def main():
-    if len(sys.argv) < 3:
-        print(
-            "Error: Please provide file containing pickled hDAG or protobuf and filename for dpvt data."
-        )
-        sys.exit(1)
-    else:
-        dag_file = sys.argv[1]
-        dpvt_data_file = sys.argv[2]
-        num_children_file = sys.argv[3]
-        make_worse_tree = sys.argv[4]
-
+def extract_data_from_hdag(dag_file, dpvt_data_file, num_children_file, make_worse_tree):
+    """
+    Extracts dpvt data from a history DAG and saves it to a file.
+    Args:
+        dag_file (str): Path to the history DAG file.
+        dpvt_data_file (str): Path to save the DPVT data.
+        num_children_file (str): Path to save the number of children data.
+        make_worse_tree (bool): Whether to use make_worse_tree or not.
+    """
     print("Start reading DAG")
     if dag_file[-2:] == ".p":
         with open(dag_file, "rb") as f:

@@ -1,6 +1,8 @@
 import glob
 import os
 import datetime
+from dpvtex.larch.scripts.extract_data_from_hdag import extract_data_from_hdag
+from dpvtex.larch.scripts.aggregate_training_data import aggregate_data
 
 snakefile_dir = workflow.basedir
 default_config_path = os.path.join(snakefile_dir, "config.yaml")
@@ -89,10 +91,8 @@ rule extract_dpvt_data:
     output:
         data=input_data+"/{subdir}/{subdir}"+pickle_suffix,
         num_children_file=input_data+"/{subdir}/num_children_dag_trees"+csv_suffix
-    shell:
-        """
-        python {snakefile_dir}/scripts/extract_data_from_hdag.py {input.pb} {output.data} {output.num_children_file} {make_worse_spr}
-        """
+    run:
+        extract_data_from_hdag(input.pb, output.data, output.num_children_file, make_worse_spr)
 
 
 rule aggregate_training_data:
@@ -102,8 +102,6 @@ rule aggregate_training_data:
     output:
         data_props=input_data+"/data_properties_"+dataset_name+"_"+csv_suffix,
         dpvt_data=output_data+"/larch_"+dataset_name+"_"+pickle_suffix,
-    shell:
-        """
-        python {snakefile_dir}/scripts/aggregate_training_data.py -d {input_data} -o {output.dpvt_data} -p {output.data_props}
-        """
+    run:
+        aggregate_data(data_dir = input_data, data_props_file = output.data_props, dpvt_train_data = output.dpvt_data, dpvt_test_data = None)
 

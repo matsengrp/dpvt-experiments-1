@@ -4,8 +4,6 @@ import pandas as pd
 import sys
 from sklearn.model_selection import train_test_split
 from collections import Counter
-import argparse
-
 
 # Function to read a .p file and return the length of the dictionary it contains
 def get_dict(file_path):
@@ -148,13 +146,14 @@ def save_data_properties(data_props, data_props_file, data_dir):
 
 
 def aggregate_data(data_dir, data_props_file, dpvt_train_data, dpvt_test_data = None):
-    args = parser.parse_args()
-
-    data_dir = args.data_dir
-    dpvt_train_data = args.output_train_data
-    dpvt_test_data = args.output_test_data
-    data_props_file = args.data_props_file
-
+    """
+    Aggregate data from the specified directory and save it to a pickle file.
+    Args:
+        data_dir (str): Directory containing subdirs with .p pickle files.
+        data_props_file (str): Path to save the data properties file.
+        dpvt_train_data (str): Path to save the training data.
+        dpvt_test_data (str): Path to save the testing data.
+    """
     trees, labels, all_trees_dict, data_props = extract_trees_and_labels(data_dir)
     pickle_and_save_data(dpvt_train_data, dpvt_test_data, all_trees_dict, trees, labels)
     save_data_properties(data_props, data_props_file, data_dir)

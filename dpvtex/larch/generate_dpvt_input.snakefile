@@ -44,8 +44,8 @@ def get_subdirs(data_dir):
 
 rule all:
     input:
-        input_data+"/data_properties_"+dataset_name+"_"+csv_suffix,
-        output_data+"/larch_"+dataset_name+"_"+pickle_suffix,
+        input_data+"/data_properties_"+dataset_name+csv_suffix,
+        output_data+"/larch_"+dataset_name+pickle_suffix,
 
 
 rule preprocessing:
@@ -100,8 +100,8 @@ rule aggregate_training_data:
         expand(input_data+"/{subdir}/{subdir}"+pickle_suffix, subdir=get_subdirs(input_data)),
         length_files=expand(input_data+"/{subdir}/cleaned_alignment_length.txt", subdir=get_subdirs(input_data)),
     output:
-        data_props=input_data+"/data_properties_"+dataset_name+"_"+csv_suffix,
-        dpvt_data=output_data+"/larch_"+dataset_name+"_"+pickle_suffix,
+        data_props=input_data+"/data_properties_"+dataset_name+csv_suffix,
+        dpvt_data=output_data+"/larch_"+dataset_name+pickle_suffix,
     run:
         aggregate_data(data_dir = input_data, data_props_file = output.data_props, dpvt_train_data = output.dpvt_data, dpvt_test_data = None)
 

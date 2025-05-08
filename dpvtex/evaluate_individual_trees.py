@@ -55,8 +55,9 @@ def plot_auroc_over_time(csv_file, data_nicknames_file, test_data_name, output_f
 
     df = pd.read_csv(csv_file)
 
-    # Create figure with two y-axes
-    fig, ax1 = plt.subplots(figsize=(10, 6))
+    # Create figure with two subplots (panels)
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10), gridspec_kw={'height_ratios': [2, 1]})
+    
     metric_labels = {
         "auroc": "AUROC",
         "accuracy": "Accuracy",
@@ -66,47 +67,37 @@ def plot_auroc_over_time(csv_file, data_nicknames_file, test_data_name, output_f
     }
     metric_label = metric_labels[metric]
 
-    # Plot AUROC/accuracy on the primary y-axis
+    # Top panel: Plot AUROC/metric and non-MP edges
+    # Plot metric on the primary y-axis
     sns.scatterplot(data=df, x="tree_idx", y=metric, ax=ax1, color='blue', label=metric_label)
-    ax1.set_xlabel("Tree Index")
+    ax1.set_xlabel("")  # No x-label on top panel
     ax1.set_ylabel(metric_label, color='blue')
     ax1.tick_params(axis='y', labelcolor='blue')
+    ax1.set_title(f"{metric_label} and non-MP Edges by Tree Index")
 
-    # Create a secondary y-axis for MP edges
-    ax2 = ax1.twinx()
-
-    # Plot MP edges as a line on the secondary y-axis
-    # Make sure the x range matches the data range in the CSV
+    # Create a secondary y-axis for non-MP edges
+    ax1_twin = ax1.twinx()
     x_range = range(len(frac_non_mp_edges))
-    ax2.plot(x_range, frac_non_mp_edges, color='red', label='non-MP Edges')
-    ax2.set_ylabel("Fraction of non-MP Edges", color='red')
-    ax2.tick_params(axis='y', labelcolor='red')
+    ax1_twin.plot(x_range, frac_non_mp_edges, color='red', label='non-MP Edges')
+    ax1_twin.set_ylabel("Fraction of non-MP Edges", color='red')
+    ax1_twin.tick_params(axis='y', labelcolor='red')
 
+    # Add legend for top panel
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax1_twin.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc='best')
+
+    # Bottom panel: Plot parsimony scores
     if parsimony_scores and not all(pd.isna(score) for score in parsimony_scores):
-        ax3 = ax1.twinx()
-        # Move the third y-axis to the right for visual clarity
-        ax3.spines['right'].set_position(('outward', 60))
-        
-        # Plot parsimony scores on third y-axis
         x_range_scores = range(len(parsimony_scores))
-        ax3.plot(x_range_scores, parsimony_scores, color='green', linestyle='--', label='Parsimony Score')
-        ax3.set_ylabel("Parsimony Score", color='green')
-        ax3.tick_params(axis='y', labelcolor='green')
-        
-        # Update title and legend to include parsimony scores
-        plt.title(f"{metric_label}, non-MP Edges, and Parsimony Scores by Tree Index")
-        
-        # Create legend with all three lines
-        lines1, labels1 = ax1.get_legend_handles_labels()
-        lines2, labels2 = ax2.get_legend_handles_labels()
-        lines3, labels3 = ax3.get_legend_handles_labels()
-        ax1.legend(lines1 + lines2 + lines3, labels1 + labels2 + labels3, loc='best')
+        ax2.plot(x_range_scores, parsimony_scores, color='green', label='Parsimony Score')
+        ax2.set_xlabel("Tree Index")
+        ax2.set_ylabel("Parsimony Score", color='green')
+        ax2.tick_params(axis='y', labelcolor='green')
+        ax2.set_title("Parsimony Scores by Tree Index")
+        ax2.legend(loc='best')
     else:
-        # Original title and legend if no parsimony scores (same as your code)
-        plt.title(f"{metric_label} and non-MP Edges by Tree Index")
-        lines1, labels1 = ax1.get_legend_handles_labels()
-        lines2, labels2 = ax2.get_legend_handles_labels()
-        ax1.legend(lines1 + lines2, labels1 + labels2, loc='best')
+        ax2.set_visible(False)  # Hide the bottom panel if no parsimony scores
     
     fig.tight_layout()
     plt.savefig(output_file)

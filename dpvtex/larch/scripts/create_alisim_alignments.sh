@@ -9,9 +9,9 @@
 # training and testing datasets.
 
 # Parameters
-num_alignments=200
-num_sequences_list=(10 25 50)
-alignment_length_list=(100)
+num_alignments_list=(200 500)
+num_sequences_list=(10 15 20)
+alignment_length_list=(50 100)
 
 max_attempts=20
 # How much larger to make the initial alignment to account for cleaning

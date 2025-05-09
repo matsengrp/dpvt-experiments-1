@@ -32,18 +32,10 @@ def get_input_files():
 
 rule all:
     input:
-        expand("{dpvt_data_dir}/{basename}_test.p", 
+        expand("{dpvt_data_dir}/{basename}_tree_search_test.p", 
                dpvt_data_dir=dpvt_data_dir,
                basename=[os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()]),
         "nicknames_added.flag",
-
-# rule clean_alignment:
-#     input:
-#         msa="{file}"
-#     output:
-#         fasta="{file}.fasta"
-#     shell:
-#         "python -m dpvtex.larch.scripts.clean_data {input.msa} {output.fasta}"
 
 
 rule log_mp_tree_search:
@@ -91,7 +83,7 @@ rule run_larch_usher:
     shell:
         "cd {params.larch_build} && "
         "./larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} "
-        "-o {output.larch_output} -l {output.log} -S"
+        "-o {output.larch_output} -l {output.log} -c 200"
 
 
 rule compute_labels:
@@ -100,7 +92,7 @@ rule compute_labels:
         tree_log=input_dir + "/{basename}/{basename}_log.trees",
         fasta=input_dir + "/{basename}/{basename}.fasta"
     output:
-        test_p=os.path.join(config["dpvt_data_dir"], "{basename}_test.p")
+        test_p=os.path.join(config["dpvt_data_dir"], "{basename}_tree_search_test.p")
     shell:
         "python create_testing_data.py {input.larch_output} "
         "{output.test_p} {input.tree_log} {input.fasta}"
@@ -108,7 +100,7 @@ rule compute_labels:
 
 rule add_to_dataset_nicknames:
     input:
-        test_p=expand(os.path.join(dpvt_data_dir, "{basename}_test.p"), 
+        test_p=expand(os.path.join(dpvt_data_dir, "{basename}_tree_search_test.p"), 
                     basename=[os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()])
     output:
         touch("nicknames_added.flag")

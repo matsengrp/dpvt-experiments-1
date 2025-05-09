@@ -36,8 +36,9 @@ def plot_auroc_over_time(csv_file, data_nicknames_file, test_data_name, output_f
         data_nicknames_file (str): Path to the dataset nicknames JSON file.
         test_data_name (str): Nickname of the testing dataset.
         output_file (str): Path to save the plot.
+        fasta_dir (str): Path to the directory containing the FASTA files.
+        metric (str): Metric to plot (default: "auroc").
     """
-    print("output_file", output_file)
     with open(data_nicknames_file, "r") as f:
         dataset_dict = json.load(f)
     test_data_path = os.path.join(dataset_dict["data_dir"], dataset_dict[test_data_name])
@@ -56,7 +57,7 @@ def plot_auroc_over_time(csv_file, data_nicknames_file, test_data_name, output_f
     df = pd.read_csv(csv_file)
 
     # Create figure with two subplots (panels)
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10), gridspec_kw={'height_ratios': [2, 1]})
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10), gridspec_kw={'height_ratios': [1, 1]})
     
     metric_labels = {
         "auroc": "AUROC",
@@ -67,37 +68,38 @@ def plot_auroc_over_time(csv_file, data_nicknames_file, test_data_name, output_f
     }
     metric_label = metric_labels[metric]
 
-    # Top panel: Plot AUROC/metric and non-MP edges
-    # Plot metric on the primary y-axis
+    # Top panel: Plot just the AUROC/metric
     sns.scatterplot(data=df, x="tree_idx", y=metric, ax=ax1, color='blue', label=metric_label)
     ax1.set_xlabel("")  # No x-label on top panel
     ax1.set_ylabel(metric_label, color='blue')
     ax1.tick_params(axis='y', labelcolor='blue')
-    ax1.set_title(f"{metric_label} and non-MP Edges by Tree Index")
+    ax1.set_title(f"{metric_label} by Tree Index")
+    ax1.legend(loc='best')
 
-    # Create a secondary y-axis for non-MP edges
-    ax1_twin = ax1.twinx()
-    x_range = range(len(frac_non_mp_edges))
-    ax1_twin.plot(x_range, frac_non_mp_edges, color='red', label='non-MP Edges')
-    ax1_twin.set_ylabel("Fraction of non-MP Edges", color='red')
-    ax1_twin.tick_params(axis='y', labelcolor='red')
-
-    # Add legend for top panel
-    lines1, labels1 = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax1_twin.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, loc='best')
-
-    # Bottom panel: Plot parsimony scores
+    # Bottom panel: Plot parsimony scores AND non-MP edges
+    # Primary y-axis for parsimony scores
     if parsimony_scores and not all(pd.isna(score) for score in parsimony_scores):
         x_range_scores = range(len(parsimony_scores))
         ax2.plot(x_range_scores, parsimony_scores, color='green', label='Parsimony Score')
         ax2.set_xlabel("Tree Index")
         ax2.set_ylabel("Parsimony Score", color='green')
         ax2.tick_params(axis='y', labelcolor='green')
-        ax2.set_title("Parsimony Scores by Tree Index")
-        ax2.legend(loc='best')
     else:
-        ax2.set_visible(False)  # Hide the bottom panel if no parsimony scores
+        ax2.set_title("No parsimony scores available")
+    
+    # Secondary y-axis for non-MP edges
+    ax2_twin = ax2.twinx()
+    x_range = range(len(frac_non_mp_edges))
+    ax2_twin.plot(x_range, frac_non_mp_edges, color='red', label='Fraction of non-MP Edges')
+    ax2_twin.set_ylabel("Fraction of non-MP Edges", color='red')
+    ax2_twin.tick_params(axis='y', labelcolor='red')
+    
+    # Add combined legend for bottom panel
+    lines1, labels1 = ax2.get_legend_handles_labels()
+    lines2, labels2 = ax2_twin.get_legend_handles_labels()
+    ax2.legend(lines1 + lines2, labels1 + labels2, loc='best')
+    
+    ax2.set_title("Parsimony Scores and Non-MP Edges by Tree Index")
     
     fig.tight_layout()
     plt.savefig(output_file)

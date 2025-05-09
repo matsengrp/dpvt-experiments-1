@@ -1,6 +1,8 @@
 import glob
 import os
 import datetime
+from dpvtex.larch.scripts.extract_data_from_hdag import extract_data_from_hdag
+from dpvtex.larch.scripts.aggregate_training_data import aggregate_data
 
 snakefile_dir = workflow.basedir
 default_config_path = os.path.join(snakefile_dir, "config.yaml")
@@ -20,8 +22,6 @@ larch_build=config["larch_build"]
 dataset_name=config["dataset_name"]
 make_worse_spr=config["make_worse_spr"]
 
-
-current_date = datetime.datetime.now().strftime("%Y-%m-%d")
 
 # special suffices if spr moves to introduce non-MP edges
 pickle_suffix = ".p"
@@ -44,9 +44,8 @@ def get_subdirs(data_dir):
 
 rule all:
     input:
-        input_data+"/data_properties_"+dataset_name+"_"+current_date+csv_suffix,
-        output_data+"/larch_"+dataset_name+"_"+current_date+"_train"+pickle_suffix,
-        output_data+"/larch_"+dataset_name+"_"+current_date+"_test"+pickle_suffix,
+        input_data+"/data_properties_"+dataset_name+csv_suffix,
+        output_data+"/larch_"+dataset_name+pickle_suffix,
 
 
 rule preprocessing:
@@ -92,10 +91,8 @@ rule extract_dpvt_data:
     output:
         data=input_data+"/{subdir}/{subdir}"+pickle_suffix,
         num_children_file=input_data+"/{subdir}/num_children_dag_trees"+csv_suffix
-    shell:
-        """
-        python {snakefile_dir}/scripts/extract_data_from_hdag.py {input.pb} {output.data} {output.num_children_file} {make_worse_spr}
-        """
+    run:
+        extract_data_from_hdag(input.pb, output.data, output.num_children_file, make_worse_spr)
 
 
 rule aggregate_training_data:
@@ -103,11 +100,8 @@ rule aggregate_training_data:
         expand(input_data+"/{subdir}/{subdir}"+pickle_suffix, subdir=get_subdirs(input_data)),
         length_files=expand(input_data+"/{subdir}/cleaned_alignment_length.txt", subdir=get_subdirs(input_data)),
     output:
-        data_props=input_data+"/data_properties_"+dataset_name+"_"+current_date+csv_suffix,
-        dpvt_train_data=output_data+"/larch_"+dataset_name+"_"+current_date+"_train"+pickle_suffix,
-        dpvt_test_data=output_data+"/larch_"+dataset_name+"_"+current_date+"_test"+pickle_suffix,
-    shell:
-        """
-        python {snakefile_dir}/scripts/aggregate_training_data.py {input_data} {output.dpvt_train_data} {output.dpvt_test_data} {output.data_props}
-        """
+        data_props=input_data+"/data_properties_"+dataset_name+csv_suffix,
+        dpvt_data=output_data+"/larch_"+dataset_name+pickle_suffix,
+    run:
+        aggregate_data(data_dir = input_data, data_props_file = output.data_props, dpvt_train_data = output.dpvt_data, dpvt_test_data = None)
 

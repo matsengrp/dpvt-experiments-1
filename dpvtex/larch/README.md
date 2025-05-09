@@ -21,6 +21,7 @@ Note that this will require creating a new conda environment, so make sure that
 once you are done installing `larch`, you activate `larch-data` again to run the
 code in this repo.
 
+
 ## Construct historydag with larch-usher and extract trees
 
 This code allows to input an alignment in fasta format and returns a pickled
@@ -52,17 +53,17 @@ to be stored, and some parameters for the run in `config.yaml`:
 
 -   `input_data`: directory containing for each alignment a directory with the
     name of the alignment and a fasta file with the same name as its directory,
-    e.g.: `alignment_1/alignment_1.fasta`
-     _Note that we assume DNA sequences. Columns containing gaps or ambiguous characters
-    in the input alignment get deleted in our pipeline._
+    e.g.: `alignment_1/alignment_1.fasta` _Note that we assume DNA sequences.
+    Columns containing gaps or ambiguous characters in the input alignment get
+    deleted in our pipeline._
 -   `larch_build`: path to the `build` directory created when building `larch`
     (see instructions in `larch` repo)
 -   `output_data`: path to directory in which output, which is a pickled file
     containing trees and corresponding edge vectors containing MP edge labels,
     should be saved
 -   `dataset_name`: name for the dataset that will be used for the output files
-    containing training and testing data. The output files will be named
-    `{dataset_name}_YYYY-MM-DD_train.p` and `{dataset_name}_YYYY-MM-DD_test.p`
+    containing the data. The output files will be named
+    `{dataset_name}_YYYY-MM-DD.p`
 -   `num_larch_iterations`: number of iterations we want to run larch, defaults
     to `20`. The number of iteration automatically increases by 5 if in the last
     5 iteration of larch there is a decrease in parsimony score.
@@ -88,7 +89,7 @@ something like
 ```bash
 for file in configs/*; do
     echo $file
-    snakemake --corex <number of cores> --configfile $file
+    snakemake --cores <number of cores> --configfile $file
 done
 ```
 
@@ -240,7 +241,8 @@ In `dpvtex/larch/scripts`: scripts called from snakefiles:
         -   runs Sankoff to get sequences for internal nodes
         -   use either `make_worse_spr()` ors `make_worse_tree()` function from
             `dpvtex/perfect_phylogenies/perturb_phylogeny.py` to create non-MP
-            edges by performing SPR moves or replacing a subtree by a random tree
+            edges by performing SPR moves or replacing a subtree by a random
+            tree
         -   assigns `0`/`1` labels to edges of tree depending on whether the
             split represented by that edge is in the larch hDAG or not
         -   if more than $\frac{1}{6}$ of the edges are non-MP or we tried more

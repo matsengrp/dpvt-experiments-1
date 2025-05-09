@@ -78,7 +78,7 @@ def build_log_path(
     output_dir=".",
 ):
     model_str = get_model_str(model_name, train_data_name, test_data_name, param_id)
-    path = f"run.{device}_{timestamp}/{log_name}/{step_name}/{model_str}"
+    path = f"run.{timestamp}/{log_name}/{step_name}/{model_str}"
     path = prepend_dir_to_path(path, output_dir)
     path = f"{os.getcwd()}/{path}"
     return path
@@ -245,9 +245,6 @@ def train_model(
     train_checkpoint,
     device,
     hyperparameter_path,
-    accum_grad_batches=1,
-    feature_length=32,
-    dim_mlp_layers=32,
     profiling=False,
     timestamp=str(todays_date),
     param_id=None,
@@ -285,9 +282,6 @@ def train_model(
         log_path=log_path,
         profiling=profiling,
         device=device,
-        accum_grad_batches=accum_grad_batches,
-        feature_length=feature_length,
-        dim_mlp_layers=dim_mlp_layers,
         hyperparameter_path=hyperparameter_path,
         added_callbacks=[CustomCallback(log_path=custom_log_path)],
         timestamp=timestamp,

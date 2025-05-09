@@ -1,6 +1,7 @@
 import historydag as hdag
 import pickle
 import random
+import concurrent.futures
 
 from dpvtex.perfect_phylogenies.perturb_phylogeny import (
     make_worse_tree,
@@ -26,7 +27,8 @@ def get_MP_trees_from_hdag(dag, num_trees, unlabel=False):
     if unlabel:
         dag = dag.unlabel()
     dag.uniform_distribution_annotate()
-    num_samples = min(num_trees, dag.count_topologies())
+    dag_num_topologies = memory_safe_count_topologies(dag)
+    num_samples = min(num_trees, memory_safe_count_topologies(dag))
     if num_samples != num_trees:
         print(
             "Not enough trees in DAG to sample",
@@ -35,7 +37,11 @@ def get_MP_trees_from_hdag(dag, num_trees, unlabel=False):
             num_samples,
             "trees instead.",
         )
-    sample_ids = random.sample(range(dag.count_histories()), num_samples)
+    if dag_num_topologies == float("inf"):
+        # we can reasonably expect to have more than 1000 topolgies in the DAG
+        sample_ids = random.sample(range(1000), num_samples)
+    else:
+        sample_ids = random.sample(range(dag_num_topologies), num_samples)
 
     tree_samples = [
         dag[i].to_ete(name_func=lambda n: n.label.node_id, features=["sequence"])
@@ -95,7 +101,7 @@ def extract_hdag_clade_child_clades(dag):
     return dag_clades
 
 
-def exists_subset_union(S, C): 
+def exists_subset_union(S, C):
     """
     Find if there is a collection S_1, ..., S_k of sets in frozenset S = {S_1,
     ..., S_N} (k <= N) whose union is exactly C. We assume that |S| = |S_1| +
@@ -104,7 +110,7 @@ def exists_subset_union(S, C):
     Returns:
         True if there are sets S_1, ..., S_k with union C Else otherwise
     """
-    union = set() # we aim to create a union of subsets of S that equals C
+    union = set()  # we aim to create a union of subsets of S that equals C
     for subset in S:
         if subset.issubset(C):
             union.update(subset)
@@ -112,7 +118,7 @@ def exists_subset_union(S, C):
             # if subset intersects C but is not a subset of C, there is no union
             # of sets in S that results in C, as the elements in subset\C cannot
             # be added without adding elements in C\subset and we assume that no
-            # element appears in more than one set in S 
+            # element appears in more than one set in S
             return False
     if len(union) == len(C):
         return True
@@ -129,7 +135,8 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
         modified_tree: ete3 tree for which we want to get edge label list tree:
         ete3 tree that is mostly identical to modified tree (tree before
             make_worse)
-        dag_clades: dictionary with clades: child_clades
+        dag_clades: dictionary with clades: child_clades. Can be computed with
+        extract_hdag_clade_child_clades
     Returns:
         list of 0/1 assigned to each node for each edge above it (preorder)
             whether it is present in the dag with dag_clades or not
@@ -185,10 +192,15 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
     """
     mp_trees = get_MP_trees_from_hdag(dag, num_trees, unlabel=True)
     tree_to_label_dict = {}  # output dict
+    print("Start extracting DAG clades")
     dag_clades = extract_hdag_clade_child_clades(dag)
+    print("Done extracting DAG clades")
 
+    print("Start adding non-MP edges...")
+    print("Number of MP trees:", len(mp_trees))
     with open(num_children_file, "w") as nc_file:
         for tree in mp_trees:
+            print("Processing tree number", len(tree_to_label_dict))
             # delete sequences on internal nodes - can probably be done more
             # efficiently
             for node in tree.traverse():
@@ -218,7 +230,7 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
                 print("Tree modification iteration ", i)
                 i += 1
                 if use_make_worse_spr:
-                    new_tree = make_worse_spr(modified_tree, len(modified_tree)//2)
+                    new_tree = make_worse_spr(modified_tree, len(modified_tree) // 2)
                 else:
                     new_tree = make_worse_tree(modified_tree, td // 2)
                 if new_tree is not None:
@@ -226,7 +238,7 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
                 # assign edge labels
                 edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
                 if sum(edge_labels) / len(edge_labels) >= 1 / 6 or i > 100:
-                    # note that len(edge_labels) is roughly 2*internal edges
+                    # note that len(edge_labels) is roughly 2*internal edges, so we are aiming at a third of non-MP edges here
                     done_modifying = True
             tree_to_label_dict[modified_tree] = edge_labels
     if len(tree_to_label_dict) < num_trees:
@@ -234,18 +246,33 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
     return tree_to_label_dict
 
 
-def main():
-    if len(sys.argv) < 3:
-        print(
-            "Error: Please provide file containing pickled hDAG or protobuf and filename for dpvt data."
-        )
-        sys.exit(1)
-    else:
-        dag_file = sys.argv[1]
-        dpvt_data_file = sys.argv[2]
-        num_children_file = sys.argv[3]
-        make_worse_tree = sys.argv[4]
+def memory_safe_count_topologies(dag, max_time=10):
+    """Count topologies with a timeout."""
+    def count_topologies():
+        return dag.count_topologies()
 
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(count_topologies)
+        try:
+            return future.result(timeout=max_time)
+        except concurrent.futures.TimeoutError:
+            print("Stop counting topologies, returning inf: Function timed out")
+            return float('inf')
+        except MemoryError as e:
+            print(f"Stop counting topologies, returning inf: {e}")
+            return float('inf')
+
+
+def extract_data_from_hdag(dag_file, dpvt_data_file, num_children_file, make_worse_tree):
+    """
+    Extracts dpvt data from a history DAG and saves it to a file.
+    Args:
+        dag_file (str): Path to the history DAG file.
+        dpvt_data_file (str): Path to save the DPVT data.
+        num_children_file (str): Path to save the number of children data.
+        make_worse_tree (bool): Whether to use make_worse_tree or not.
+    """
+    print("Start reading DAG")
     if dag_file[-2:] == ".p":
         with open(dag_file, "rb") as f:
             dag = pickle.load(f)
@@ -257,11 +284,20 @@ def main():
         print("Error: First input file should be pickled hDAG or protobuf.")
         sys.exit(1)
     # trim to only MP topologies + convert to sequence_dag
+    print("Done reading DAG")
+    print("Start trimming DAG")
     dag.trim_optimal_weight()
+    print("Done trimming DAG")
+    print("Start converting DAG to sequence_dag")
     dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
-    num_topologies = min(dag.count_topologies(), 200) # get at most 200 trees from hdag
+    print("Done converting DAG to sequence_dag")
+    print("Start counting DAG topologies")
+    num_topologies = min(memory_safe_count_topologies(dag), 200)
+    print("Done counting DAG topologies")
 
-    tree_label_dict = get_non_dag_edges(dag, num_children_file, num_topologies, make_worse_tree)
+    tree_label_dict = get_non_dag_edges(
+        dag, num_children_file, num_topologies, make_worse_tree
+    )
     with open(dpvt_data_file, "wb") as f:
         pickle.dump(tree_label_dict, f)
 

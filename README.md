@@ -47,6 +47,9 @@ keys and their values are lists that assign `0` or `1` to edges in the tree,
 ordered by pre-order traversal, where `0` means this edge is in a Maximum
 Parsimony tree and `1` indicates that it is not.
 
+> Note: Avoid using `-` in nicknames for models or datasets, as this might
+> result in issues with Snakemake 
+
 To execute the workflow, run `snakemake -c[num_cores]` in the directory `train`,
 where `[num_cores]` should be replaced with the number of cores you want to use.
 Alternatively, run `snakemake --snakefile train/Snakefile -c[num_cores]` in the

@@ -29,6 +29,7 @@ else
 fi
 
 for num_alignments in "${num_alignments_list[@]}"; do
+    echo "Number of alignments:" $num_alignments
     for target_num_sequences in "${num_sequences_list[@]}"; do
         echo "Target number of sequences: $target_num_sequences"
         for target_alignment_length in "${alignment_length_list[@]}"; do
@@ -45,7 +46,6 @@ for num_alignments in "${num_alignments_list[@]}"; do
                     # Create directory for each alignment
                     alignment_dir="$base_directory/alignment_$i"
                     mkdir -p "$alignment_dir"
-
                     # Track whether we've successfully created this alignment
                     success=false
                     attempt=1

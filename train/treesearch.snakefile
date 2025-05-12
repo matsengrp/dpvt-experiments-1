@@ -149,6 +149,70 @@ plot_paths = generate_individual_tree_eval_plot_paths(
 rule all:
     input: plot_paths
 
+
+rule optimize_hyperparameters_step:
+    output:
+        hyperparameter_path=get_model_params_json(
+            model="{model_name}",
+            train_data="{train_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        ),
+    run:
+        if use_hyperparameter_optimize:
+            optimize_hyperparameters(
+                model_name=wildcards.model_name,
+                data_name=wildcards.train_data_name,
+                best_model_hparams_filepath=output.hyperparameter_path,
+                device=device,
+                profiling=False,
+                n_trials=n_hyperparameter_trials,
+                timestamp=timestamp,
+                param_id=wildcards.param_id,
+                output_dir=output_dir,
+                data_nicknames_path=data_nicknames_path,
+            )
+        else:
+            with open(output.hyperparameter_path, "w") as file:
+                file.write(json.dumps(param_dicts[wildcards.param_id]))
+
+
+rule train_model_step:
+    input:
+        hyperparameter_path=get_model_params_json(
+            model="{model_name}",
+            train_data="{train_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        ),
+    output:
+        trained_model=get_trained_model_ckpt(
+            model="{model_name}",
+            train_data="{train_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        ),
+    run:
+        train_model(
+            model_name=wildcards.model_name,
+            data_name=wildcards.train_data_name,
+            train_checkpoint=output.trained_model,
+            device=device,
+            hyperparameter_path=input.hyperparameter_path,
+            profiling=False,
+            timestamp=timestamp,
+            param_id=wildcards.param_id,
+            output_dir=output_dir,
+            data_nicknames_path=data_nicknames_path,
+        )
+
+
 rule evaluate_individual_trees:
     input:
         trained_model=get_trained_model_ckpt(

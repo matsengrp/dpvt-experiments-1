@@ -203,9 +203,9 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
     mp_trees = get_MP_trees_from_hdag(dag, num_trees, unlabel=True)
     print("Extracted ", len(mp_trees), " trees from hDAG")
     tree_to_label_dict = {}  # output dict
-    print("Start extracting DAG clades")
+    print("Start extracting clades from hDAG")
     dag_clades = extract_hdag_clade_child_clades(dag)
-    print("Done extracting DAG clades")
+    print("Extracted clades from hDAG")
 
     print("Start adding non-MP edges...")
     print("Number of MP trees:", len(mp_trees))
@@ -241,6 +241,15 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
                 print("Tree modification iteration ", i)
                 i += 1
                 if use_make_worse_spr:
+                    # Maximum of 100 SPR moves per iteration -- if we don't have enough non-MP
+                    # edges after that, we add more in next iteration (until done_modifying)
+                    num_spr_moves = min(len(modified_tree) // 2, 100)
+                    efficient_sprs = False
+                    if num_spr_moves == 100:
+                        # for large trees, we use a more efficient version of make_worse_spr
+                        # that doesn't check the parsimony score for each move
+                        efficient_sprs = True
+                    new_tree = make_worse_spr(modified_tree, num_spr_moves, efficient_sprs)
                     # Maximum of 100 SPR moves per iteration -- if we don't have enough non-MP
                     # edges after that, we add more in next iteration (until done_modifying)
                     num_spr_moves = min(len(modified_tree) // 2, 100)
@@ -306,30 +315,6 @@ def memory_safe_count_topologies(dag, max_time=10):
         return float('inf')
 
 
-def main():
-    if len(sys.argv) < 3:
-        print(
-            "Error: Please provide file containing pickled hDAG or protobuf and filename for dpvt data."
-        )
-        sys.exit(1)
-    else:
-        dag_file = sys.argv[1]
-        dpvt_data_file = sys.argv[2]
-        num_children_file = sys.argv[3]
-        make_worse_tree = sys.argv[4]
-
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        future = executor.submit(count_topologies)
-        try:
-            return future.result(timeout=max_time)
-        except concurrent.futures.TimeoutError:
-            print("Stop counting topologies, returning inf: Function timed out")
-            return float('inf')
-        except MemoryError as e:
-            print(f"Stop counting topologies, returning inf: {e}")
-            return float('inf')
-
-
 def extract_data_from_hdag(dag_file, dpvt_data_file, num_children_file, make_worse_tree):
     """
     Extracts dpvt data from a history DAG and saves it to a file.
@@ -370,6 +355,3 @@ def extract_data_from_hdag(dag_file, dpvt_data_file, num_children_file, make_wor
     with open(dpvt_data_file, "wb") as f:
         pickle.dump(tree_label_dict, f)
 
-
-if __name__ == "__main__":
-    main()

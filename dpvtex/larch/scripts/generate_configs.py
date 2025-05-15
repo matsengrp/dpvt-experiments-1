@@ -16,7 +16,7 @@ def generate_config_files(num_sequences, num_sites, num_algnmnts):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
     # Create output directory if it doesn't exist
-    config_dir = os.path.join(script_dir, "../..", "configs_new")
+    config_dir = os.path.join(script_dir, "..", "configs")
     os.makedirs(config_dir, exist_ok=True)
     
     # Create the dataset name
@@ -25,9 +25,9 @@ def generate_config_files(num_sequences, num_sites, num_algnmnts):
     for use_spr in [True, False]:
         # Create the config dictionary
         config = {
-            "input_data": os.path.join(script_dir, "..", "data", "simulated_alignments", dataset_name),
-            "larch_build": os.path.join(script_dir, "..", "..", "..", "larch", "build"),
-            "output_data": os.path.join(script_dir, "..", "data"),
+            "input_data": os.path.join(script_dir, "..", "..", "data", "simulated_alignments", dataset_name),
+            "larch_build": os.path.join(script_dir, "..", "..", "..", "..", "larch", "build"),
+            "output_data": os.path.join(script_dir, "..", "..", "data"),
             "dataset_name": dataset_name,
             "num_cores": 2,
             "make_worse_spr": use_spr

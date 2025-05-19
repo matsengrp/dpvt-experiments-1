@@ -27,7 +27,7 @@ train_data_names = config["train_data"]
 test_data_names = config["test_data"]
 device = config["device"]
 timestamp = config["timestamp"]
-metric = config["metric"]
+metrics = config["metrics"]
 
 if bool(config["use_hyperparameter_optimize"]):
     param_ids = ["ParamOpt"]
@@ -107,7 +107,7 @@ def generate_individual_tree_eval_plot_paths(
     device,
     timestamp,
     output_dir,
-    metric = "auroc",
+    metrics = ["auroc"],
 ):
     eval_paths = [
         get_individual_tree_eval_path(
@@ -122,6 +122,7 @@ def generate_individual_tree_eval_plot_paths(
         for model_name in model_names
         for train_data_name, test_data_name in data_pairs
         for param_id in param_ids
+        for metric in metrics
     ]
     return eval_paths
 
@@ -142,7 +143,7 @@ plot_paths = generate_individual_tree_eval_plot_paths(
     device=device,
     timestamp=timestamp,
     output_dir=output_dir,
-    metric = metric,
+    metrics = metrics,
 )
 
 # Rules
@@ -254,6 +255,7 @@ rule evaluate_individual_trees:
             output_file=output.eval_path,
         )
 
+
 rule plot_individual_tree_eval:
     input:
         eval_path=get_individual_tree_eval_path(
@@ -274,13 +276,15 @@ rule plot_individual_tree_eval:
             device=device,
             timestamp=timestamp,
             output_dir=output_dir,
-        )[:-4]+ "_" + metric + ".pdf",
+        )[:-4] + "_{metric}.pdf",
+    params:
+        plot_basename = lambda wildcards, input: input.eval_path[:-4]
     run:
         plot_auroc_over_time(
             input.eval_path,
             data_nicknames_path,
             wildcards.test_data_name,
-            output.plot_path,
+            params.plot_basename,
             fasta_dir,
-            metric,
+            metrics,
         )

@@ -21,12 +21,13 @@ def get_parsimony_scores(tree_list, fasta_path):
     for tree in tree_list:
         for node in tree.get_leaves():
             node.add_feature("sequence", sequences[node.name])
+        historydag.parsimony.disambiguate(tree)
         pscore = historydag.parsimony.parsimony_score(tree)
         pscore_list.append(pscore)
     return pscore_list
 
 
-def plot_auroc_over_time(csv_file, data_nicknames_file, test_data_name, output_file, fasta_dir, metric="auroc"):
+def plot_auroc_over_time(csv_file, data_nicknames_file, test_data_name, output_file_basename, fasta_dir, metrics=["auroc"]):
     """
     Plots AUROC over time for each tree in the
     dataset whose AUROCs are provided in df in order and saves the plot to a file.
@@ -35,9 +36,10 @@ def plot_auroc_over_time(csv_file, data_nicknames_file, test_data_name, output_f
         csv_file (str): Path to the CSV file containing AUROC data.
         data_nicknames_file (str): Path to the dataset nicknames JSON file.
         test_data_name (str): Nickname of the testing dataset.
-        output_file (str): Path to save the plot.
+        output_file_basename (str): Path to basename for file saving plot.
+            Gets extended by "_metric.pdf" for each metric.
         fasta_dir (str): Path to the directory containing the FASTA files.
-        metric (str): Metric to plot (default: "auroc").
+        metric (list): Metrics to plot (default: ["auroc"]).
     """
     with open(data_nicknames_file, "r") as f:
         dataset_dict = json.load(f)
@@ -56,8 +58,6 @@ def plot_auroc_over_time(csv_file, data_nicknames_file, test_data_name, output_f
 
     df = pd.read_csv(csv_file)
 
-    # Create figure with two subplots (panels)
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10), gridspec_kw={'height_ratios': [1, 1]})
     
     metric_labels = {
         "auroc": "AUROC",
@@ -66,44 +66,47 @@ def plot_auroc_over_time(csv_file, data_nicknames_file, test_data_name, output_f
         "recall": "Recall",
         "f1": "F1 Score",
     }
-    metric_label = metric_labels[metric]
+    for metric in metrics:
+        metric_label = metric_labels[metric]
+        # Create figure with two subplots (panels)
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10), gridspec_kw={'height_ratios': [1, 1]})
 
-    # Top panel: Plot just the AUROC/metric
-    sns.scatterplot(data=df, x="tree_idx", y=metric, ax=ax1, color='blue', label=metric_label)
-    ax1.set_xlabel("")  # No x-label on top panel
-    ax1.set_ylabel(metric_label, color='blue')
-    ax1.tick_params(axis='y', labelcolor='blue')
-    ax1.set_title(f"{metric_label} by Tree Index")
-    ax1.legend(loc='best')
+        # Top panel: Plot just the metric
+        sns.scatterplot(data=df, x="tree_idx", y=metric, ax=ax1, color='blue', label=metric_label)
+        ax1.set_xlabel("")  # No x-label on top panel
+        ax1.set_ylabel(metric_label, color='blue')
+        ax1.tick_params(axis='y', labelcolor='blue')
+        ax1.set_title(f"{metric_label} by Tree Index")
+        ax1.legend(loc='best')
 
-    # Bottom panel: Plot parsimony scores AND non-MP edges
-    # Primary y-axis for parsimony scores
-    if parsimony_scores and not all(pd.isna(score) for score in parsimony_scores):
-        x_range_scores = range(len(parsimony_scores))
-        ax2.plot(x_range_scores, parsimony_scores, color='green', label='Parsimony Score')
-        ax2.set_xlabel("Tree Index")
-        ax2.set_ylabel("Parsimony Score", color='green')
-        ax2.tick_params(axis='y', labelcolor='green')
-    else:
-        ax2.set_title("No parsimony scores available")
-    
-    # Secondary y-axis for non-MP edges
-    ax2_twin = ax2.twinx()
-    x_range = range(len(frac_non_mp_edges))
-    ax2_twin.plot(x_range, frac_non_mp_edges, color='red', label='Fraction of non-MP Edges')
-    ax2_twin.set_ylabel("Fraction of non-MP Edges", color='red')
-    ax2_twin.tick_params(axis='y', labelcolor='red')
-    
-    # Add combined legend for bottom panel
-    lines1, labels1 = ax2.get_legend_handles_labels()
-    lines2, labels2 = ax2_twin.get_legend_handles_labels()
-    ax2.legend(lines1 + lines2, labels1 + labels2, loc='best')
-    
-    ax2.set_title("Parsimony Scores and Non-MP Edges by Tree Index")
-    
-    fig.tight_layout()
-    plt.savefig(output_file)
-    plt.close()
+        # Bottom panel: Plot parsimony scores AND non-MP edges
+        # Primary y-axis for parsimony scores
+        if parsimony_scores and not all(pd.isna(score) for score in parsimony_scores):
+            x_range_scores = range(len(parsimony_scores))
+            ax2.plot(x_range_scores, parsimony_scores, color='green', label='Parsimony Score')
+            ax2.set_xlabel("Tree Index")
+            ax2.set_ylabel("Parsimony Score", color='green')
+            ax2.tick_params(axis='y', labelcolor='green')
+        else:
+            ax2.set_title("No parsimony scores available")
+        # Secondary y-axis for non-MP edges
+        ax2_twin = ax2.twinx()
+        x_range = range(len(frac_non_mp_edges))
+        ax2_twin.plot(x_range, frac_non_mp_edges, color='red', label='Fraction of non-MP Edges')
+        ax2_twin.set_ylabel("Fraction of non-MP Edges", color='red')
+        ax2_twin.tick_params(axis='y', labelcolor='red')
+
+        # Add combined legend for bottom panel
+        lines1, labels1 = ax2.get_legend_handles_labels()
+        lines2, labels2 = ax2_twin.get_legend_handles_labels()
+        ax2.legend(lines1 + lines2, labels1 + labels2, loc='best')
+
+        ax2.set_title("Parsimony Scores and Non-MP Edges by Tree Index")
+
+        fig.tight_layout()
+        output_file = f"{output_file_basename}_{metric}.pdf"
+        plt.savefig(output_file)
+        plt.clf()
 
 
 def evaluate_individual_trees(

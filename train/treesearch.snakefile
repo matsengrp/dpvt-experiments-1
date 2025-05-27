@@ -2,6 +2,7 @@ import sys, os, shutil
 from datetime import datetime
 import json, yaml
 from pathlib import Path
+import pandas as pd
 
 from dpvtex.dpvt_zoo import (
     build_log_path,
@@ -11,7 +12,9 @@ from dpvtex.dpvt_zoo import (
 
 from dpvtex.evaluate_individual_trees import (
     evaluate_individual_trees, 
-    plot_auroc_over_time
+    plot_auroc_over_time,
+    concatenate_tree_eval_files,
+    plot_model_comparison
 )
 
 # Import config from main Snakefile
@@ -126,6 +129,36 @@ def generate_individual_tree_eval_plot_paths(
     ]
     return eval_paths
 
+
+def generate_model_comparison_plot_paths(
+    test_data_names,
+    model_names,
+    train_data_names,
+    metrics=["auroc"],
+    output_dir=".",
+    timestamp="latest",
+):
+    """Generate paths for model comparison plots."""
+    plot_paths = []
+
+    # Generate paths for comparing different models with fixed training data
+    for test_data in test_data_names:
+        for train_data in train_data_names:
+            for metric in metrics:
+                plot_paths.append(
+                    f"{output_dir}/run.{timestamp}/tree_eval_logs/model_comparison_{test_data}-model-{train_data}-{metric}.pdf"
+                )
+
+    # Generate paths for comparing different training datasets with fixed model
+    for test_data in test_data_names:
+        for model in model_names:
+            for metric in metrics:
+                plot_paths.append(
+                    f"{output_dir}/run.{timestamp}/tree_eval_logs/model_comparison_{test_data}-training_data-{model}-{metric}.pdf"
+                )
+    return plot_paths
+
+
 # Generate paths
 data_pairs = generate_data_pairs(train_data_names, test_data_names)
 eval_paths = generate_individual_tree_eval_paths(
@@ -145,10 +178,22 @@ plot_paths = generate_individual_tree_eval_plot_paths(
     output_dir=output_dir,
     metrics = metrics,
 )
+# Add this new path generation
+comparison_plot_paths = generate_model_comparison_plot_paths(
+    test_data_names=test_data_names,
+    model_names=model_names,
+    train_data_names=train_data_names,
+    metrics=metrics,
+    output_dir=output_dir,
+    timestamp=timestamp,
+)
 
 # Rules
 rule all:
-    input: plot_paths
+    input:
+        plot_paths,
+        f"{output_dir}/run.{timestamp}/tree_eval_logs/tree_eval_summary.csv",
+        comparison_plot_paths  # Add this to include comparison plots
 
 
 rule optimize_hyperparameters_step:
@@ -287,4 +332,63 @@ rule plot_individual_tree_eval:
             params.plot_basename,
             fasta_dir,
             metrics,
+        )
+
+
+rule conconcat_tree_eval:
+    """
+    Take all csvs for individual tree evaluation and concatenate them into one
+    """
+    input:
+        eval_paths=expand(
+            get_individual_tree_eval_path(
+                model_name="{model_name}",
+                train_data_name="{train_data_name}",
+                test_data_name="{test_data_name}",
+                param_id="{param_id}",
+                device=device,
+                timestamp=timestamp,
+                output_dir=output_dir,
+            ),
+            model_name=model_names,
+            train_data_name=train_data_names,
+            test_data_name=test_data_names,
+            param_id=param_ids,
+        ),
+    output:
+        summary_csv="{output_dir}/run.{timestamp}/tree_eval_logs/tree_eval_summary.csv",
+    run:
+        concatenate_tree_eval_files(
+            input.eval_paths,
+            model_names,
+            train_data_names,
+            test_data_names,
+            param_ids,
+            output.summary_csv,
+        )
+
+
+rule plot_model_comparison:
+    input:
+        summary_csv="{output_dir}/run.{timestamp}/tree_eval_logs/tree_eval_summary.csv",
+    output:
+        plot_model_path="{output_dir}/run.{timestamp}/tree_eval_logs/model_comparison_{test_data_name}-{compare_by}-{fixed_value}-{metric}.pdf",
+    run:
+        # Determine what we're fixing based on compare_by
+        if wildcards.compare_by == "model":
+            fixed_model = None
+            fixed_training_data = wildcards.fixed_value
+        else:  # compare_by == "training_data"
+            fixed_model = wildcards.fixed_value
+            fixed_training_data = None
+        plot_model_comparison(
+            csv_file=input.summary_csv,
+            data_nicknames_file=data_nicknames_path,
+            test_data_name=wildcards.test_data_name,
+            output_file_basename=f"{wildcards.output_dir}/run.{wildcards.timestamp}/tree_eval_logs/model_comparison_{wildcards.test_data_name}-{wildcards.compare_by}-{wildcards.fixed_value}",
+            fasta_dir=fasta_dir,
+            metrics=[wildcards.metric],
+            compare_by=wildcards.compare_by,
+            fixed_model=fixed_model,
+            fixed_training_data=fixed_training_data
         )

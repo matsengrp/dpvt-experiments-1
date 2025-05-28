@@ -573,6 +573,7 @@ def aggregate_data_to_csv(
     # fetch testing stats
     df = get_df_from_log(path_dict["test_llog"])
     test_auroc = df[df.tag == "test_auroc"].value.iloc[0]
+    test_accuracy = df[df.tag == "test_accuracy"].value.iloc[0]
     test_loss = df[df.tag == "test_loss"].value.iloc[0]
 
     df_row = pd.DataFrame(
@@ -596,9 +597,9 @@ def aggregate_data_to_csv(
             "train_steps": [train_steps],
             "train_epochs": [train_epochs],
             "train_stopped_early": [train_stopped_early],
-            # test auroc
             "test_auroc": [test_auroc],
             "test_loss": [test_loss],
+            "test_accuracy": [test_accuracy],
             # runtime
             "train_walltime": [train_walltime],
             # data paths

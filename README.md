@@ -77,9 +77,10 @@ We have four different models:
 - `TraverseNN`
 - `TraverseAvgPooling`
 - `TraverseMaxPooling`
+- `BaselineReversion`
 
 Details about these models can be found in
-[dpvt](https://github.com/matsengrp/dpvt)
+[dpvt](https://github.com/matsengrp/dpvt).
 
 
 ### Training data
@@ -110,7 +111,9 @@ the `dpvt` repo), set the `device` in `config.yaml` to `cpu-tree-dataset`.
 
 By default, we train on CPUs. If the device is changed to `gpu` or `cuda` in the
 config file, we train on the GPU. A detailed explanation of this can be found in
-[dpvt](https://github.com/matsengrp/dpvt).
+[dpvt](https://github.com/matsengrp/dpvt). Note that the `BaselineReversion`
+model is required to run on a cpu, so if you want to use it, make sure to
+provide `cpu` as device in the config.
 
 
 ## Logging training

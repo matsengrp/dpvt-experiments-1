@@ -1,4 +1,0 @@
-input_dir: "/fh/fast/matsen_e/shared/dpvt/datasets/viral_for_tree_search"
-larch_build: "/fh/fast/matsen_e/lcollien/larch/build"
-dpvt_data_dir: "/fh/fast/matsen_e/shared/dpvt/datasets"
-nicknames: "/home/lcollien/git/dpvt-experiments-1/train/my_data_nicknames.json"

@@ -1,6 +1,0 @@
-input_data: "../data/viral_for_tree_search"
-larch_build: "../../../larch/build"
-output_data: "../data"
-dataset_name: "viral-dataset"
-make_worse_spr: True
-num_cores: 1

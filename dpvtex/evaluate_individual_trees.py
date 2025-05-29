@@ -396,10 +396,8 @@ def plot_model_comparison(
 
     # Read the comparison data
     df = pd.read_csv(csv_file)
-
-    print("compare_by", compare_by)
-    print("fixed_model", fixed_model)
-    print("fixed_training_data", fixed_training_data)
+    
+    df = df[df["test_data_name"] == test_data_name]
 
     # # Filter data based on comparison type
     if compare_by == "model":
@@ -455,15 +453,18 @@ def plot_model_comparison(
                 markersize=4,
             )
 
-        ax1.set_xlabel("")  # No x-label on top panel
-        ax1.set_ylabel(metric_label)
-        ax1.set_title(f"{title_prefix} - {metric_label} by Tree Index")
+        ax1.set_xlabel("", fontsize=14)  # No x-label on top panel
+        ax1.set_ylabel(metric_label, fontsize=14)
+        ax1.set_title(f"{metric_label} by Tree Index", fontsize=14)
+        # ax1.set_title(f"{title_prefix} - {metric_label} by Tree Index")
         ax1.legend(
             loc="center left",
-            bbox_to_anchor=(1, 0.5),
+            bbox_to_anchor=(1.1, 0.9),
             title=comparison_column.replace("_", " ").title(),
+            fontsize=12,
         )
         ax1.grid(True, linestyle="--", alpha=0.7)
+        ax1.tick_params(axis='both', which='major', labelsize=14)
 
         # Bottom panel: Plot parsimony scores AND non-MP edges (same as original
         # function) Primary y-axis for parsimony scores
@@ -472,11 +473,12 @@ def plot_model_comparison(
             ax2.plot(
                 x_range_scores, parsimony_scores, color="green", label="Parsimony Score"
             )
-            ax2.set_xlabel("Tree Index")
-            ax2.set_ylabel("Parsimony Score", color="green")
-            ax2.tick_params(axis="y", labelcolor="green")
+            ax2.set_xlabel("Tree Index", fontsize=14)
+            ax2.set_ylabel("Parsimony Score", color="green", fontsize=14)
+            ax2.tick_params(axis="y", labelcolor="green", labelsize=14)
+            ax2.tick_params(axis="x", labelsize=14)
         else:
-            ax2.set_title("No parsimony scores available")
+            ax2.set_title("No parsimony scores available", fontsize=14)
 
         # Secondary y-axis for non-MP edges
         ax2_twin = ax2.twinx()
@@ -484,8 +486,8 @@ def plot_model_comparison(
         ax2_twin.plot(
             x_range, frac_non_mp_edges, color="red", label="Fraction of non-MP Edges"
         )
-        ax2_twin.set_ylabel("Fraction of non-MP Edges", color="red")
-        ax2_twin.tick_params(axis="y", labelcolor="red")
+        ax2_twin.set_ylabel("Fraction of non-MP Edges", color="red", fontsize=14)
+        ax2_twin.tick_params(axis="y", labelcolor="red", labelsize=14)
 
         # Add combined legend for bottom panel
         lines1, labels1 = ax2.get_legend_handles_labels()
@@ -494,18 +496,214 @@ def plot_model_comparison(
             lines1 + lines2,
             labels1 + labels2,
             loc="center left",
-            bbox_to_anchor=(1, 0.5),
+            bbox_to_anchor=(1.1, 0.9),
+            fontsize=12,
         )
 
-        ax2.set_title("Parsimony Scores and Non-MP Edges by Tree Index")
+        ax2.set_title("Parsimony Scores and Number of Non-MP Edges by Tree Index", fontsize=14)
         ax2.grid(True, linestyle="--", alpha=0.7)
 
         # Add a suptitle to the entire figure
-        fig.suptitle(f"Performance Comparison - {test_data_name}", fontsize=14)
+        fig.suptitle(f"Performance Comparison - {test_data_name}", fontsize=16)  # Make suptitle slightly larger
+        plt.rcParams.update({'font.size': 14})  # Set default font size globally
         fig.tight_layout(rect=[0, 0, 1, 0.96])  # Leave room for suptitle
 
         # Save figure
         output_file = f"{output_file_basename}-{metric}.pdf"
-        print(output_file)
         plt.savefig(output_file)
         plt.close(fig)
+
+
+def plot_all_metrics_comparison(
+    csv_file,
+    data_nicknames_file,
+    test_data_name,
+    output_file,
+    fasta_dir,
+    metrics=["auroc", "accuracy", "precision", "recall"],
+    compare_by="model",
+    fixed_model=None,
+    fixed_training_data=None,
+):
+    """
+    Plots all performance metrics for multiple models or training datasets in a single PDF.
+    
+    Args:
+        csv_file (str): Path to the CSV file containing evaluation data for
+        multiple models/datasets.
+        data_nicknames_file (str): Path to the dataset nicknames JSON file.
+        test_data_name (str): Nickname of the testing dataset.
+        output_file_basename (str): Path for saving the output PDF file.
+        fasta_dir (str): Path to the directory containing the FASTA files.
+        metrics (list): Metrics to plot (default: all standard metrics).
+        compare_by (str): What to compare - "model" or "training_data".
+        fixed_model (str): When compare_by="training_data", the model to fix.
+        fixed_training_data (str): When compare_by="model", the training data to fix.
+    """
+    # Load data
+    with open(data_nicknames_file, "r") as f:
+        dataset_dict = json.load(f)
+    test_data_path = os.path.join(
+        dataset_dict["data_dir"], dataset_dict[test_data_name]
+    )
+    with open(test_data_path, "rb") as f:
+        data_dict = pickle.load(f)
+
+    # Calculate parsimony scores and non-MP edges
+    data_basename = dataset_dict[test_data_name].split("_tree_search")[0]
+    fasta_path = fasta_dir + "/" + data_basename + "/" + data_basename + ".fasta"
+
+    parsimony_scores = get_parsimony_scores(list(data_dict.keys()), fasta_path)
+    num_int_edges = len(list(data_dict.keys())[0]) - 2
+    frac_non_mp_edges = [sum(l) / num_int_edges for l in data_dict.values()]
+
+    # Read the comparison data
+    df = pd.read_csv(csv_file)
+    
+    df = df[df["test_data_name"] == test_data_name]
+
+    # Filter data based on comparison type
+    if compare_by == "model":
+        if fixed_training_data is None:
+            raise ValueError("Must specify fixed_training_data when compare_by='model'")
+        filtered_df = df[df["train_data_name"] == fixed_training_data]
+        comparison_column = "model_name"
+        title_prefix = f"Models trained on {fixed_training_data}, tested on {test_data_name}"
+    elif compare_by == "training_data":
+        if fixed_model is None:
+            raise ValueError("Must specify fixed_model when compare_by='training_data'")
+        filtered_df = df[df["model_name"] == fixed_model]
+        comparison_column = "train_data_name"
+        title_prefix = f"Model {fixed_model} trained on different datasets, tested on {test_data_name}"
+    else:
+        raise ValueError("compare_by must be 'model' or 'training_data'")
+
+    # Get unique values for the comparison
+    comparison_values = filtered_df[comparison_column].unique()
+    metric_labels = {
+        "auroc": "AUROC",
+        "accuracy": "Accuracy",
+        "precision": "Precision",
+        "recall": "Recall",
+    }
+    
+    # Create color palette for the different models/training datasets
+    palette = sns.color_palette("Dark2", len(comparison_values))
+    color_dict = dict(zip(comparison_values, palette))
+    
+    # Calculate grid dimensions for the metrics plots
+    n_metrics = len(metrics)
+    n_rows = n_metrics + 1  # +1 for the parsimony/non-MP plot
+    
+    # Create figure with a grid of subplots - one row per metric plus one for parsimony
+    fig = plt.figure(figsize=(12, 5 * n_rows))
+    gs = fig.add_gridspec(n_rows, 1, hspace=0.4)
+    
+    # Create a list to store all legend handles and labels for the final combined legend
+    all_handles = []
+    all_labels = []
+    model_handles = []
+    model_labels = []
+    
+    # Create subplot for each metric
+    for i, metric in enumerate(metrics):
+        metric_label = metric_labels.get(metric, metric)
+        ax = fig.add_subplot(gs[i, 0])
+        
+        # Plot for each comparison value
+        for value in comparison_values:
+            value_df = filtered_df[filtered_df[comparison_column] == value]
+            value_df = value_df.sort_values("tree_idx")
+            line, = ax.plot(
+                value_df["tree_idx"],
+                value_df[metric],
+                "o-",
+                color=color_dict[value],
+                label=value,
+                alpha=0.7,
+                markersize=4,
+            )
+            
+            # Only collect legend handles and labels from the first metric plot
+            if i == 0:
+                model_handles.append(line)
+                model_labels.append(value)
+        
+        ax.set_ylabel(metric_label, fontsize=14)
+        if i < n_metrics - 1:
+            ax.set_xlabel("")  # No x-label except on last plot
+        else:
+            ax.set_xlabel("Tree Index", fontsize=14)
+        ax.set_title(f"{metric_label}", fontsize=14)
+        ax.grid(True, linestyle="--", alpha=0.7)
+        ax.tick_params(axis='both', which='major', labelsize=14)
+        
+    # Bottom panel: Plot parsimony scores AND non-MP edges
+    ax_bottom = fig.add_subplot(gs[n_rows-1, 0])
+    
+    # Primary y-axis for parsimony scores
+    if parsimony_scores and not all(pd.isna(score) for score in parsimony_scores):
+        x_range_scores = range(len(parsimony_scores))
+        line1, = ax_bottom.plot(
+            x_range_scores, parsimony_scores, color="green", label="Parsimony Score"
+        )
+        ax_bottom.set_xlabel("Tree Index", fontsize=14)
+        ax_bottom.set_ylabel("Parsimony Score", color="green", fontsize=14)
+        ax_bottom.tick_params(axis="y", labelcolor="green", labelsize=14)
+        ax_bottom.tick_params(axis="x", labelsize=14)
+        
+        all_handles.append(line1)
+        all_labels.append("Parsimony Score")
+    else:
+        ax_bottom.set_title("No parsimony scores available", fontsize=14)
+    
+    # Secondary y-axis for non-MP edges
+    ax_bottom_twin = ax_bottom.twinx()
+    x_range = range(len(frac_non_mp_edges))
+    line2, = ax_bottom_twin.plot(
+        x_range, frac_non_mp_edges, color="red", label="Fraction of non-MP Edges"
+    )
+    ax_bottom_twin.set_ylabel("Fraction of non-MP Edges", color="red", fontsize=14)
+    ax_bottom_twin.tick_params(axis="y", labelcolor="red", labelsize=14)
+    
+    all_handles.append(line2)
+    all_labels.append("Fraction of non-MP Edges")
+    
+    ax_bottom.set_title("Parsimony Scores and Non-MP Edges", fontsize=14)
+    ax_bottom.grid(True, linestyle="--", alpha=0.7)
+    
+    # Add a suptitle to the entire figure
+    fig.suptitle(f"{title_prefix}\nPerformance Metrics Comparison", fontsize=16)
+    
+    # Create legends
+    # First legend for model/training data comparison at the top
+    first_legend = fig.legend(
+        model_handles, 
+        model_labels, 
+        loc='upper center',
+        bbox_to_anchor=(0.5, 0.98),
+        title=comparison_column.replace("_", " ").title(),
+        title_fontsize=14,
+        fontsize=14,
+        ncol=min(3, len(comparison_values))
+    )
+    
+    # Second legend for parsimony and non-MP edges at the bottom
+    fig.legend(
+        all_handles,
+        all_labels,
+        loc='lower center',
+        bbox_to_anchor=(0.5, 0),
+        fontsize=14,
+        ncol=2
+    )
+    
+    # Ensure the first legend is drawn
+    fig.add_artist(first_legend)
+    
+    plt.rcParams.update({'font.size': 14})  # Set default font size globally
+    # fig.tight_layout(rect=[0, 0.02, 1, 0.96])  # Leave room for titles and legends
+    
+    # Save figure
+    plt.savefig(output_file, bbox_inches='tight')
+    plt.close(fig)

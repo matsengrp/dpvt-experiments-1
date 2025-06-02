@@ -5,31 +5,23 @@ models: [
     "BaselineReversion", # can only run on CPU!
   ]
 train_data: [
-  "larch_alisim_alignment_10_seq_100_sites_500_algnmnts_spr",
-  "larch_alisim_alignment_10_seq_50_sites_500_algnmnts_spr",
-  "larch_alisim_alignment_15_seq_50_sites_500_algnmnts_spr",
-  "larch_alisim_alignment_15_seq_100_sites_500_algnmnts_spr",
-  "larch_alisim_alignment_20_seq_50_sites_500_algnmnts_spr",
-  "larch_alisim_alignment_20_seq_100_sites_500_algnmnts_spr",
-  "larch_alisim_alignment_25_seq_50_sites_500_algnmnts_spr",
-  "larch_alisim_alignment_25_seq_100_sites_500_algnmnts_spr",
+  "larch_alisim_alignment_10_seq_20_sites_100_algnmnts",
+  "larch_alisim_alignment_10_seq_20_sites_100_algnmnts_spr",
+  "larch_alisim_alignment_15_seq_20_sites_100_algnmnts",
+  "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_spr",
   ]
 test_data: [
-  "larch_alisim_alignment_10_seq_100_sites_200_algnmnts_spr",
-  "larch_alisim_alignment_10_seq_50_sites_200_algnmnts_spr",
-  "larch_alisim_alignment_15_seq_100_sites_200_algnmnts_spr",
-  "larch_alisim_alignment_15_seq_50_sites_200_algnmnts_spr",
-  "larch_alisim_alignment_20_seq_100_sites_200_algnmnts_spr",
-  "larch_alisim_alignment_20_seq_50_sites_200_algnmnts_spr",
-  "larch_alisim_alignment_25_seq_100_sites_200_algnmnts_spr",
-  "larch_alisim_alignment_25_seq_50_sites_200_algnmnts_spr",
+  "larch_alisim_alignment_10_seq_20_sites_50_algnmnts",
+  "larch_alisim_alignment_10_seq_20_sites_50_algnmnts_spr",
+  "larch_alisim_alignment_15_seq_20_sites_50_algnmnts",
+  "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_spr",
   ]
 
 device: "cpu"
 timestamp: "TODAY"
 use_cross_datasets: True
 output_dir: "_output"
-data_nicknames_path: "my_data_nicknames.json"
+data_nicknames_path: "data_nicknames.json"
 evaluate_tree_search: False
 use_hyperparameter_optimize: False
 n_hyperparameter_trials: 50

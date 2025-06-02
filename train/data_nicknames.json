@@ -1,19 +1,11 @@
 {
   "data_dir": "../data",
-  "larch_alisim_alignment_10_seq_100_sites_200_algnmnts_spr": "larch_alisim_alignment_10_seq_100_sites_200_algnmnts_spr.p",
-  "larch_alisim_alignment_10_seq_100_sites_500_algnmnts_spr": "larch_alisim_alignment_10_seq_100_sites_500_algnmnts_spr.p",
-  "larch_alisim_alignment_10_seq_50_sites_200_algnmnts_spr": "larch_alisim_alignment_10_seq_50_sites_200_algnmnts_spr.p",
-  "larch_alisim_alignment_10_seq_50_sites_500_algnmnts_spr": "larch_alisim_alignment_10_seq_50_sites_500_algnmnts_spr.p",
-  "larch_alisim_alignment_15_seq_100_sites_200_algnmnts_spr": "larch_alisim_alignment_15_seq_100_sites_200_algnmnts_spr.p",
-  "larch_alisim_alignment_15_seq_100_sites_500_algnmnts_spr": "larch_alisim_alignment_15_seq_100_sites_500_algnmnts_spr.p",
-  "larch_alisim_alignment_15_seq_50_sites_200_algnmnts_spr": "larch_alisim_alignment_15_seq_50_sites_200_algnmnts_spr.p",
-  "larch_alisim_alignment_15_seq_50_sites_500_algnmnts_spr": "larch_alisim_alignment_15_seq_50_sites_500_algnmnts_spr.p",
-  "larch_alisim_alignment_20_seq_100_sites_200_algnmnts_spr": "larch_alisim_alignment_20_seq_100_sites_200_algnmnts_spr.p",
-  "larch_alisim_alignment_20_seq_100_sites_500_algnmnts_spr": "larch_alisim_alignment_20_seq_100_sites_500_algnmnts_spr.p",
-  "larch_alisim_alignment_20_seq_50_sites_200_algnmnts_spr": "larch_alisim_alignment_20_seq_50_sites_200_algnmnts_spr.p",
-  "larch_alisim_alignment_20_seq_50_sites_500_algnmnts_spr": "larch_alisim_alignment_20_seq_50_sites_500_algnmnts_spr.p",
-  "larch_alisim_alignment_25_seq_100_sites_200_algnmnts_spr": "larch_alisim_alignment_25_seq_100_sites_200_algnmnts_spr.p",
-  "larch_alisim_alignment_25_seq_100_sites_500_algnmnts_spr": "larch_alisim_alignment_25_seq_100_sites_500_algnmnts_spr.p",
-  "larch_alisim_alignment_25_seq_50_sites_200_algnmnts_spr": "larch_alisim_alignment_25_seq_50_sites_200_algnmnts_spr.p",
-  "larch_alisim_alignment_25_seq_50_sites_500_algnmnts_spr": "larch_alisim_alignment_25_seq_50_sites_500_algnmnts_spr.p"
+  "larch_alisim_alignment_10_seq_20_sites_100_algnmnts": "larch_alisim_alignment_10_seq_20_sites_100_algnmnts.p",
+  "larch_alisim_alignment_10_seq_20_sites_100_algnmnts_spr": "larch_alisim_alignment_10_seq_20_sites_100_algnmnts_spr.p",
+  "larch_alisim_alignment_15_seq_20_sites_100_algnmnts": "larch_alisim_alignment_15_seq_20_sites_100_algnmnts.p",
+  "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_spr": "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_spr.p",
+  "larch_alisim_alignment_10_seq_20_sites_50_algnmnts": "larch_alisim_alignment_10_seq_20_sites_50_algnmnts.p",
+  "larch_alisim_alignment_10_seq_20_sites_50_algnmnts_spr": "larch_alisim_alignment_10_seq_20_sites_50_algnmnts_spr.p",
+  "larch_alisim_alignment_15_seq_20_sites_50_algnmnts": "larch_alisim_alignment_15_seq_20_sites_50_algnmnts.p",
+  "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_spr": "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_spr.p"
 }

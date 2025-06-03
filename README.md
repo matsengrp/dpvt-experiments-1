@@ -4,37 +4,39 @@ This repo allows testing models from [dpvt](https://github.com/matsengrp/dpvt)
 on datasets generated in various ways. This repo also contains the code for
 generating this data.
 
-
 ## Installation
-To run the code in this workflow, install the conda environment from
-`environment.yaml` and pip install the package dpvtex:
+
+To run the code in this workflow, you will need to creat a pixi environment. To
+install [pixi](https://pixi.sh/latest/installation/) with curl (on Linux or
+MacOS), run:
 
 ```
-conda env create -f environment.yaml
-pip install -e .
+curl -fsSL https://pixi.sh/install.sh | sh
 ```
 
-We also need to install the `dpvt` package. Clone the repo
-[dpvt](https://github.com/matsengrp/dpvt), move into the repo and pip install
-`dpvt`:
+Additionally, you will need to clone the
+[dpvt](https://github.com/matsengrp/dpvt) repo into the same parent directory as
+this repo. If you want to save it somewhere else, you will need to update the
+path to the repo in `pixi.toml`.
+
+You can then install the pixi environment *dpvt-experiments* from `pixi.toml`:
 
 ```
-pip install -e .
+pixi install
 ```
-
 
 ## Setup
-Create the conda environment from file: `conda env create --file
-environment.yml`. Install `dpvtex` as a python package with pip: `pip install -e
-.`. 
 
+Create the conda environment from file:
+`conda env create --file environment.yml`. Install `dpvtex` as a python package
+with pip: `pip install -e .`.
 
 ## Training Workflow
 
 We have a workflow implemented in Snakemake (`Snakefile`), which takes as input
-in `config.yaml` names of models (see *Neural Network Model*), datasets (see
-*Training Data*), and the device on which we want to train (e.g. cpu or gpu, see
-*Device*), and trains and evaluates the given models on all given datasets.
+in `config.yaml` names of models (see _Neural Network Model_), datasets (see
+_Training Data_), and the device on which we want to train (e.g. cpu or gpu, see
+_Device_), and trains and evaluates the given models on all given datasets.
 
 The input data is expected to be located in a `data` folder in the root
 directory of this repo. Two lists `train_data` and `test_data` containing names
@@ -48,7 +50,7 @@ ordered by pre-order traversal, where `0` means this edge is in a Maximum
 Parsimony tree and `1` indicates that it is not.
 
 > Note: Avoid using `-` in nicknames for models or datasets, as this might
-> result in issues with Snakemake 
+> result in issues with Snakemake
 
 To execute the workflow, run `snakemake -c[num_cores]` in the directory `train`,
 where `[num_cores]` should be replaced with the number of cores you want to use.
@@ -74,14 +76,14 @@ replaced as appropriate.
 ### Neural Network models
 
 We have four different models:
-- `TraverseNN`
-- `TraverseAvgPooling`
-- `TraverseMaxPooling`
-- `BaselineReversion`
+
+-   `TraverseNN`
+-   `TraverseAvgPooling`
+-   `TraverseMaxPooling`
+-   `BaselineReversion`
 
 Details about these models can be found in
 [dpvt](https://github.com/matsengrp/dpvt).
-
 
 ### Training data
 
@@ -106,7 +108,6 @@ The default data structure for out training and testing data is
 loading the data. To use the `TreeDataset` data structure (see more details in
 the `dpvt` repo), set the `device` in `config.yaml` to `cpu-tree-dataset`.
 
-
 ### Device
 
 By default, we train on CPUs. If the device is changed to `gpu` or `cuda` in the
@@ -115,28 +116,25 @@ config file, we train on the GPU. A detailed explanation of this can be found in
 model is required to run on a cpu, so if you want to use it, make sure to
 provide `cpu` as device in the config.
 
-
 ## Logging training
 
 To view training logs, run `tensorboard --logdir .` and direct your browser to
 `http://localhost:6006/`. The tensorboard additionally shows ROC curves for the
 performance of classification on the test set.
 
-
 ## File structure of this repo
 
-- `train`: contains `Snakefile` and `config.yaml`, in which models and datasets
-  for training are specified.
-- `dpvtex`: contains `dpvt_data.py`, which implements functions to get datasets
-  for a given nickname and `dpvt_zoo.py`, which creates models for a given
-  nickname. The mapping from nicknames to file paths is provided in
-  `dataset_dict.json` and nicknames for datasets are given to the `Snakefile` in
-  `config.yaml`.
+-   `train`: contains `Snakefile` and `config.yaml`, in which models and
+    datasets for training are specified.
+-   `dpvtex`: contains `dpvt_data.py`, which implements functions to get
+    datasets for a given nickname and `dpvt_zoo.py`, which creates models for a
+    given nickname. The mapping from nicknames to file paths is provided in
+    `dataset_dict.json` and nicknames for datasets are given to the `Snakefile`
+    in `config.yaml`.
 
-   Also contains directories `perfect_phylogenies` and `larch`, which provide
-  code for creating datasets for training and testing dpvt models (See _Training
-  Data_).
-
+    Also contains directories `perfect_phylogenies` and `larch`, which provide
+    code for creating datasets for training and testing dpvt models (See
+    _Training Data_).
 
 ## Training Data
 

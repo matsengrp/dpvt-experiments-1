@@ -30,6 +30,7 @@ todays_date = datetime.now().strftime("%Y-%m-%d")
 
 
 def build_model(model_name):
+    """Builds a model class based on the provided model name."""
     if model_name == "TraverseNN":
         model = models.TraverseNN
     elif model_name == "TraverseMaxPooling":
@@ -42,6 +43,16 @@ def build_model(model_name):
 
 
 def get_trained_model_str(model_name, train_data_name, param_id):
+    """
+    Generates a string representation of the trained model path based on the model name,
+    training data name, and optional parameter ID.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        param_id (str, optional): Identifier for the parameters used in training.
+    Returns:
+        str: A formatted string representing the trained model path.
+    """
     model = f"{model_name}-{train_data_name}"
     if param_id != None:
         model = f"{model_name}-{train_data_name}-{param_id}"
@@ -54,12 +65,24 @@ def get_tested_model_str(model_name, train_data_name, test_data_name, param_id):
     model = f"{model_name}-{train_data_name}-ON-{test_data_name}"
     if param_id != None:
         model = f"{model_name}-{train_data_name}-ON-{test_data_name}-{param_id}"
-    if train_data_name == None:
+    elif train_data_name == None:
+        # No training data implies no param_id
         model = f"{model_name}-ON-{test_data_name}"
     return model
 
 
 def get_model_str(model_name, train_data_name, test_data_name=None, param_id=None):
+    """
+    Generates a string representation of the model path based on the model name,
+    training data name, optional test data name, and optional parameter ID.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        test_data_name (str, optional): Name of the test data.
+        param_id (str, optional): Identifier for the parameters used in training.
+    Returns:
+        str: A formatted string representing the model path.
+    """
     if test_data_name:
         path = get_tested_model_str(
             model_name, train_data_name, test_data_name, param_id
@@ -92,6 +115,22 @@ def build_log_path(
     step_name,
     output_dir=".",
 ):
+    """
+    Builds a standardized path for logging based on model name, training data,
+    test data, parameter ID, device, timestamp, log name, and step name.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        test_data_name (str): Name of the test data.
+        param_id (str): Identifier for the parameters used in training.
+        device (str): Device on which the model is trained (e.g., 'cpu', 'cuda').
+        timestamp (str): Timestamp for the run.
+        log_name (str): Name of the log directory.
+        step_name (str): Name of the step in the training process.
+        output_dir (str, optional): Base output directory. Defaults to current working directory.
+    Returns:
+        str: A formatted path string for logging.
+    """
     model_str = get_model_str(model_name, train_data_name, test_data_name, param_id)
     path = f"run.{timestamp}/{log_name}/{step_name}/{model_str}"
     path = prepend_dir_to_path(path, output_dir)
@@ -102,6 +141,18 @@ def build_log_path(
 def get_trained_model_path(
     model_name, train_data_name, param_id, device, timestamp, output_dir="."
 ):
+    """
+    Generates a path for the trained model checkpoint.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        param_id (str): Identifier for the parameters used in training.
+        device (str): Device on which the model is trained (e.g., 'cpu', 'cuda').
+        timestamp (str): Timestamp for the run.
+        output_dir (str, optional): Base output directory. Defaults to current working directory.
+    Returns:
+        str: A formatted path string for the trained model checkpoint.
+    """
     path = build_log_path(
         model_name=model_name,
         train_data_name=train_data_name,
@@ -125,6 +176,19 @@ def get_tested_model_path(
     timestamp,
     output_dir=".",
 ):
+    """
+    Generates a path for the tested model checkpoint.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        test_data_name (str): Name of the test data.
+        param_id (str): Identifier for the parameters used in training.
+        device (str): Device on which the model is trained (e.g., 'cpu', 'cuda').
+        timestamp (str): Timestamp for the run.
+        output_dir (str, optional): Base output directory. Defaults to current working directory.
+    Returns:
+        str: A formatted path string for the tested model checkpoint.
+    """
     path = build_log_path(
         model_name=model_name,
         train_data_name=train_data_name,
@@ -147,6 +211,18 @@ def get_model_params_path(
     timestamp,
     output_dir=".",
 ):
+    """
+    Generates a path for the model parameters JSON file.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        param_id (str): Identifier for the parameters used in training.
+        device (str): Device on which the model is trained (e.g., 'cpu', 'cuda').
+        timestamp (str): Timestamp for the run.
+        output_dir (str, optional): Base output directory. Defaults to current working directory.
+    Returns:
+        str: A formatted path string for the model parameters JSON file.
+    """
     path = build_log_path(
         model_name=model_name,
         train_data_name=train_data_name,
@@ -203,6 +279,21 @@ def build_paths_dict(
     timestamp,
     output_dir=".",
 ):
+    """Builds a dictionary of directories and paths for logging various stages of model training and testing.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        test_data_name (str): Name of the test data.
+        device (str): Device on which the model is trained (e.g., 'cpu', 'cuda').
+        param_id (str): Identifier for the parameters used in training.
+        timestamp (str): Timestamp for the run.
+        output_dir (str, optional): Base output directory. Defaults to current working directory.
+    Returns:
+        tuple: A tuple containing two dictionaries:
+            - dirs: Dictionary of directory paths for different logging stages.
+            - paths: Dictionary of file paths for different logging stages.
+    """
+
     def _get_path(test_data_name, log_name, step_name):
         path = build_log_path(
             model_name=model_name,
@@ -260,6 +351,10 @@ def optimize_hyperparameters(
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
 ):
+    """
+    Creates a model in class `model_name` and optimizes its hyperparameters on data `data_name`.
+    The best hyperparameters are saved to `best_model_hparams_filepath`.
+    """
     dir_dict, path_dict = build_paths_dict(
         model_name=model_name,
         train_data_name=data_name,
@@ -646,7 +741,7 @@ def aggregate_baseline_data_to_csv(
     with open(result_path, "r") as f:
         result_data = json.load(f)
 
-    # Extract AUROC from results
+    # Extract AUROC and accuracy from results
     test_auroc = np.nan
     if "results" in result_data:
         if "test_auroc" in result_data["results"]:

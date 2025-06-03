@@ -19,17 +19,14 @@ Additionally, you will need to clone the
 this repo. If you want to save it somewhere else, you will need to update the
 path to the repo in `pixi.toml`.
 
-You can then install the pixi environment *dpvt-experiments* from `pixi.toml`:
+You can then install the pixi environment *dpvt-experiments*, which includes the
+dpvt package from the dpvt repo and the dpvtex package from this repo, from
+`pixi.toml`:
 
 ```
 pixi install
 ```
 
-## Setup
-
-Create the conda environment from file:
-`conda env create --file environment.yml`. Install `dpvtex` as a python package
-with pip: `pip install -e .`.
 
 ## Training Workflow
 

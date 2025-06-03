@@ -639,8 +639,11 @@ def aggregate_baseline_data_to_csv(
     
     # Extract AUROC from results
     test_auroc = np.nan
-    if 'results' in result_data and 'test_auroc' in result_data['results']:
-        test_auroc = result_data['results']['test_auroc']
+    if 'results' in result_data:
+        if 'test_auroc' in result_data['results']:
+            test_auroc = result_data['results']['test_auroc']
+        if 'test_accuracy' in result_data['results']:
+            test_accuracy = result_data['results']['test_accuracy']
     device="cpu" #always cpu for baseline
     # Create DataFrame with results.
     # Columns match those from more complex models and are filled with NaN where
@@ -669,6 +672,7 @@ def aggregate_baseline_data_to_csv(
             # test auroc
             "test_auroc": [test_auroc],
             "test_loss": [np.nan],
+            "test_accuracy": [test_accuracy],
             # runtime
             "train_walltime": [np.nan],
             # data paths

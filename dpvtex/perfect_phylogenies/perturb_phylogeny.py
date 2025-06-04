@@ -1,5 +1,5 @@
 from ete3 import Tree
-from random import randrange, choice
+import random
 import copy
 from historydag.parsimony import disambiguate, parsimony_score
 from dpvtex.perfect_phylogenies.utils import populate, get_distance
@@ -44,7 +44,7 @@ def perturb_tree(tree, depth, skip_root=True, exception_on_fail=False):
         else:
             return None
 
-    selected_node = choice(valid_nodes)
+    selected_node = random.choice(valid_nodes)
     parent_node = None if selected_node.is_root() else selected_node.up
     selected_node.detach()
     is_sorta_tip = lambda x: is_subtree_depth_tip(selected_node, x, depth)
@@ -194,21 +194,33 @@ def spr_move(tree, node1, node2):
     return new_tree
 
 
-def make_worse_spr(tree, num_sprs, max_attempts=100):
+def make_worse_spr(input_tree, num_sprs, efficient = True):
     """
     Peform a at least num_sprs random SPR move on input tree to create tree
-    with higher parsimony score
+    with higher parsimony score.
+    If the keyword efficient is set to True, the function will not check
+    parsimony score of the new tree. This is faster, but the resulting tree
+    may not have a higher parsimony score.
+    Arguments:
+        tree: ete3.Tree
+            Input tree to be perturbed
+        num_sprs: int
+            Number of SPR moves to perform
+        efficient: bool
+            If True, perform moves without checking parsimony
     """
+    tree = copy.deepcopy(input_tree)
     sankoff_for_missing_sequences(tree)
     any(node.add_feature("random_tree", False) for node in tree.traverse())
-    move_count = 0
-    for _ in range(max_attempts):
+    for i in range(num_sprs):
+        random.seed()
         # we cannot prune children or grandchildren of root
+        # also avoid moving leaves, as that doesn't change MP edge to non-MP edge
         node_list = list(
-            [node for node in tree.iter_descendants() if not node.up.is_root() or node.up in tree.children]
+            [node for node in tree.iter_descendants() if not (node.up.is_root() or node.up in tree.children or node in tree.get_leaves())]
         )
         # prune edge above randomly chosen node prune_node
-        prune_node = node_list[randrange(0, len(node_list))]
+        prune_node = random.choice(node_list)
         # pick random edge to insert -- cannot be in pruned subtree
         allowed_edges = [
             node
@@ -218,12 +230,12 @@ def make_worse_spr(tree, num_sprs, max_attempts=100):
             and not node == prune_node.up
         ]
         if len(allowed_edges) > 0:
-            insertion_node = allowed_edges[randrange(0, len(allowed_edges))]
+            insertion_node = random.choice(allowed_edges)
             perturbed_tree = spr_move(tree, prune_node, insertion_node)
             sankoff_for_missing_sequences(perturbed_tree)
-            if parsimony_score(perturbed_tree) > parsimony_score(tree):
-                move_count += 1
+            if efficient or (not efficient and parsimony_score(perturbed_tree) > parsimony_score(tree)):
                 tree = perturbed_tree
-                if move_count >= num_sprs:
-                    return tree
-    return None
+    if not efficient and parsimony_score(tree) <= parsimony_score(input_tree):
+        print("No worse tree found")
+        return None
+    return tree

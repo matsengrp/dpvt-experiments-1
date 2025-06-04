@@ -1,7 +1,12 @@
 import historydag as hdag
 import pickle
 import random
-import concurrent.futures
+import os
+import signal
+import multiprocessing
+import time
+import subprocess
+import psutil
 
 from dpvtex.perfect_phylogenies.perturb_phylogeny import (
     make_worse_tree,
@@ -27,8 +32,9 @@ def get_MP_trees_from_hdag(dag, num_trees, unlabel=True):
     if unlabel:
         dag = dag.unlabel()
     dag.uniform_distribution_annotate()
+    # Only call memory_safe_count_topologies once
     dag_num_topologies = memory_safe_count_topologies(dag)
-    num_samples = min(num_trees, memory_safe_count_topologies(dag))
+    num_samples = min(num_trees, dag_num_topologies)
     if num_samples != num_trees:
         print(
             "Not enough trees in DAG to sample",
@@ -193,11 +199,13 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
         dictionary with keys ete3 trees and values list of edge labels
         indicating MP (0) vs non-MP (1) edges, sorted by preorder traversal
     """
+    print("Start extracting MP trees from hDAG")
     mp_trees = get_MP_trees_from_hdag(dag, num_trees, unlabel=True)
+    print("Extracted ", len(mp_trees), " trees from hDAG")
     tree_to_label_dict = {}  # output dict
-    print("Start extracting DAG clades")
+    print("Start extracting clades from hDAG")
     dag_clades = extract_hdag_clade_child_clades(dag)
-    print("Done extracting DAG clades")
+    print("Extracted clades from hDAG")
 
     print("Start adding non-MP edges...")
     print("Number of MP trees:", len(mp_trees))
@@ -233,13 +241,23 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
                 print("Tree modification iteration ", i)
                 i += 1
                 if use_make_worse_spr:
-                    new_tree = make_worse_spr(modified_tree, len(modified_tree) // 2)
+                    # Maximum of 100 SPR moves per iteration -- if we don't have enough non-MP
+                    # edges after that, we add more in next iteration (until done_modifying)
+                    num_spr_moves = min(len(modified_tree) // 2, 100)
+                    efficient_sprs = False
+                    if num_spr_moves == 100:
+                        # for large trees, we use a more efficient version of make_worse_spr
+                        # that doesn't check the parsimony score for each move
+                        efficient_sprs = True
+                    new_tree = make_worse_spr(modified_tree, num_spr_moves, efficient_sprs)
                 else:
+                    # replace random subtree of depth td // 2 with a random subtree
                     new_tree = make_worse_tree(modified_tree, td // 2)
                 if new_tree is not None:
                     modified_tree = new_tree
                 # assign edge labels
                 edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
+                print("Fraction of non-MP edges (of all edges incl pendant): ", sum(edge_labels)/len(edge_labels))
                 if sum(edge_labels) / len(edge_labels) >= 1 / 6 or i > 100:
                     # note that len(edge_labels) is roughly 2*internal edges, so we are aiming at a third of non-MP edges here
                     done_modifying = True
@@ -250,20 +268,43 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
 
 
 def memory_safe_count_topologies(dag, max_time=10):
-    """Count topologies with a timeout."""
-    def count_topologies():
-        return dag.count_topologies()
-
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        future = executor.submit(count_topologies)
+    """Count topologies with a timeout, using SIGKILL if needed."""
+    
+    # Create a queue for communication between processes
+    result_queue = multiprocessing.Queue()
+    
+    # Define a function to put the result in the queue
+    def count_and_return():
         try:
-            return future.result(timeout=max_time)
-        except concurrent.futures.TimeoutError:
-            print("Stop counting topologies, returning inf: Function timed out")
+            count = dag.count_topologies()
+            result_queue.put(count)
+        except Exception as e:
+            result_queue.put(f"Error: {str(e)}")
+    # Start a separate process
+    p = multiprocessing.Process(target=count_and_return)
+    p.start()
+    # Allow the process to run for max_time seconds
+    p.join(timeout=max_time)
+    # Check if process is still running after timeout
+    if p.is_alive():
+        print("Stop counting topologies, returning inf: Function timed out")
+        # Use SIGKILL to forcefully terminate the process
+        try:
+            os.kill(p.pid, signal.SIGKILL)
+        except Exception as e:
+            print(f"Error killing process: {e}")
+        return float('inf')
+    # Process completed within time limit, get the result
+    if not result_queue.empty():
+        result = result_queue.get()
+        # Check if we got an error
+        if isinstance(result, str) and result.startswith("Error"):
+            print(f"Stop counting topologies, returning inf: {result}")
             return float('inf')
-        except MemoryError as e:
-            print(f"Stop counting topologies, returning inf: {e}")
-            return float('inf')
+        return result
+    else:
+        print("Stop counting topologies, returning inf: No result returned")
+        return float('inf')
 
 
 def extract_data_from_hdag(dag_file, dpvt_data_file, num_children_file, make_worse_tree):
@@ -294,8 +335,10 @@ def extract_data_from_hdag(dag_file, dpvt_data_file, num_children_file, make_wor
     print("Start converting DAG to sequence_dag")
     dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
     print("Done converting DAG to sequence_dag")
+    dag.unlabel()
     print("Start counting DAG topologies")
     num_topologies = min(memory_safe_count_topologies(dag), 200)
+    print("Number of topologies in DAG:", num_topologies)
     print("Done counting DAG topologies")
 
     tree_label_dict = get_non_dag_edges(
@@ -304,6 +347,3 @@ def extract_data_from_hdag(dag_file, dpvt_data_file, num_children_file, make_wor
     with open(dpvt_data_file, "wb") as f:
         pickle.dump(tree_label_dict, f)
 
-
-if __name__ == "__main__":
-    main()

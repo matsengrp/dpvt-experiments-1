@@ -12,8 +12,12 @@ def generate_config_files(num_sequences, num_sites, num_algnmnts):
     We create one config to use SPRs to make the alignments worse
     and one for random subtrees.
     """
+    # Get the directory of the current script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
     # Create output directory if it doesn't exist
-    os.makedirs("../configs", exist_ok=True)
+    config_dir = os.path.join(script_dir, "..", "configs")
+    os.makedirs(config_dir, exist_ok=True)
     
     # Create the dataset name
     dataset_name = f"alisim_alignment_{num_sequences}_seq_{num_sites}_sites_{num_algnmnts}_algnmnts"
@@ -21,9 +25,9 @@ def generate_config_files(num_sequences, num_sites, num_algnmnts):
     for use_spr in [True, False]:
         # Create the config dictionary
         config = {
-            "input_data": f"../data/simulated_alignments/{dataset_name}",
-            "larch_build": "../../../larch/build",
-            "output_data": "../data",
+            "input_data": os.path.join(script_dir, "..", "..", "data", "simulated_alignments", dataset_name),
+            "larch_build": os.path.join(script_dir, "..", "..", "..", "..", "larch", "build"),
+            "output_data": os.path.join(script_dir, "..", "..", "data"),
             "dataset_name": dataset_name,
             "num_cores": 2,
             "make_worse_spr": use_spr
@@ -33,7 +37,7 @@ def generate_config_files(num_sequences, num_sites, num_algnmnts):
         filename = f"config_{num_sequences}seq_{num_sites}sites_{num_algnmnts}alignments.json"
         if use_spr:
             filename = filename.replace(".json", "_spr.json")
-        filepath = os.path.join("configs", filename)
+        filepath = os.path.join(config_dir, filename)
         
         # Write the JSON file
         if os.path.exists(filepath):

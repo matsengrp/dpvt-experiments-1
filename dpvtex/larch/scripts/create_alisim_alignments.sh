@@ -10,7 +10,7 @@
 
 # Parameters
 num_alignments_list=(200 500)
-num_sequences_list=(10 15 20)
+num_sequences_list=(10 15 20 25)
 alignment_length_list=(50 100)
 
 max_attempts=20
@@ -20,7 +20,7 @@ scaling_factor=2
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Check if simulated_alignments directory exists, create it if not
-simulated_alignments_dir="$(cd "${script_dir}/../../data" && pwd)/simulated_alignments"
+simulated_alignments_dir="$(cd "${script_dir}/../../../data" && pwd)/simulated_alignments"
 if [ ! -d "$simulated_alignments_dir" ]; then
     echo "Creating simulated_alignments directory at: $simulated_alignments_dir"
     mkdir -p "$simulated_alignments_dir"
@@ -29,6 +29,7 @@ else
 fi
 
 for num_alignments in "${num_alignments_list[@]}"; do
+    echo "Number of alignments:" $num_alignments
     for target_num_sequences in "${num_sequences_list[@]}"; do
         echo "Target number of sequences: $target_num_sequences"
         for target_alignment_length in "${alignment_length_list[@]}"; do
@@ -45,7 +46,6 @@ for num_alignments in "${num_alignments_list[@]}"; do
                     # Create directory for each alignment
                     alignment_dir="$base_directory/alignment_$i"
                     mkdir -p "$alignment_dir"
-
                     # Track whether we've successfully created this alignment
                     success=false
                     attempt=1

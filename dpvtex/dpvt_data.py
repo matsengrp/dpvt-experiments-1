@@ -16,7 +16,7 @@ def load_nicknames_dict(data_nicknames_path):
     return dataset_dict
 
 
-def data_of_nicknames(data_name, device, data_nicknames_path):
+def data_of_nicknames(data_name, device, data_nicknames_path, data_struct="TraversalDataset"):
     """
     Takes a dataset nickname string, which is a key in `dataset_dict`, and returns the
     corresponding data as a `TreeDataset` object.
@@ -30,7 +30,7 @@ def data_of_nicknames(data_name, device, data_nicknames_path):
     labels = list(data_dict.values())
     trees = list(data_dict.keys())
 
-    if device == "cpu-tree-dataset":
+    if device == "cpu-tree-dataset" or data_struct == "TreeDataset":
         tree_data = TreeDataset(trees, labels)
     else:
         tree_data = TraversalDataset(trees, labels, device)

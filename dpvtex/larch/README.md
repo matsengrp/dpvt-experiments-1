@@ -21,7 +21,6 @@ Note that this will require creating a new conda environment, so make sure that
 once you are done installing `larch`, you activate `larch-data` again to run the
 code in this repo.
 
-
 ## Construct historydag with larch-usher and extract trees
 
 This code allows to input an alignment in fasta format and returns a pickled
@@ -37,14 +36,14 @@ If you want to simulate alignmnents for generating the training data, you can
 use the script `scripts/create_alisim_alignments.sh`, which uses IQ-TREE's
 alisim to simulate alignments
 ([http://www.iqtree.org/doc/AliSim](http://www.iqtree.org/doc/AliSim)). At the
-beginning of this script you can specify the number of alignments you want to
-simulate and a list of number of sequences and sequence lengths that you want to
-generate alignments for. For each combination of number of sequences and
-sequence length, a directory will be created in
+beginning of this script you can specify a list of the number of alignments you
+want to simulate, a list of number of sequences and sequence lengths that you
+want to generate alignments for. For each combination of number of alignments,
+sequences, and sequence length, a directory will be created in
 `dpvtex/data/simulated_alignments/` that contains a directory for each alignment
-simulated, which itself contains that alignment. The path to the directory with
-all these alignments can then be added to `config.yaml` in the next step to
-create training and testing data for `dpvt` (see below in _All-in-one_).
+simulated, which itself contains that alignment. The script additionally saves
+configs for each dataset created, which are needed for creating dpvt training
+data (see in _All-in-one_) in the directory `configs/`.
 
 ### All-in-one
 
@@ -62,11 +61,8 @@ to be stored, and some parameters for the run in `config.yaml`:
     containing trees and corresponding edge vectors containing MP edge labels,
     should be saved
 -   `dataset_name`: name for the dataset that will be used for the output files
-    containing the data. The output files will be named
-    `{dataset_name}_YYYY-MM-DD.p`
--   `num_larch_iterations`: number of iterations we want to run larch, defaults
-    to `20`. The number of iteration automatically increases by 5 if in the last
-    5 iteration of larch there is a decrease in parsimony score.
+    containing the data. The output files are named `{dataset_name}{_spr}.p`,
+    where `_spr` is only added if `make_worse_spr==TRUE` (see below)
 -   `num_cores`: number of cores used for running larch-usher and tree
     extraction, should match `num_cores` that is provided for snakemake run (see
     below)
@@ -82,15 +78,13 @@ snakemake --cores <number of cores>
 ```
 
 If you have a special config file that you want to use, you can specify it with
-`--configfile <configfile_path>`. If you used alisim to create a number of
-alignments and config files, you can run the larch pipeline on all of those with
-something like
+`--configfile <configfile_path>`. If you simulated alignments as described
+above, configs of the appropriate format are saved in the `configs/` directory
+and can be used straight away to execute the pipeline for generating dpvt data.
+You can then run the pipeline on all configs with:
 
 ```bash
-for file in configs/*; do
-    echo $file
-    snakemake --cores <number of cores> --configfile $file
-done
+./run_on_simulated_alignments.sh
 ```
 
 The output of this snakemake run will be a pickled file containing dictionaries

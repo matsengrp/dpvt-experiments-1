@@ -12,7 +12,7 @@ from dpvtex.perfect_phylogenies.perturb_phylogeny import (
 import sys
 
 
-def get_MP_trees_from_hdag(dag, num_trees, unlabel=False):
+def get_MP_trees_from_hdag(dag, num_trees, unlabel=True):
     """
     Samples num_trees uniformly from input historydag dag without replacement
     Args:
@@ -145,6 +145,7 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
     tree_clades = [
         frozenset(node.get_leaf_names()) for node in tree.traverse("preorder")
     ]
+    leaf_set = frozenset(modified_tree.get_leaf_names())
     edge_labels = [
         0 if frozenset(node.get_leaf_names()) in tree_clades else 1
         for node in modified_tree.traverse("preorder")
@@ -160,21 +161,23 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
             i += 1
             continue
         if edge_labels[i] == 1:
-            clade = frozenset(node.get_leaf_names())
-            # if clade actually exists in DAG, label as 0:
-            if clade in dag_clades:
-                edge_labels[i] = 0
-            # if edge is resolution of multifurcation in dag, we also label as 0
-            # (MP edge with 0 mutations)
-            else:
-                for dag_clade in dag_clades:
-                    if clade.issubset(dag_clade):
-                        # If there is a union of clades that are children of
-                        # dag_clade, then there is a multifurcation at dag_clade
-                        # that could be resolved so that clade is in a DAG tree
-                        if exists_subset_union(dag_clades[dag_clade], clade):
-                            edge_labels[i] = 0
-                            break
+            this_clade = frozenset(node.get_leaf_names())
+            # check this clade and its complement
+            for clade in [this_clade, leaf_set - this_clade]:
+                # if clade actually exists in DAG, label as 0:
+                if clade in dag_clades:
+                    edge_labels[i] = 0
+                # if edge is resolution of multifurcation in dag, we also label as 0
+                # (MP edge with 0 mutations)
+                else:
+                    for dag_clade in dag_clades:
+                        if clade.issubset(dag_clade):
+                            # If there is a union of clades that are children of
+                            # dag_clade, then there is a multifurcation at dag_clade
+                            # that could be resolved so that clade is in a DAG tree
+                            if exists_subset_union(dag_clades[dag_clade], clade):
+                                edge_labels[i] = 0
+                                break
         i += 1
     return edge_labels
 

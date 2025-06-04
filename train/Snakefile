@@ -12,11 +12,14 @@ from dpvtex.dpvt_zoo import (
     get_trained_model_path,
     get_tested_model_path,
     get_model_params_path,
+    get_baseline_result_path,
     train_model,
     test_model,
     optimize_hyperparameters,
     aggregate_data_to_csv,
     concatenate_csvs,
+    test_baseline_model,
+    aggregate_baseline_data_to_csv,
 )
 
 
@@ -270,8 +273,16 @@ param_ids, param_dicts = generate_hyperparameter_dicts(
     hyperparameters=hyperparameters,
     use_hyperparameter_optimize=use_hyperparameter_optimize,
 )
+
+
+# create trained_model_list containing only trainable model, not baseline models
+baseline_models = ["BaselineReversion"]
+trained_models = [model for model in model_names if model not in baseline_models]
+baseline_model_list = [model for model in model_names if model in baseline_models]
+
+# Generate paths for trained models only
 model_param_jsons = generate_model_params_jsons(
-    model_names=model_names,
+    model_names=trained_models,  # Only trained models
     train_data_names=train_data_names,
     param_ids=param_ids,
     device=device,
@@ -279,13 +290,39 @@ model_param_jsons = generate_model_params_jsons(
     output_dir=output_dir,
 )
 trained_model_chkpts = generate_trained_model_ckpts(
-    model_names=model_names,
+    model_names=trained_models,  # Only trained models
     train_data_names=train_data_names,
     param_ids=param_ids,
     device=device,
     timestamp=timestamp,
     output_dir=output_dir,
 )
+
+baseline_result_paths = [
+    get_baseline_result_path(
+        model_name=model_name,
+        test_data_name=test_data_name,
+        timestamp=timestamp,
+        output_dir=output_dir,
+    )
+    for model_name in baseline_model_list
+    for test_data_name in test_data_names
+]
+
+# Generate paths for CSV files from baseline models
+baseline_csv_paths = [
+    get_csv_log_path(
+        model_name=model_name,
+        train_data_name=None,
+        test_data_name=test_data_name,
+        param_id=None,
+        device=device,
+        timestamp=timestamp,
+        output_dir=output_dir,
+    )
+    for model_name in baseline_model_list
+    for test_data_name in test_data_names
+]
 tested_model_chkpts = generate_tested_model_ckpts(
     model_names=model_names,
     data_pairs=data_pairs,
@@ -295,15 +332,17 @@ tested_model_chkpts = generate_tested_model_ckpts(
     output_dir=output_dir,
 )
 csv_single_paths = generate_csv_log_paths(
-    model_names=model_names,
+    model_names=trained_models,
     data_pairs=data_pairs,
     param_ids=param_ids,
     device=device,
     timestamp=timestamp,
     output_dir=output_dir,
 )
+
 run_dir = f"{working_dir}/{output_dir}/run.{timestamp}"
 csv_output_path = f"{run_dir}/result_csvs_and_pdfs/summary.csv"
+baseline_csv_output_path = f"{run_dir}/result_csvs_and_pdfs/baseline_summary.csv"
 config_output_path = f"{run_dir}/result_csvs_and_pdfs/config.yaml"
 data_nicknames_output_path = f"{run_dir}/result_csvs_and_pdfs/data_nicknames.json"
 
@@ -312,12 +351,11 @@ notebook_dict = {os.path.basename(nb):nb for nb in notebook_input_paths}
 if len(notebook_dict) != len(notebook_input_paths):
     raise ValueError(f"Duplicate notebook name: all input notebooks in {notebook_input_paths} must have unique names.")
 
-
 rule all:
     input:
         notebook_output_paths=notebook_output_paths,
         csv_output_path=csv_output_path,
-
+        baseline_csv_output_path=baseline_csv_output_path if baseline_model_list else [],
 
 rule log_metadata_step:
     output:
@@ -506,6 +544,9 @@ rule create_csv_step:
             timestamp=timestamp,
             output_dir=output_dir,
         ),
+    wildcard_constraints:
+        # Don't apply to baseline model
+        model_name="(?!BaselineReversion).*"
     run:
         aggregate_data_to_csv(
             model_name=wildcards.model_name,
@@ -540,7 +581,7 @@ rule run_notebook_step:
         csv_output_path=csv_output_path,
         config_output_path=config_output_path,
         data_nicknames_output_path=data_nicknames_output_path,
-        notebook_input_paths=notebook_input_paths,
+        baseline_csv_output_path=baseline_csv_output_path if baseline_model_list else [],
     output:
         notebook_output_path=get_notebook_output_path(
             output_dir=run_dir,
@@ -570,3 +611,64 @@ rule run_notebook_step:
         except Exception as e:
             print(f"Notebook execution failed: {e}")
 
+
+rule test_baseline_model_step:
+    output:
+        result_path=get_baseline_result_path(
+            model_name="{model_name}",
+            test_data_name="{test_data_name}",
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
+    run:
+        test_baseline_model(
+            model_name=wildcards.model_name,
+            test_data_name=wildcards.test_data_name,
+            result_path=output.result_path,
+            timestamp=timestamp,
+            output_dir=output_dir,
+            data_nicknames_path=data_nicknames_path,
+        )
+
+
+rule create_baseline_csv_step:
+    input:
+        result_path=get_baseline_result_path(
+            model_name="{model_name}",
+            test_data_name="{test_data_name}",
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
+    output:
+        csv_path=get_csv_log_path(
+            model_name="{model_name}",
+            train_data_name=None,
+            test_data_name="{test_data_name}",
+            param_id=None,
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
+    wildcard_constraints:
+        # Only apply to baseline model
+        model_name="BaselineReversion"
+    run:
+        aggregate_baseline_data_to_csv(
+            model_name=wildcards.model_name,
+            test_data_name=wildcards.test_data_name,
+            timestamp=timestamp,
+            result_path=input.result_path,
+            csv_output_path=output.csv_path,
+            output_dir=output_dir,
+        )
+
+rule concat_baseline_csvs_step:
+    input:
+        csv_input_paths=baseline_csv_paths,
+    output:
+        csv_output_path=baseline_csv_output_path,
+    run:
+        concatenate_csvs(
+            input_csv_paths=input.csv_input_paths,
+            output_csv_path=output.csv_output_path,
+        )

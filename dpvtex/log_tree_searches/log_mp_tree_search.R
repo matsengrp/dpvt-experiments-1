@@ -9,7 +9,7 @@ reinstall_phangorn <- function(){
   library(phangorn)
 }
 
-log_mp_search_list <- function(msa, output_log){
+log_mp_search_list <- function(msa, output_log, seed = NULL){
   # perform mp trees search with optim.parsimony, using a neighbour joining tree as starting tree
   type <- NULL
   if (endsWith(msa, ".fasta") || endsWith(msa, ".fa")) {
@@ -21,17 +21,11 @@ log_mp_search_list <- function(msa, output_log){
   }
   phy_data <- read.phyDat(msa, format=type)
 
-  # cleaned_msa <- as.matrix(phy_data)
-  # cleaned_msa[cleaned_msa == "-" | cleaned_msa == "n" | cleaned_msa == "N"] <- NA
-  # cleaned_msa <- as.DNAbin(cleaned_msa)
-  # # Write to file
-  # fasta_output <- sub("\\.(fasta|fa|nex|nexus)$", ".fasta", msa)
-  # write.phyDat(phy_data, file=fasta_output, format="fasta")
-
-  # creat NJ starting tree for MP tree search, then tree search
-  # a <- as.DNAbin(phy_data)
-  # d <- dist.dna(a, model="raw")
-  # start_tree <- nj(d)
+  # If seed is provided, set it for reproducibility
+  if (!is.null(seed)) {
+    set.seed(seed)
+    print(paste("Using seed:", seed))
+  }
 
   # random starting tree
   seq_names <- names(phy_data)
@@ -47,7 +41,8 @@ main <- function() {
   library(optparse)
   option_list <- list(
     make_option(c("-f", "--msa"), type="character", help="Input msa file"),
-    make_option(c("-o", "--output"), type="character", help="Output tree log file")
+    make_option(c("-o", "--output"), type="character", help="Output tree log file"),
+    make_option(c("--seed"), type="integer", default=NULL, help="Random seed for reproducibility")
   )
   opt_parser <- OptionParser(option_list=option_list)
   opt <- parse_args(opt_parser)
@@ -69,7 +64,7 @@ main <- function() {
   library(phangorn) # load phangorn if it is already installed
   
   # perform tree search and log trees
-  log_mp_search_list(msa = opt$msa, output_log = opt$output)
+  log_mp_search_list(msa = opt$msa, output_log = opt$output, seed = opt$seed)
 }
 
 # Only run main when script is executed

@@ -9,6 +9,7 @@ try:
 except:
     config_path = default_config_path
 
+
 configfile: config_path
 
 
@@ -16,6 +17,10 @@ input_dir = config["input_dir"]
 dpvt_data_dir = config["dpvt_data_dir"]
 larch_build = config["larch_build"]
 nicknames = config["nicknames"]
+num_replicates = config.get(
+    "num_replicates", 3
+)  # Default to 3 replicates if not specified
+
 
 # Get input files
 def get_input_files():
@@ -25,45 +30,52 @@ def get_input_files():
     input_files += glob(os.path.join(input_dir, "*/*.nexus"))
     input_files += glob(os.path.join(input_dir, "*/*.nex"))
     # Skip files that don't have directory name as basename
-    input_files = [f for f in input_files if os.path.basename(f) == f.split("/")[-2] + ".fasta"]
+    input_files = [
+        f for f in input_files if os.path.basename(f) == f.split("/")[-2] + ".fasta"
+    ]
     return input_files
-
 
 
 rule all:
     input:
-        expand("{dpvt_data_dir}/{basename}_tree_search_test.p", 
-               dpvt_data_dir=dpvt_data_dir,
-               basename=[os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()]),
+        expand(
+            "{dpvt_data_dir}/{basename}_rep{replicate}_tree_search_test.p",
+            dpvt_data_dir=dpvt_data_dir,
+            basename=[
+                os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()
+            ],
+            replicate=range(1, num_replicates + 1),
+        ),
         "nicknames_added.flag",
 
 
 rule log_mp_tree_search:
     input:
-        fasta="{file}.fasta"
+        fasta="{file}.fasta",
     output:
-        tree_log="{file}_log.trees"
+        tree_log="{file}_rep{replicate}_log.trees",
+    params:
+        seed=lambda wildcards: int(wildcards.replicate) * 100,  # Different seed for each replicate
     shell:
-        "Rscript log_mp_tree_search.R -f {input.fasta} -o {output.tree_log}"
+        "Rscript log_mp_tree_search.R -f {input.fasta} -o {output.tree_log} --seed {params.seed}"
 
 
 rule prepare_larch_input:
     input:
-        fasta="{file}.fasta"
+        fasta="{file}.fasta",
     output:
-        input_fasta=os.path.join(os.path.dirname("{file}"), "input.fasta")
+        input_fasta=os.path.join(os.path.dirname("{file}"), "input.fasta"),
     shell:
         "cp {input.fasta} {output.input_fasta}"
 
 
-
 rule preprocess_larch:
     input:
-        input_fasta=os.path.join(os.path.dirname("{file}"), "input.fasta")
+        input_fasta=os.path.join(os.path.dirname("{file}"), "input.fasta"),
     output:
-        pb=os.path.join(os.path.dirname("{file}"), "output.pb")
+        pb=os.path.join(os.path.dirname("{file}"), "output.pb"),
     params:
-        output_dir=lambda wildcards, input: os.path.dirname(input.input_fasta)
+        output_dir=lambda wildcards, input: os.path.dirname(input.input_fasta),
     shell:
         "snakemake --snakefile ../larch/setup_larch_inputs/convert_fasta_to_larch_input.snakefile "
         "--configfile ../larch/setup_larch_inputs/config.yaml -d {params.output_dir} -c1"
@@ -73,13 +85,13 @@ rule run_larch_usher:
     input:
         pb=os.path.join(os.path.dirname("{file}"), "output.pb"),
         txt=os.path.join(os.path.dirname("{file}"), "output.txt"),
-        vcf=os.path.join(os.path.dirname("{file}"), "output.vcf")
+        vcf=os.path.join(os.path.dirname("{file}"), "output.vcf"),
     output:
         larch_output=os.path.join(os.path.dirname("{file}"), "larch-output.pb"),
-        log=os.path.join(os.path.dirname("{file}"), "log")
+        log=os.path.join(os.path.dirname("{file}"), "log"),
     params:
         larch_build=larch_build,
-        output_dir=lambda wildcards, input: os.path.dirname(input.pb)
+        output_dir=lambda wildcards, input: os.path.dirname(input.pb),
     shell:
         "cd {params.larch_build} && "
         "./larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} "
@@ -88,11 +100,16 @@ rule run_larch_usher:
 
 rule compute_labels:
     input:
-        larch_output=os.path.join(os.path.dirname(input_dir + "/{basename}/{basename}.fasta"), "larch-output.pb"),
-        tree_log=input_dir + "/{basename}/{basename}_log.trees",
-        fasta=input_dir + "/{basename}/{basename}.fasta"
+        larch_output=os.path.join(
+            os.path.dirname(input_dir + "/{basename}/{basename}.fasta"),
+            "larch-output.pb",
+        ),
+        tree_log=input_dir + "/{basename}/{basename}_rep{replicate}_log.trees",
+        fasta=input_dir + "/{basename}/{basename}.fasta",
     output:
-        test_p=os.path.join(config["dpvt_data_dir"], "{basename}_tree_search_test.p")
+        test_p=os.path.join(
+            config["dpvt_data_dir"], "{basename}_rep{replicate}_tree_search_test.p"
+        ),
     shell:
         "python create_testing_data.py {input.larch_output} "
         "{output.test_p} {input.tree_log} {input.fasta}"
@@ -100,13 +117,22 @@ rule compute_labels:
 
 rule add_to_dataset_nicknames:
     input:
-        test_p=expand(os.path.join(dpvt_data_dir, "{basename}_tree_search_test.p"), 
-                    basename=[os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()])
+        test_p=expand(
+            os.path.join(
+                dpvt_data_dir, "{basename}_rep{replicate}_tree_search_test.p"
+            ),
+            basename=[
+                os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()
+            ],
+            replicate=range(1, num_replicates + 1),
+        ),
     output:
-        touch("nicknames_added.flag")
+        touch("nicknames_added.flag"),
     params:
         dpvt_data_dir=dpvt_data_dir,
-        nicknames=nicknames
+        nicknames=nicknames,
     run:
         if params.nicknames and os.path.exists(params.nicknames):
-            shell("python add_to_dataset_nicknames.py {params.dpvt_data_dir} {params.nicknames}")
+            shell(
+                "python add_to_dataset_nicknames.py {params.dpvt_data_dir} {params.nicknames}"
+            )

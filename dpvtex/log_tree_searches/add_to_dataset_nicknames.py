@@ -2,6 +2,7 @@
 import os
 import json
 import sys
+import re
 
 
 def main():
@@ -18,23 +19,30 @@ def main():
         data_dir = sys.argv[1]
         json_file = sys.argv[2]
 
-
     # Load existing JSON data
-    with open(json_file, 'r') as f:
+    with open(json_file, "r") as f:
         data = json.load(f)
 
     # Find all .p files and add them to the dictionary
     for filename in os.listdir(data_dir):
-        if filename.endswith('.p'):
-            # Get basename without extension
-            if data_dir.split("/")[-2] == "data":
-                basename = os.path.splitext(filename)[0]
+        if filename.endswith(".p"):
+            # Check if this is a replicate file (contains _rep{number})
+            replicate_match = re.search(r"_rep(\d+)_tree_search_test\.p$", filename)
+            if replicate_match:
+                # For replicate files, use basename_repN as the nickname
+                rep_num = replicate_match.group(1)
+                basename = filename.replace(".p", "")
+                data[basename] = filename
             else:
-                basename =  filename[:-2]
-            data[basename] = filename
+                # Handle regular files as before
+                if data_dir.split("/")[-2] == "data":
+                    basename = os.path.splitext(filename)[0]
+                else:
+                    basename = filename[:-2]
+                data[basename] = filename
 
     # Write updated JSON back to file
-    with open(json_file, 'w') as f:
+    with open(json_file, "w") as f:
         json.dump(data, f, indent=2)
 
     print(f"Updated {json_file} with .p files from {data_dir}")

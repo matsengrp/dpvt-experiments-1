@@ -3,6 +3,7 @@ from datetime import datetime
 import json, yaml
 from pathlib import Path
 import pandas as pd
+import re
 
 from dpvtex.dpvt_zoo import (
     build_log_path,
@@ -32,6 +33,24 @@ test_data_names = config["test_data"]
 device = config["device"]
 timestamp = config["timestamp"]
 metrics = config["metrics"]
+num_replicates = config["replicates"]
+
+
+# Find all test data sets with replicates
+with open(data_nicknames_path, "r") as f:
+    dataset_dict = json.load(f)
+
+test_data_names_with_reps = []
+for test_data_name in test_data_names:
+    # Check if we have replicate datasets (test_data_name_rep1, test_data_name_rep2, etc.)
+    base_name = test_data_name.split("_rep")[0]
+
+    # Find all matching replicate datasets
+    all_test_datasets = [name for name in dataset_dict.keys() 
+                        if name == test_data_name or 
+                        (name.startswith(base_name) and "_rep" in name)]
+    test_data_names_with_reps += all_test_datasets
+
 
 if bool(config["use_hyperparameter_optimize"]):
     param_ids = ["ParamOpt"]
@@ -73,12 +92,14 @@ def get_individual_tree_eval_path(
     )
     return f"{path}.csv"
 
+
 def generate_data_pairs(train_data_names, test_data_names):
     data_pairs = []
     for train_data in train_data_names:
         for test_data in test_data_names:
             data_pairs.append((train_data, test_data))
     return data_pairs
+
 
 def generate_individual_tree_eval_paths(
     model_names,
@@ -103,6 +124,7 @@ def generate_individual_tree_eval_paths(
         for param_id in param_ids
     ]
     return eval_paths
+
 
 def generate_individual_tree_eval_plot_paths(
     model_names,
@@ -188,9 +210,10 @@ def generate_metric_comparison_plot_paths(
 
 # Generate paths
 data_pairs = generate_data_pairs(train_data_names, test_data_names)
+rep_data_pairs = generate_data_pairs(train_data_names, test_data_names_with_reps)
 eval_paths = generate_individual_tree_eval_paths(
     model_names=model_names,
-    data_pairs=data_pairs,
+    data_pairs=rep_data_pairs,
     param_ids=param_ids,
     device=device,
     timestamp=timestamp,
@@ -198,7 +221,7 @@ eval_paths = generate_individual_tree_eval_paths(
 )
 plot_paths = generate_individual_tree_eval_plot_paths(
     model_names=model_names,
-    data_pairs=data_pairs,
+    data_pairs=rep_data_pairs,
     param_ids=param_ids,
     device=device,
     timestamp=timestamp,
@@ -227,9 +250,9 @@ metric_comparison_plot_paths = generate_metric_comparison_plot_paths(
 # Rules
 rule all:
     input:
-        plot_paths,
-        f"{output_dir}/run.{timestamp}/tree_eval_logs/tree_eval_summary.csv",
-        comparison_plot_paths,
+        # plot_paths,
+        # f"{output_dir}/run.{timestamp}/tree_eval_logs/tree_eval_summary.csv",
+        # comparison_plot_paths,
         metric_comparison_plot_paths
 
 
@@ -372,26 +395,12 @@ rule plot_individual_tree_eval:
         )
 
 
-rule conconcat_tree_eval:
+rule concat_tree_eval:
     """
     Take all csvs for individual tree evaluation and concatenate them into one
     """
     input:
-        eval_paths=expand(
-            get_individual_tree_eval_path(
-                model_name="{model_name}",
-                train_data_name="{train_data_name}",
-                test_data_name="{test_data_name}",
-                param_id="{param_id}",
-                device=device,
-                timestamp=timestamp,
-                output_dir=output_dir,
-            ),
-            model_name=model_names,
-            train_data_name=train_data_names,
-            test_data_name=test_data_names,
-            param_id=param_ids,
-        ),
+        eval_paths=eval_paths,
     output:
         summary_csv="{output_dir}/run.{timestamp}/tree_eval_logs/tree_eval_summary.csv",
     run:
@@ -399,7 +408,7 @@ rule conconcat_tree_eval:
             input.eval_paths,
             model_names,
             train_data_names,
-            test_data_names,
+            test_data_names_with_reps,
             param_ids,
             output.summary_csv,
         )
@@ -418,10 +427,20 @@ rule plot_model_comparison:
         else:  # compare_by == "training_data"
             fixed_model = wildcards.fixed_value
             fixed_training_data = None
+            
+        # Get all test data names that match the pattern (for replicates)
+        all_test_data = []
+        test_data_pattern = re.compile(f"{wildcards.test_data_name}(_rep\\d+)?$")
+        
+        # Load the summary CSV to find all matching test datasets
+        df = pd.read_csv(input.summary_csv)
+        matching_test_data = [name for name in test_data_names_with_reps if "_rep" in name and wildcards.test_data_name in name]
+        print(wildcards.test_data_name, matching_test_data)
+        
         plot_model_comparison(
             csv_file=input.summary_csv,
             data_nicknames_file=data_nicknames_path,
-            test_data_name=wildcards.test_data_name,
+            test_data_name=matching_test_data,  # Pass all matching test datasets including replicates
             output_file_basename=f"{wildcards.output_dir}/run.{wildcards.timestamp}/tree_eval_logs/model_comparison_{wildcards.test_data_name}-{wildcards.compare_by}-{wildcards.fixed_value}",
             fasta_dir=fasta_dir,
             metrics=[wildcards.metric],
@@ -444,10 +463,13 @@ rule plot_all_metrics_comparison:
         else:  # compare_by == "training_data"
             fixed_model = wildcards.fixed_value
             fixed_training_data = None
+
+        test_data = [s for s in test_data_names_with_reps if wildcards.test_data_name in s]
+
         plot_all_metrics_comparison(
             csv_file=input.summary_csv,
             data_nicknames_file=data_nicknames_path,
-            test_data_name=wildcards.test_data_name,
+            test_data_name=test_data,  # Pass all matching test datasets including replicates
             output_file=f"{wildcards.output_dir}/run.{wildcards.timestamp}/tree_eval_logs/model_comparison_all_metrics_{wildcards.test_data_name}-{wildcards.compare_by}-{wildcards.fixed_value}.pdf",
             fasta_dir=fasta_dir,
             compare_by=wildcards.compare_by,

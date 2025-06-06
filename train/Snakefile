@@ -354,7 +354,11 @@ if len(notebook_dict) != len(notebook_input_paths):
 
 
 rule all:
-    input: notebook_output_paths + [csv_output_path]
+    input:
+        notebook_output_paths=notebook_output_paths,
+        csv_output_path=csv_output_path,
+        baseline_csv_output_path=baseline_csv_output_path if baseline_model_list else [],
+
 
 rule log_metadata_step:
     output:

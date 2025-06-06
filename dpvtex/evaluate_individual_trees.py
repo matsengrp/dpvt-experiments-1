@@ -524,34 +524,69 @@ def plot_model_comparison(
     else:
         base_test_name = "unknown"
 
-    # Choose the first test dataset for parsimony scores and non-MP edges (they
-    # should be similar across replicates)
-    first_test_data = test_data_names[0]
-    test_data_path = os.path.join(
-        dataset_dict["data_dir"], dataset_dict[first_test_data]
-    )
-    with open(test_data_path, "rb") as f:
-        data_dict = pickle.load(f)
+    # Collect parsimony scores and fraction of non-MP edges for all replicates
+    all_parsimony_scores = []
+    all_frac_non_mp_edges = []
+    max_length = 0
 
-    # Calculate parsimony scores and non-MP edges
-    data_basename = dataset_dict[first_test_data].split("_tree_search")[0]
-    if "_rep" in data_basename:
-        data_basename = data_basename.split("_rep")[0]
-    fasta_path = fasta_dir + "/" + data_basename + "/" + data_basename + ".fasta"
+    # Process each test dataset to get parsimony scores and non-MP edges
+    for test_data in test_data_names:
+        try:
+            test_data_path = os.path.join(
+                dataset_dict["data_dir"], dataset_dict[test_data]
+            )
+            with open(test_data_path, "rb") as f:
+                data_dict = pickle.load(f)
 
-    parsimony_scores = get_parsimony_scores(list(data_dict.keys()), fasta_path)
-    num_int_edges = len(list(data_dict.keys())[0]) - 2
-    frac_non_mp_edges = [sum(l) / num_int_edges for l in data_dict.values()]
+            # Calculate parsimony scores and non-MP edges for this replicate
+            data_basename = dataset_dict[test_data].split("_tree_search")[0]
+            if "_rep" in data_basename:
+                data_basename = data_basename.split("_rep")[0]
+            fasta_path = (
+                fasta_dir + "/" + data_basename + "/" + data_basename + ".fasta"
+            )
+
+            parsimony_scores = get_parsimony_scores(list(data_dict.keys()), fasta_path)
+            num_int_edges = len(list(data_dict.keys())[0]) - 2
+            frac_non_mp_edges = [sum(l) / num_int_edges for l in data_dict.values()]
+
+            # Track maximum length for normalization later
+            max_length = max(max_length, len(parsimony_scores))
+
+            # Store the values
+            all_parsimony_scores.append(parsimony_scores)
+            all_frac_non_mp_edges.append(frac_non_mp_edges)
+
+            print(f"Processed {test_data}: {len(parsimony_scores)} trees")
+        except Exception as e:
+            print(f"Error processing {test_data}: {e}")
 
     # Read the comparison data
     df = pd.read_csv(csv_file)
+    print(f"Original dataframe has {len(df)} rows")
 
-    # Filter for test datasets that match our list filtered_df =
-    # df[df["test_data_name"].isin(test_data_names)]
+    # Filter for test datasets that match our test_data_names
+    base_patterns = [name.split("_rep")[0] for name in test_data_names]
     mask = df["test_data_name"].apply(
-        lambda x: any(test_name in x for test_name in test_data_names)
+        lambda x: any(base in x for base in base_patterns)
     )
     filtered_df = df[mask]
+
+    # Add base_test_name column for grouping replicates
+    filtered_df["base_test_name"] = filtered_df["test_data_name"].apply(
+        lambda x: x.split("_rep")[0] if "_rep" in x else x
+    )
+
+    # Print debug info
+    unique_test_names = filtered_df["test_data_name"].unique()
+    print(f"Found {len(unique_test_names)} matching test datasets:")
+    for name in unique_test_names:
+        print(f"  - {name}")
+
+    if len(filtered_df) == 0:
+        print("No data found that matches the test dataset patterns!")
+        print(f"Available test datasets: {df['test_data_name'].unique()}")
+        return
 
     # Filter data based on comparison type
     if compare_by == "model":
@@ -581,8 +616,15 @@ def plot_model_comparison(
         "f1": "F1 Score",
     }
 
-    palette = sns.color_palette("Dark2", len(comparison_values))
-    color_dict = dict(zip(comparison_values, palette))
+    # Create color palette for models/training datasets
+    palette = sns.color_palette(
+        "Dark2", len(comparison_values) + 2
+    )  # +2 for parsimony and non-MP
+    color_dict = dict(zip(comparison_values, palette[: len(comparison_values)]))
+
+    # Reserve the last two colors for parsimony and non-MP edges
+    parsimony_color = palette[-2]  # Second-to-last color for parsimony
+    nonmp_color = palette[-1]  # Last color for non-MP edges
 
     # Create plots for each metric
     for metric in metrics:
@@ -642,51 +684,163 @@ def plot_model_comparison(
         ax1.grid(True, linestyle="--", alpha=0.7)
         ax1.tick_params(axis="both", which="major", labelsize=14)
 
-        # Bottom panel: Plot parsimony scores AND non-MP edges with normalized
-        # x-axis
-        if parsimony_scores and not all(pd.isna(score) for score in parsimony_scores):
-            # Normalize x-axis for parsimony scores
-            normalized_x_scores = np.linspace(0, 1, len(parsimony_scores))
-            ax2.plot(
-                normalized_x_scores,
-                parsimony_scores,
-                color="green",
-                label="Parsimony Score",
-            )
-            ax2.set_xlabel("Normalized Tree Index (0-1)", fontsize=14)
-            ax2.set_ylabel("Parsimony Score", color="green", fontsize=14)
-            ax2.tick_params(axis="y", labelcolor="green", labelsize=14)
-            ax2.tick_params(axis="x", labelsize=14)
-        else:
-            ax2.set_title("No parsimony scores available", fontsize=14)
-
-        # Secondary y-axis for non-MP edges - also with normalized x-axis
-        ax2_twin = ax2.twinx()
-        normalized_x_edges = np.linspace(0, 1, len(frac_non_mp_edges))
-        ax2_twin.plot(
-            normalized_x_edges,
-            frac_non_mp_edges,
-            color="red",
-            label="Fraction of non-MP Edges",
-        )
-        ax2_twin.set_ylabel("Fraction of non-MP Edges", color="red", fontsize=14)
-        ax2_twin.tick_params(axis="y", labelcolor="red", labelsize=14)
-
-        # Add combined legend for bottom panel
-        lines1, labels1 = ax2.get_legend_handles_labels()
-        lines2, labels2 = ax2_twin.get_legend_handles_labels()
-        ax2.legend(
-            lines1 + lines2,
-            labels1 + labels2,
-            loc="center left",
-            bbox_to_anchor=(1.1, 0.9),
-            fontsize=12,
-        )
-
+        # Bottom panel: Plot parsimony scores AND non-MP edges with percentile
+        # bands
         ax2.set_title(
             "Parsimony Scores and Non-MP Edges by Normalized Tree Index", fontsize=14
         )
         ax2.grid(True, linestyle="--", alpha=0.7)
+
+        # Create common x-axis grid for interpolation
+        common_x = (
+            np.linspace(0, 1, max_length) if max_length > 0 else np.linspace(0, 1, 100)
+        )
+
+        # Process parsimony scores with percentile bands
+        if all_parsimony_scores and not all(
+            len(scores) == 0 for scores in all_parsimony_scores
+        ):
+            # Interpolate all parsimony scores to common grid
+            interpolated_pscores = []
+            for scores in all_parsimony_scores:
+                if len(scores) > 0:
+                    dataset_x = np.linspace(0, 1, len(scores))
+                    interp_values = np.interp(
+                        common_x, dataset_x, scores, left=np.nan, right=np.nan
+                    )
+                    interpolated_pscores.append(interp_values)
+
+            # Calculate median and percentiles for parsimony scores
+            if interpolated_pscores:
+                parsimony_array = np.array(interpolated_pscores)
+                parsimony_median = np.nanmedian(parsimony_array, axis=0)
+                parsimony_lower = np.nanpercentile(
+                    parsimony_array, percentiles[0], axis=0
+                )
+                parsimony_upper = np.nanpercentile(
+                    parsimony_array, percentiles[1], axis=0
+                )
+
+                # Plot parsimony scores with median and percentile band
+                (line1,) = ax2.plot(
+                    common_x,
+                    parsimony_median,
+                    color=parsimony_color,  # Use reserved color from Dark2 palette
+                    linewidth=2.0,
+                    label=f"Parsimony Score (median)",
+                )
+
+                # Only add percentile band if we have multiple replicates
+                if len(all_parsimony_scores) > 1:
+                    ax2.fill_between(
+                        common_x,
+                        parsimony_lower,
+                        parsimony_upper,
+                        color=parsimony_color,
+                        alpha=0.2,
+                        label=f"Parsimony Score ({percentiles[0]}-{percentiles[1]}%)",
+                    )
+
+                    # Add rectangle for legend
+                    pscore_band = plt.Rectangle(
+                        (0, 0),
+                        1,
+                        1,
+                        color=parsimony_color,
+                        alpha=0.2,
+                        label=f"Parsimony Score ({percentiles[0]}-{percentiles[1]}%)",
+                    )
+                    all_handles.extend([line1, pscore_band])
+                    all_labels.extend(
+                        [
+                            f"Parsimony Score (median)",
+                            f"Parsimony Score ({percentiles[0]}-{percentiles[1]}%)",
+                        ]
+                    )
+                else:
+                    all_handles.append(line1)
+                    all_labels.append(f"Parsimony Score")
+        else:
+            ax2.text(
+                0.5,
+                0.5,
+                "No parsimony scores available",
+                ha="center",
+                va="center",
+                transform=ax2.transAxes,
+            )
+
+        # Process non-MP edges with percentile bands
+        if all_frac_non_mp_edges and not all(
+            len(fracs) == 0 for fracs in all_frac_non_mp_edges
+        ):
+            # Secondary y-axis for non-MP edges
+            ax2_twin = ax2.twinx()
+
+            # Interpolate all non-MP edge fractions to common grid
+            interpolated_fracs = []
+            for fracs in all_frac_non_mp_edges:
+                if len(fracs) > 0:
+                    dataset_x = np.linspace(0, 1, len(fracs))
+                    interp_values = np.interp(
+                        common_x, dataset_x, fracs, left=np.nan, right=np.nan
+                    )
+                    interpolated_fracs.append(interp_values)
+
+            # Calculate median and percentiles for non-MP edges
+            if interpolated_fracs:
+                fracs_array = np.array(interpolated_fracs)
+                fracs_median = np.nanmedian(fracs_array, axis=0)
+                fracs_lower = np.nanpercentile(fracs_array, percentiles[0], axis=0)
+                fracs_upper = np.nanpercentile(fracs_array, percentiles[1], axis=0)
+
+                # Plot non-MP edges with median and percentile band
+                (line2,) = ax2_twin.plot(
+                    common_x,
+                    fracs_median,
+                    color=nonmp_color,  # Use reserved color from Dark2 palette
+                    linewidth=2.0,
+                    label=f"Fraction of non-MP Edges (median)",
+                )
+
+                # Only add percentile band if we have multiple replicates
+                if len(all_frac_non_mp_edges) > 1:
+                    ax2_twin.fill_between(
+                        common_x,
+                        fracs_lower,
+                        fracs_upper,
+                        color=nonmp_color,
+                        alpha=0.2,
+                        label=f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
+                    )
+
+                    # Add rectangle for legend
+                    nonmp_band = plt.Rectangle(
+                        (0, 0),
+                        1,
+                        1,
+                        color=nonmp_color,
+                        alpha=0.2,
+                        label=f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
+                    )
+                    all_handles.extend([line2, nonmp_band])
+                    all_labels.extend(
+                        [
+                            f"Fraction of non-MP Edges (median)",
+                            f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
+                        ]
+                    )
+                else:
+                    all_handles.append(line2)
+                    all_labels.append(f"Fraction of non-MP Edges")
+
+            ax2_twin.set_ylabel(
+                "Fraction of non-MP Edges", color=nonmp_color, fontsize=14
+            )
+            ax2_twin.tick_params(axis="y", labelcolor=nonmp_color, labelsize=14)
+
+        # Explicitly set x-axis limits to ensure normalization is visible
+        ax2.set_xlim(0, 1)
 
         # Add a suptitle to the entire figure If we have multiple replicates,
         # indicate that in the title
@@ -725,12 +879,12 @@ def plot_all_metrics_comparison(
         csv_file (str): Path to the CSV file containing evaluation data.
         data_nicknames_file (str): Path to the dataset nicknames JSON file.
         test_data_name (str or list): Nickname of the testing dataset(s).
-        output_file (str): Path for saving the output PDF file. fasta_dir (str):
-        Path to the directory containing the FASTA files. metrics (list):
-        Metrics to plot (default: all standard metrics). compare_by (str): What
-        to compare - "model" or "training_data". fixed_model (str): When
-        compare_by="training_data", the model to fix. fixed_training_data (str):
-        When compare_by="model", the training data to fix.
+        output_file (str): Path for saving the output PDF file.
+        fasta_dir (str): Path to the directory containing the FASTA files.
+        metrics (list): Metrics to plot (default: all standard metrics).
+        compare_by (str): What to compare - "model" or "training_data".
+        fixed_model (str): When compare_by="training_data", the model to fix.
+        fixed_training_data (str): When compare_by="model", the training data to fix.
     """
     # Convert test_data_name to list if it's a string
     if isinstance(test_data_name, str):
@@ -748,23 +902,42 @@ def plot_all_metrics_comparison(
     else:
         base_test_name = "unknown"
 
-    # Choose the first test dataset for parsimony scores and non-MP edges
-    first_test_data = test_data_names[0]
-    test_data_path = os.path.join(
-        dataset_dict["data_dir"], dataset_dict[first_test_data]
-    )
-    with open(test_data_path, "rb") as f:
-        data_dict = pickle.load(f)
+    # Collect parsimony scores and fraction of non-MP edges for all replicates
+    all_parsimony_scores = []
+    all_frac_non_mp_edges = []
+    max_length = 0
 
-    # Calculate parsimony scores and non-MP edges
-    data_basename = dataset_dict[first_test_data].split("_tree_search")[0]
-    if "_rep" in data_basename:
-        data_basename = data_basename.split("_rep")[0]
-    fasta_path = fasta_dir + "/" + data_basename + "/" + data_basename + ".fasta"
+    # Process each test dataset to get parsimony scores and non-MP edges
+    for test_data in test_data_names:
+        try:
+            test_data_path = os.path.join(
+                dataset_dict["data_dir"], dataset_dict[test_data]
+            )
+            with open(test_data_path, "rb") as f:
+                data_dict = pickle.load(f)
 
-    parsimony_scores = get_parsimony_scores(list(data_dict.keys()), fasta_path)
-    num_int_edges = len(list(data_dict.keys())[0]) - 2
-    frac_non_mp_edges = [sum(l) / num_int_edges for l in data_dict.values()]
+            # Calculate parsimony scores and non-MP edges for this replicate
+            data_basename = dataset_dict[test_data].split("_tree_search")[0]
+            if "_rep" in data_basename:
+                data_basename = data_basename.split("_rep")[0]
+            fasta_path = (
+                fasta_dir + "/" + data_basename + "/" + data_basename + ".fasta"
+            )
+
+            parsimony_scores = get_parsimony_scores(list(data_dict.keys()), fasta_path)
+            num_int_edges = len(list(data_dict.keys())[0]) - 2
+            frac_non_mp_edges = [sum(l) / num_int_edges for l in data_dict.values()]
+
+            # Track maximum length for normalization later
+            max_length = max(max_length, len(parsimony_scores))
+
+            # Store the values
+            all_parsimony_scores.append(parsimony_scores)
+            all_frac_non_mp_edges.append(frac_non_mp_edges)
+
+            print(f"Processed {test_data}: {len(parsimony_scores)} trees")
+        except Exception as e:
+            print(f"Error processing {test_data}: {e}")
 
     # Read the comparison data
     df = pd.read_csv(csv_file)
@@ -781,6 +954,12 @@ def plot_all_metrics_comparison(
     filtered_df["base_test_name"] = filtered_df["test_data_name"].apply(
         lambda x: x.split("_rep")[0] if "_rep" in x else x
     )
+
+    # Print debug info
+    unique_test_names = filtered_df["test_data_name"].unique()
+    print(f"Found {len(unique_test_names)} matching test datasets:")
+    for name in unique_test_names:
+        print(f"  - {name}")
 
     if len(filtered_df) == 0:
         print("No data found that matches the test dataset patterns!")
@@ -822,8 +1001,14 @@ def plot_all_metrics_comparison(
     }
 
     # Create color palette for models/training datasets
-    palette = sns.color_palette("Dark2", len(comparison_values))
-    color_dict = dict(zip(comparison_values, palette))
+    palette = sns.color_palette(
+        "Dark2", len(comparison_values) + 2
+    )  # +2 for parsimony and non-MP
+    color_dict = dict(zip(comparison_values, palette[: len(comparison_values)]))
+
+    # Reserve the last two colors for parsimony and non-MP edges
+    parsimony_color = palette[-2]  # Second-to-last color for parsimony
+    nonmp_color = palette[-1]  # Last color for non-MP edges
 
     # Calculate grid dimensions for the metrics plots
     n_metrics = len(metrics)
@@ -848,102 +1033,108 @@ def plot_all_metrics_comparison(
         for value_idx, value in enumerate(comparison_values):
             # Filter for this comparison value
             value_df = filtered_df[filtered_df[comparison_column] == value]
-            
+
             # Group by base test name to combine replicates
             base_test_groups = value_df.groupby("base_test_name")
-            
+
             for base_test_name, group_df in base_test_groups:
                 # Get all replicate datasets for this base test name
                 test_datasets = group_df["test_data_name"].unique()
-                
+
                 if len(test_datasets) > 1:  # We have replicates
                     # First determine the max length among replicates to set up interpolation grid
                     max_length = 0
                     for test_dataset in test_datasets:
                         test_df = group_df[group_df["test_data_name"] == test_dataset]
                         max_length = max(max_length, len(test_df))
-                    
+
                     # Create a common x-axis grid for interpolation
                     common_x = np.linspace(0, 1, max_length)
-                    
+
                     # Collect interpolated values for all replicates
                     all_values = []
                     for test_dataset in test_datasets:
                         test_df = group_df[group_df["test_data_name"] == test_dataset]
                         test_df = test_df.sort_values("tree_idx")
-                        
+
                         if len(test_df) == 0:
                             continue
-                            
+
                         # Create normalized x-axis for this dataset
                         dataset_x = np.linspace(0, 1, len(test_df))
                         # Interpolate values onto common grid
                         interpolated_values = np.interp(
-                            common_x, 
-                            dataset_x, 
+                            common_x,
+                            dataset_x,
                             test_df[metric].values,
-                            left=np.nan, 
-                            right=np.nan
+                            left=np.nan,
+                            right=np.nan,
                         )
                         all_values.append(interpolated_values)
-                    
+
                     if not all_values:
                         continue
-                        
+
                     # Convert to numpy array for percentile calculation
                     all_values = np.array(all_values)
-                    
+
                     # Calculate median and percentiles
                     median = np.nanmedian(all_values, axis=0)
                     lower = np.nanpercentile(all_values, percentiles[0], axis=0)
                     upper = np.nanpercentile(all_values, percentiles[1], axis=0)
-                    
+
                     # Plot median line
                     line = ax.plot(
-                        common_x, 
-                        median, 
+                        common_x,
+                        median,
                         color=color_dict[value],
                         label=f"{value} (median)",
                         linewidth=2.0,
-                        alpha=0.9
+                        alpha=0.9,
                     )
-                    
+
                     # Plot percentile band
                     ax.fill_between(
-                        common_x, 
-                        lower, 
-                        upper, 
+                        common_x,
+                        lower,
+                        upper,
                         color=color_dict[value],
                         alpha=0.2,
-                        label=f"{value} ({percentiles[0]}-{percentiles[1]} percentile)"
+                        label=f"{value} ({percentiles[0]}-{percentiles[1]} percentile)",
                     )
-                    
+
                     # Only add to legend for the first metric plot
                     if i == 0:
                         model_handles.append(line[0])
                         model_labels.append(f"{value} (median)")
-                        
+
                         # Add fill_between to legend
                         model_handles.append(
-                            plt.Rectangle((0,0), 1, 1, 
-                                         color=color_dict[value], 
-                                         alpha=0.2)
+                            plt.Rectangle(
+                                (0, 0),
+                                1,
+                                1,
+                                color=color_dict[value],
+                                alpha=0.2,
+                            )
                         )
-                        model_labels.append(f"{value} ({percentiles[0]}-{percentiles[1]} percentile)")
-                
+                        model_labels.append(
+                            f"{value} ({percentiles[0]}-{percentiles[1]} percentile)"
+                        )
+
                 else:  # Single dataset (no replicates)
                     # Process just the one dataset
                     test_dataset = test_datasets[0]
                     test_df = group_df[group_df["test_data_name"] == test_dataset]
                     test_df = test_df.sort_values("tree_idx")
-                    
+
                     if len(test_df) == 0:
                         print(f"No data found for {test_dataset} with {value}")
                         continue
-                    
+
                     # Create a normalized x-axis
                     normalized_x = np.linspace(0, 1, len(test_df))
-                    
+
                     # Plot the actual metric values
                     line = ax.plot(
                         normalized_x,
@@ -954,7 +1145,7 @@ def plot_all_metrics_comparison(
                         markersize=3,
                         linewidth=1.5,
                     )
-                    
+
                     # Only add to legend for the first metric plot
                     if i == 0:
                         model_handles.append(line[0])
@@ -970,49 +1161,161 @@ def plot_all_metrics_comparison(
         ax.grid(True, linestyle="--", alpha=0.7)
         ax.tick_params(axis="both", which="major", labelsize=14)
 
-    # Bottom panel: Plot parsimony scores AND non-MP edges
+    # Bottom panel: Plot parsimony scores AND non-MP edges with percentile bands
     ax_bottom = fig.add_subplot(gs[n_rows - 1, 0])
 
-    # Primary y-axis for parsimony scores - also normalize x-axis here
-    if parsimony_scores and not all(pd.isna(score) for score in parsimony_scores):
-        normalized_x_scores = np.linspace(0, 1, len(parsimony_scores))
-        (line1,) = ax_bottom.plot(
-            normalized_x_scores,
-            parsimony_scores,
-            color="green",
-            label="Parsimony Score",
-        )
-        ax_bottom.set_xlabel("Normalized Tree Index (0-1)", fontsize=14)
-        ax_bottom.set_ylabel("Parsimony Score", color="green", fontsize=14)
-        ax_bottom.tick_params(axis="y", labelcolor="green", labelsize=14)
-        ax_bottom.tick_params(axis="x", labelsize=14)
-
-        all_handles.append(line1)
-        all_labels.append("Parsimony Score")
-    else:
-        ax_bottom.set_title("No parsimony scores available", fontsize=14)
-
-    # Secondary y-axis for non-MP edges
-    ax_bottom_twin = ax_bottom.twinx()
-    # Fix: Use proper normalized x-axis for non-MP edges
-    normalized_x_edges = np.linspace(0, 1, len(frac_non_mp_edges))
-    (line2,) = ax_bottom_twin.plot(
-        normalized_x_edges,
-        frac_non_mp_edges,
-        color="red",
-        label="Fraction of non-MP Edges",
+    # Create common x-axis grid for interpolation
+    common_x = (
+        np.linspace(0, 1, max_length) if max_length > 0 else np.linspace(0, 1, 100)
     )
-    ax_bottom_twin.set_ylabel("Fraction of non-MP Edges", color="red", fontsize=14)
-    ax_bottom_twin.tick_params(axis="y", labelcolor="red", labelsize=14)
 
-    # Explicitly set x-axis limits to ensure normalization is visible
+    # Process parsimony scores with percentile bands
+    if all_parsimony_scores and not all(
+        len(scores) == 0 for scores in all_parsimony_scores
+    ):
+        # Interpolate all parsimony scores to common grid
+        interpolated_pscores = []
+        for scores in all_parsimony_scores:
+            if len(scores) > 0:
+                dataset_x = np.linspace(0, 1, len(scores))
+                interp_values = np.interp(
+                    common_x, dataset_x, scores, left=np.nan, right=np.nan
+                )
+                interpolated_pscores.append(interp_values)
+
+        # Calculate median and percentiles for parsimony scores
+        if interpolated_pscores:
+            parsimony_array = np.array(interpolated_pscores)
+            parsimony_median = np.nanmedian(parsimony_array, axis=0)
+            parsimony_lower = np.nanpercentile(parsimony_array, percentiles[0], axis=0)
+            parsimony_upper = np.nanpercentile(parsimony_array, percentiles[1], axis=0)
+
+            # Plot parsimony scores with median and percentile band
+            (line1,) = ax_bottom.plot(
+                common_x,
+                parsimony_median,
+                color=parsimony_color,  # Use reserved color from Dark2 palette
+                linewidth=2.0,
+                label=f"Parsimony Score (median)",
+            )
+
+            # Only add percentile band if we have multiple replicates
+            if len(all_parsimony_scores) > 1:
+                ax_bottom.fill_between(
+                    common_x,
+                    parsimony_lower,
+                    parsimony_upper,
+                    color=parsimony_color,
+                    alpha=0.2,
+                    label=f"Parsimony Score ({percentiles[0]}-{percentiles[1]}%)",
+                )
+
+                # Add rectangle for legend
+                pscore_band = plt.Rectangle(
+                    (0, 0),
+                    1,
+                    1,
+                    color=parsimony_color,
+                    alpha=0.2,
+                    label=f"Parsimony Score ({percentiles[0]}-{percentiles[1]}%)",
+                )
+                all_handles.extend([line1, pscore_band])
+                all_labels.extend(
+                    [
+                        f"Parsimony Score (median)",
+                        f"Parsimony Score ({percentiles[0]}-{percentiles[1]}%)",
+                    ]
+                )
+            else:
+                all_handles.append(line1)
+                all_labels.append(f"Parsimony Score")
+        else:
+            ax_bottom.text(
+                0.5,
+                0.5,
+                "No parsimony scores available",
+                ha="center",
+                va="center",
+                transform=ax_bottom.transAxes,
+            )
+
+    # Process non-MP edges with percentile bands
+    if all_frac_non_mp_edges and not all(
+        len(fracs) == 0 for fracs in all_frac_non_mp_edges
+    ):
+        # Secondary y-axis for non-MP edges
+        ax_bottom_twin = ax_bottom.twinx()
+
+        # Interpolate all non-MP edge fractions to common grid
+        interpolated_fracs = []
+        for fracs in all_frac_non_mp_edges:
+            if len(fracs) > 0:
+                dataset_x = np.linspace(0, 1, len(fracs))
+                interp_values = np.interp(
+                    common_x, dataset_x, fracs, left=np.nan, right=np.nan
+                )
+                interpolated_fracs.append(interp_values)
+
+        # Calculate median and percentiles for non-MP edges
+        if interpolated_fracs:
+            fracs_array = np.array(interpolated_fracs)
+            fracs_median = np.nanmedian(fracs_array, axis=0)
+            fracs_lower = np.nanpercentile(fracs_array, percentiles[0], axis=0)
+            fracs_upper = np.nanpercentile(fracs_array, percentiles[1], axis=0)
+
+            # Plot non-MP edges with median and percentile band
+            (line2,) = ax_bottom_twin.plot(
+                common_x,
+                fracs_median,
+                color=nonmp_color,  # Use reserved color from Dark2 palette
+                linewidth=2.0,
+                label=f"Fraction of non-MP Edges (median)",
+            )
+
+            # Only add percentile band if we have multiple replicates
+            if len(all_frac_non_mp_edges) > 1:
+                ax_bottom_twin.fill_between(
+                    common_x,
+                    fracs_lower,
+                    fracs_upper,
+                    color=nonmp_color,
+                    alpha=0.2,
+                    label=f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
+                )
+
+                # Add rectangle for legend
+                nonmp_band = plt.Rectangle(
+                    (0, 0),
+                    1,
+                    1,
+                    color=nonmp_color,
+                    alpha=0.2,
+                    label=f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
+                )
+                all_handles.extend([line2, nonmp_band])
+                all_labels.extend(
+                    [
+                        f"Fraction of non-MP Edges (median)",
+                        f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
+                    ]
+                )
+            else:
+                all_handles.append(line2)
+                all_labels.append(f"Fraction of non-MP Edges")
+
+        ax_bottom_twin.set_ylabel(
+            "Fraction of non-MP Edges", color=nonmp_color, fontsize=14
+        )
+        ax_bottom_twin.tick_params(axis="y", labelcolor=nonmp_color, labelsize=14)
+
+    # Styling for the bottom plot
+    ax_bottom.set_xlabel("Normalized Tree Index (0-1)", fontsize=14)
+    ax_bottom.set_ylabel("Parsimony Score", color=parsimony_color, fontsize=14)
+    ax_bottom.tick_params(axis="y", labelcolor=parsimony_color, labelsize=14)
+    ax_bottom.tick_params(axis="x", labelsize=14)
     ax_bottom.set_xlim(0, 1)
-
-    all_handles.append(line2)
-    all_labels.append("Fraction of non-MP Edges")
-
-    ax_bottom.set_title("Parsimony Scores and Non-MP Edges", fontsize=14)
     ax_bottom.grid(True, linestyle="--", alpha=0.7)
+    ax_bottom.set_title("Parsimony Scores and Non-MP Edges", fontsize=14)
 
     # Add a suptitle to the entire figure
     replicate_text = (
@@ -1022,7 +1325,7 @@ def plot_all_metrics_comparison(
         f"{title_prefix}{replicate_text}\nPerformance Metrics Comparison", fontsize=16
     )
 
-    # Create legend - simplify by keeping only unique entries
+    # Position legend for model/training data comparisons ABOVE all plots
     if model_handles and model_labels:
         unique_labels = []
         unique_handles = []
@@ -1033,30 +1336,40 @@ def plot_all_metrics_comparison(
                 unique_labels.append(label)
                 unique_handles.append(handle)
 
+        # Position legend at the top of the figure
         first_legend = fig.legend(
             unique_handles,
             unique_labels,
             loc="upper center",
-            bbox_to_anchor=(0.5, 0.95),  # Changed from 0.98 to 0.95
+            bbox_to_anchor=(0.5, 0.95),  # Position at top center
             title=comparison_column.replace("_", " ").title(),
             title_fontsize=14,
             fontsize=12,
-            ncol=min(3, len(unique_labels)),
+            ncol=min(3, len(unique_labels)),  # Use multiple columns for better spacing
         )
         # Ensure the first legend is drawn
         fig.add_artist(first_legend)
 
-    # Second legend for parsimony and non-MP edges at the bottom
-    fig.legend(
-        all_handles,
-        all_labels,
-        loc="lower center",
-        bbox_to_anchor=(0.5, 0),
-        fontsize=14,
-        ncol=2,
-    )
+    # Position legend for parsimony/non-MP edges BELOW all plots
+    if all_handles:
+        bottom_legend = fig.legend(
+            all_handles,
+            all_labels,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 0.05),  # Position at bottom center
+            fontsize=12,
+            ncol=2,  # Use two columns for better spacing
+        )
+        fig.add_artist(bottom_legend)
+
+    # Remove individual legends from the parsimony/non-MP plot
+    # (Comment out or remove the ax_bottom.legend() call)
 
     plt.rcParams.update({"font.size": 14})  # Set default font size globally
+
+    # Adjust figure to make room for legends on top and bottom
+    plt.tight_layout()
+    fig.subplots_adjust(top=0.88, bottom=0.12)  # Adjust top and bottom margins
 
     # Save figure
     plt.savefig(output_file, bbox_inches="tight")

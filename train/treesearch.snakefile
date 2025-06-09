@@ -250,9 +250,6 @@ metric_comparison_plot_paths = generate_metric_comparison_plot_paths(
 # Rules
 rule all:
     input:
-        # plot_paths,
-        # f"{output_dir}/run.{timestamp}/tree_eval_logs/tree_eval_summary.csv",
-        # comparison_plot_paths,
         metric_comparison_plot_paths
 
 
@@ -358,40 +355,6 @@ rule evaluate_individual_trees:
             output_dir=output_dir,
             data_nicknames_path=data_nicknames_path,
             output_file=output.eval_path,
-        )
-
-
-rule plot_individual_tree_eval:
-    input:
-        eval_path=get_individual_tree_eval_path(
-            model_name="{model_name}",
-            train_data_name="{train_data_name}",
-            test_data_name="{test_data_name}",
-            param_id="{param_id}",
-            device=device,
-            timestamp=timestamp,
-            output_dir=output_dir,
-        ),
-    output:
-        plot_path=get_individual_tree_eval_path(
-            model_name="{model_name}",
-            train_data_name="{train_data_name}",
-            test_data_name="{test_data_name}",
-            param_id="{param_id}",
-            device=device,
-            timestamp=timestamp,
-            output_dir=output_dir,
-        )[:-4] + "_{metric}.pdf",
-    params:
-        plot_basename = lambda wildcards, input: input.eval_path[:-4]
-    run:
-        plot_auroc_over_time(
-            input.eval_path,
-            data_nicknames_path,
-            wildcards.test_data_name,
-            params.plot_basename,
-            fasta_dir,
-            metrics,
         )
 
 

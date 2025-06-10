@@ -786,7 +786,7 @@ def plot_treesearch_evaluation(
                     )
 
                     # Only add to legend for the first metric plot
-                    if i == 0:
+                    if i == 0 and not "Baseline" in fixed_model:
                         model_handles.append(line[0])
                         model_labels.append(value)
 
@@ -943,16 +943,9 @@ def plot_treesearch_evaluation(
     ax_bottom.grid(True, linestyle="--", alpha=0.7)
     ax_bottom.set_title("Parsimony Scores and Non-MP Edges", fontsize=14)
 
-    # Add a suptitle to the entire figure
-    replicate_text = (
-        f" ({len(unique_test_names)} Datasets)" if len(unique_test_names) > 1 else ""
-    )
-    fig.suptitle(
-        f"{title_prefix}{replicate_text}\nPerformance Metrics Comparison", fontsize=16
-    )
-
     # Position legend for model/training data comparisons ABOVE all plots
-    if model_handles and model_labels:
+    if model_handles and model_labels and not "Baseline" in fixed_model:
+        # No need to print legend distinguishing training data for baseline models
         unique_labels = []
         unique_handles = []
         seen_labels = set()

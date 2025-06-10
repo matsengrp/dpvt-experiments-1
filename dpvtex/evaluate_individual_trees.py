@@ -9,10 +9,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from Bio import SeqIO
+from datetime import datetime
 from torchmetrics import AUROC
 from torchmetrics.classification import BinaryROC
 from dpvtex.dpvt_data import data_of_nicknames
 from dpvtex.dpvt_zoo import build_model, prepend_dir_to_path, get_model_str
+from dpvt import models
 
 
 def get_rep_tested_model_str(
@@ -54,6 +56,7 @@ def build_replicates_log_paths(
 
 
 def get_parsimony_scores(tree_list, fasta_path):
+    """Calculate parsimony scores for a list of trees using sequence data."""
     pscore_list = []
     sequences = {}
     for record in SeqIO.parse(fasta_path, "fasta"):
@@ -65,6 +68,187 @@ def get_parsimony_scores(tree_list, fasta_path):
         pscore = historydag.parsimony.parsimony_score(tree)
         pscore_list.append(pscore)
     return pscore_list
+
+
+def load_model(
+    model_name, hyperparameter_path=None, trained_model_ckpt=None, device="cpu"
+):
+    """
+    Load a model based on model name and optional hyperparameters and checkpoint.
+
+    Args:
+        model_name: Name of the model to load
+        hyperparameter_path: Path to hyperparameters JSON file (not needed for BaselineReversion)
+        trained_model_ckpt: Path to trained model checkpoint (not needed for BaselineReversion)
+        device: Device to run the model on (cpu, cuda, etc.)
+
+    Returns:
+        tuple: (model, device)
+    """
+    model_class = build_model(model_name)
+
+    # For BaselineReversion, we don't need to load from checkpoint
+    if model_name == "BaselineReversion":
+        model = model_class()
+        # BaselineReversion must run on CPU
+        device = "cpu"
+    else:
+        # For trained models, load hyperparameters and checkpoint
+        with open(hyperparameter_path, "r") as f:
+            hparams = json.load(f)
+
+        # Load the trained model
+        model = model_class.load_from_checkpoint(
+            trained_model_ckpt,
+            learning_rate=hparams["learning_rate"],
+            feature_length=hparams["feature_length"],
+            dim_mlp_layers=hparams["dim_mlp_layers"],
+        )
+
+    # Set model to evaluation mode
+    model.eval()
+
+    # Move model to the appropriate device if needed
+    if device != "cpu-tree-dataset" and device != "cpu":
+        model = model.to(device)
+
+    return model, device
+
+
+def get_predictions(model, traversal=None, mutations=None, tree=None):
+    """
+    Generate model predictions from either traversal/mutations or tree input.
+
+    Args:
+        model: The model to use for predictions
+        traversal: Tree traversal tensor (for standard models)
+        mutations: Mutations tensor (for standard models)
+        tree: Tree object (for BaselineReversion)
+
+    Returns:
+        tuple: (logits, probabilities)
+    """
+    with torch.no_grad():
+        if tree is not None:  # For BaselineReversion
+            logits = model.get_reversion_labels_from_tree(tree)
+            probs = torch.sigmoid(torch.tensor(logits, dtype=torch.float32))
+        else:  # For standard models
+            # Forward pass for a single tree
+            logits = torch.stack(
+                [
+                    model.forward_on_traversal(t, m)
+                    for (t, m) in zip(traversal, mutations)
+                ]
+            ).squeeze(0)
+            probs = torch.sigmoid(logits)
+
+    return logits, probs
+
+
+def calculate_metrics(masked_probs, masked_labels):
+    """
+    Calculate evaluation metrics for model predictions.
+
+    Args:
+        masked_probs: Predicted probabilities after masking
+        masked_labels: True labels after masking
+
+    Returns:
+        dict: Dictionary containing all calculated metrics
+    """
+    # Calculate AUROC
+    auroc = AUROC(task="binary")
+    auroc_value = (
+        auroc(masked_probs, masked_labels.int())
+        if len(masked_labels) > 0
+        else float("nan")
+    )
+
+    # Calculate accuracy
+    predictions = (masked_probs > 0.5).float()
+    accuracy = (
+        (predictions == masked_labels).float().mean().item()
+        if len(masked_labels) > 0
+        else float("nan")
+    )
+
+    # Count true positives, false positives, etc.
+    tp = ((predictions == 1) & (masked_labels == 1)).sum().item()
+    fp = ((predictions == 1) & (masked_labels == 0)).sum().item()
+    tn = ((predictions == 0) & (masked_labels == 0)).sum().item()
+    fn = ((predictions == 0) & (masked_labels == 1)).sum().item()
+
+    # Calculate precision and recall
+    precision = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
+    recall = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
+    f1 = (
+        2 * precision * recall / (precision + recall)
+        if (precision + recall) > 0
+        else float("nan")
+    )
+
+    # Calculate average predicted probability for positive and negative examples
+    avg_prob_pos = (
+        masked_probs[masked_labels == 1].mean().item()
+        if (masked_labels == 1).sum() > 0
+        else float("nan")
+    )
+    avg_prob_neg = (
+        masked_probs[masked_labels == 0].mean().item()
+        if (masked_labels == 0).sum() > 0
+        else float("nan")
+    )
+
+    # Return all metrics as a dictionary
+    return {
+        "auroc": float(auroc_value),
+        "accuracy": float(accuracy),
+        "precision": float(precision),
+        "recall": float(recall),
+        "f1": float(f1),
+        "tp": int(tp),
+        "fp": int(fp),
+        "tn": int(tn),
+        "fn": int(fn),
+        "avg_prob_pos": float(avg_prob_pos),
+        "avg_prob_neg": float(avg_prob_neg),
+    }
+
+
+def create_result_entry(tree_idx, masked_labels, metrics_dict):
+    """
+    Create a standardized result entry for the evaluation dataframe.
+
+    Args:
+        tree_idx: Index of the tree
+        masked_labels: Labels after masking
+        metrics_dict: Dictionary of calculated metrics
+
+    Returns:
+        dict: Result entry to add to the dataframe
+    """
+    return {
+        "tree_idx": tree_idx,
+        "num_edges": len(masked_labels),
+        "num_pos": int((masked_labels == 1).sum().item()),
+        "num_neg": int((masked_labels == 0).sum().item()),
+        **metrics_dict,
+    }
+
+
+def save_results(results_df, output_file):
+    """
+    Save evaluation results to a CSV file if output_file is provided.
+
+    Args:
+        results_df: DataFrame with results
+        output_file: Path to save the CSV file
+    """
+    if output_file:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        results_df.to_csv(output_file, index=False)
+        print(f"Saved evaluation results to {output_file}")
 
 
 def evaluate_individual_trees(
@@ -94,40 +278,16 @@ def evaluate_individual_trees(
     Returns:
         pandas.DataFrame: DataFrame containing evaluation metrics for each tree.
     """
-
     # Load the test data
     test_data = data_of_nicknames(test_data_name, device, data_nicknames_path)
 
-    # Load model and hyperparameters
-    model_class = build_model(model_name)
-    
-    # For BaselineReversion, we don't need to load from checkpoint since it doesn't require training
-    if model_name == "BaselineReversion":
-        model = model_class()
-        # BaselineReversion must run on CPU
-        device = "cpu"
-    else:
-        # For trained models, load hyperparameters and checkpoint
-        with open(hyperparameter_path, "r") as f:
-            hparams = json.load(f)
-
-        # Load the trained model
-        model = model_class.load_from_checkpoint(
-            trained_model_ckpt,
-            learning_rate=hparams["learning_rate"],
-            feature_length=hparams["feature_length"],
-            dim_mlp_layers=hparams["dim_mlp_layers"],
-        )
-
-    # Set model to evaluation mode
-    model.eval()
+    # Load model and move to appropriate device
+    model, device = load_model(
+        model_name, hyperparameter_path, trained_model_ckpt, device
+    )
 
     # Initialize metrics for each tree
     results = []
-
-    # Move model to the appropriate device
-    if device != "cpu-tree-dataset" and device != "cpu":
-        model = model.to(device)
 
     # Process each tree individually
     for i in range(len(test_data)):
@@ -148,15 +308,8 @@ def evaluate_individual_trees(
             labels = labels.to(device)
             mask = mask.to(device)
 
-        with torch.no_grad():
-            # Forward pass for a single tree
-            logits = torch.stack(
-                [
-                    model.forward_on_traversal(t, m)
-                    for (t, m) in zip(traversal, mutations)
-                ]
-            ).squeeze(0)
-            probs = torch.sigmoid(logits)
+        # Get model predictions
+        logits, probs = get_predictions(model, traversal, mutations)
 
         # Apply mask to only evaluate on valid edges
         mask = mask.unsqueeze(-1)
@@ -166,73 +319,18 @@ def evaluate_individual_trees(
         masked_probs = probs[mask]
 
         # Calculate metrics for this tree
-        auroc = AUROC(task="binary")
-        auroc_value = (
-            auroc(masked_probs, masked_labels.int())
-            if len(masked_labels) > 0
-            else float("nan")
-        )
-
-        # Calculate accuracy
-        predictions = (masked_probs > 0.5).float()
-        accuracy = (
-            (predictions == masked_labels).float().mean().item()
-            if len(masked_labels) > 0
-            else float("nan")
-        )
-
-        # Count true positives, false positives, etc.
-        tp = ((predictions == 1) & (masked_labels == 1)).sum().item()
-        fp = ((predictions == 1) & (masked_labels == 0)).sum().item()
-        tn = ((predictions == 0) & (masked_labels == 0)).sum().item()
-        fn = ((predictions == 0) & (masked_labels == 1)).sum().item()
-
-        # Calculate precision and recall
-        precision = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
-        recall = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
-        f1 = (
-            2 * precision * recall / (precision + recall)
-            if (precision + recall) > 0
-            else float("nan")
-        )
-
-        # Calculate average predicted probability for positive and negative
-        # examples
-        avg_prob_pos = (
-            masked_probs[masked_labels == 1].mean().item()
-            if (masked_labels == 1).sum() > 0
-            else float("nan")
-        )
-        avg_prob_neg = (
-            masked_probs[masked_labels == 0].mean().item()
-            if (masked_labels == 0).sum() > 0
-            else float("nan")
-        )
+        metrics = calculate_metrics(masked_probs, masked_labels)
 
         # Store the results
-        results.append(
-            {
-                "tree_idx": i,
-                "num_edges": len(masked_labels),
-                "num_pos": int((masked_labels == 1).sum().item()),
-                "num_neg": int((masked_labels == 0).sum().item()),
-                "auroc": float(auroc_value),
-                "accuracy": float(accuracy),
-                "precision": float(precision),
-                "recall": float(recall),
-                "f1": float(f1),
-                "tp": int(tp),
-                "fp": int(fp),
-                "tn": int(tn),
-                "fn": int(fn),
-                "avg_prob_pos": float(avg_prob_pos),
-                "avg_prob_neg": float(avg_prob_neg),
-            }
-        )
+        results.append(create_result_entry(i, masked_labels, metrics))
 
     # Convert results to DataFrame
     results_df = pd.DataFrame(results)
-    results_df.to_csv(output_file, index=False)
+
+    # Save to file if path provided
+    save_results(results_df, output_file)
+
+    return results_df
 
 
 def evaluate_baseline_reversion_on_trees(
@@ -257,12 +355,6 @@ def evaluate_baseline_reversion_on_trees(
     Returns:
         pandas.DataFrame: DataFrame containing evaluation metrics for each tree.
     """
-    from datetime import datetime
-    import torch
-    from dpvt import models
-    from dpvtex.dpvt_data import data_of_nicknames
-    from torchmetrics import AUROC
-
     if timestamp is None:
         timestamp = datetime.now().strftime("%Y-%m-%d")
 
@@ -273,107 +365,38 @@ def evaluate_baseline_reversion_on_trees(
     )
 
     # Initialize the BaselineReversion model
-    model = models.BaselineReversion()
-    
-    # Set model to evaluation mode
-    model.eval()
+    model, _ = load_model("BaselineReversion")
 
     # Initialize metrics for each tree
     results = []
 
     # Process each tree individually
     for i in range(len(test_data)):
-        # For TraversalDataset, extract the data for a single tree
-        tree = test_data.data[i]  # Get the actual tree for BaselineReversion
+        # Get the actual tree, labels and mask for BaselineReversion
+        tree = test_data.trees[i]  # Using trees attribute instead of data
         labels = test_data.labels[i]
         mask = test_data.mask[i]
 
         # BaselineReversion directly generates predictions from the tree
-        with torch.no_grad():
-            # Get predictions directly from the tree using BaselineReversion's method
-            logits = model.get_reversion_labels_from_tree(tree)
-            probs = torch.sigmoid(logits)
+        logits, probs = get_predictions(model, tree=tree)
 
         # Apply mask to only evaluate on valid edges
-        # mask = mask.unsqueeze(-1)
-        # labels = labels.unsqueeze(-1)
         masked_logits = logits[mask]
         masked_labels = labels[mask]
         masked_probs = probs[mask]
 
         # Calculate metrics for this tree
-        auroc = AUROC(task="binary")
-        auroc_value = (
-            auroc(masked_probs, masked_labels.int())
-            if len(masked_labels) > 0
-            else float("nan")
-        )
-
-        # Calculate accuracy
-        predictions = (masked_probs > 0.5).float()
-        accuracy = (
-            (predictions == masked_labels).float().mean().item()
-            if len(masked_labels) > 0
-            else float("nan")
-        )
-
-        # Count true positives, false positives, etc.
-        tp = ((predictions == 1) & (masked_labels == 1)).sum().item()
-        fp = ((predictions == 1) & (masked_labels == 0)).sum().item()
-        tn = ((predictions == 0) & (masked_labels == 0)).sum().item()
-        fn = ((predictions == 0) & (masked_labels == 1)).sum().item()
-
-        # Calculate precision and recall
-        precision = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
-        recall = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
-        f1 = (
-            2 * precision * recall / (precision + recall)
-            if (precision + recall) > 0
-            else float("nan")
-        )
-
-        # Calculate average predicted probability for positive and negative
-        # examples
-        avg_prob_pos = (
-            masked_probs[masked_labels == 1].mean().item()
-            if (masked_labels == 1).sum() > 0
-            else float("nan")
-        )
-        avg_prob_neg = (
-            masked_probs[masked_labels == 0].mean().item()
-            if (masked_labels == 0).sum() > 0
-            else float("nan")
-        )
+        metrics = calculate_metrics(masked_probs, masked_labels)
 
         # Store the results
-        results.append(
-            {
-                "tree_idx": i,
-                "num_edges": len(masked_labels),
-                "num_pos": int((masked_labels == 1).sum().item()),
-                "num_neg": int((masked_labels == 0).sum().item()),
-                "auroc": float(auroc_value),
-                "accuracy": float(accuracy),
-                "precision": float(precision),
-                "recall": float(recall),
-                "f1": float(f1),
-                "tp": int(tp),
-                "fp": int(fp),
-                "tn": int(tn),
-                "fn": int(fn),
-                "avg_prob_pos": float(avg_prob_pos),
-                "avg_prob_neg": float(avg_prob_neg),
-            }
-        )
+        results.append(create_result_entry(i, masked_labels, metrics))
 
     # Convert results to DataFrame
-    import pandas as pd
     results_df = pd.DataFrame(results)
-    
-    # Save results if output file is provided
-    if output_file:
-        results_df.to_csv(output_file, index=False)
-    
+
+    # Save to file if path provided
+    save_results(results_df, output_file)
+
     return results_df
 
 
@@ -602,28 +625,35 @@ def plot_treesearch_evaluation(
         return
 
     # Filter data based on comparison type
+    no_training = (
+        False  # Flag to indicate if we are comparing models without training data
+    )
     if compare_by == "model":
         if fixed_training_data is None:
             raise ValueError("Must specify fixed_training_data when compare_by='model'")
-        
+
         # If include_baseline is True, also include rows where train_data_name is "baseline"
         if include_baseline:
             # Create a mask for the regular training data and baseline data
             regular_mask = filtered_df["train_data_name"] == fixed_training_data
             baseline_mask = filtered_df["train_data_name"] == "baseline"
-            
+
             # Combine the masks with OR
             combined_mask = regular_mask | baseline_mask
-            
+
             # Apply the combined filter
             filtered_df = filtered_df[combined_mask]
-            
+
             # Print debug info about included models
-            print(f"Including models with training data '{fixed_training_data}' and baseline models")
+            print(
+                f"Including models with training data '{fixed_training_data}' and baseline models"
+            )
         else:
-            filtered_df = filtered_df[filtered_df["train_data_name"] == fixed_training_data]
+            filtered_df = filtered_df[
+                filtered_df["train_data_name"] == fixed_training_data
+            ]
             print(f"Including only models with training data '{fixed_training_data}'")
-            
+
         comparison_column = "model_name"
         title_prefix = (
             f"Models trained on {fixed_training_data}, tested on {base_test_name}"
@@ -631,6 +661,8 @@ def plot_treesearch_evaluation(
     elif compare_by == "training_data":
         if fixed_model is None:
             raise ValueError("Must specify fixed_model when compare_by='training_data'")
+        elif "Baseline" in fixed_model:
+            no_training = True
         filtered_df = filtered_df[filtered_df["model_name"] == fixed_model]
         comparison_column = "train_data_name"
         title_prefix = f"Model {fixed_model} trained on different datasets, tested on {base_test_name}"
@@ -757,7 +789,7 @@ def plot_treesearch_evaluation(
                     )
 
                     # Only add to legend for the first metric plot
-                    if i == 0:
+                    if i == 0 and not no_training:
                         model_handles.append(line[0])
                         model_labels.append(f"{value}")
 
@@ -786,7 +818,7 @@ def plot_treesearch_evaluation(
                     )
 
                     # Only add to legend for the first metric plot
-                    if i == 0 and not "Baseline" in fixed_model:
+                    if i == 0 and not no_training:
                         model_handles.append(line[0])
                         model_labels.append(value)
 
@@ -944,7 +976,7 @@ def plot_treesearch_evaluation(
     ax_bottom.set_title("Parsimony Scores and Non-MP Edges", fontsize=14)
 
     # Position legend for model/training data comparisons ABOVE all plots
-    if model_handles and model_labels and not "Baseline" in fixed_model:
+    if model_handles and model_labels and not no_training:
         # No need to print legend distinguishing training data for baseline models
         unique_labels = []
         unique_handles = []

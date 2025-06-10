@@ -244,11 +244,8 @@ def save_results(results_df, output_file):
         results_df: DataFrame with results
         output_file: Path to save the CSV file
     """
-    if output_file:
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        results_df.to_csv(output_file, index=False)
-        print(f"Saved evaluation results to {output_file}")
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    results_df.to_csv(output_file, index=False)
 
 
 def evaluate_individual_trees(
@@ -414,8 +411,6 @@ def concatenate_tree_eval_files(
     Returns:
         pandas.DataFrame: Concatenated dataframe with metadata columns
     """
-    print(f"Processing {len(eval_paths)} evaluation files...")
-
     # Compile patterns for identifying replicate datasets
     base_test_patterns = {}
     for test_data in test_data_names:
@@ -424,79 +419,59 @@ def concatenate_tree_eval_files(
 
     dfs = []
     for csv_file in eval_paths:
-        try:
-            # Read the CSV file first
-            df = pd.read_csv(csv_file)
+        # Read the CSV file first
+        df = pd.read_csv(csv_file)
 
-            # Parse model, train_data, test_data from the file path
-            path_parts = str(csv_file).split("/")
-            file_name = path_parts[-1]
+        # Parse model, train_data, test_data from the file path
+        path_parts = str(csv_file).split("/")
+        file_name = path_parts[-1]
 
-            # Extract information from filename
-            model_name = None
-            for model in model_names:
-                if model in file_name:
-                    model_name = model
+        # Extract information from filename
+        model_name = None
+        for model in model_names:
+            if model in file_name:
+                model_name = model
+                break
+
+        train_data_name = None
+        for train_data in train_data_names:
+            if train_data in file_name:
+                train_data_name = train_data
+                break
+
+        # For test data, handle replicates by using regex patterns
+        test_data_name = None
+
+        # First, try exact matches with the test data names
+        for test_data in test_data_names:
+            if test_data in file_name:
+                test_data_name = test_data
+                break
+
+        # If no exact match found, check for replicate pattern matches
+        if test_data_name is None:
+            for base_name, pattern in base_test_patterns.items():
+                # Look for replicate suffix in filename
+                rep_match = re.search(r"_rep(\d+)", file_name)
+                if rep_match and base_name in file_name:
+                    rep_num = rep_match.group(1)
+                    test_data_name = f"{base_name}_rep{rep_num}"
                     break
 
-            train_data_name = None
-            for train_data in train_data_names:
-                if train_data in file_name:
-                    train_data_name = train_data
-                    break
+        param_id = None
+        for param in param_ids:
+            if param in file_name:
+                param_id = param
+                break
 
-            # For test data, handle replicates by using regex patterns
-            test_data_name = None
+        # Add metadata columns
+        df["model_name"] = model_name
+        df["train_data_name"] = train_data_name
+        df["test_data_name"] = test_data_name
+        df["param_id"] = param_id
 
-            # First, try exact matches with the test data names
-            for test_data in test_data_names:
-                if test_data in file_name:
-                    test_data_name = test_data
-                    break
+        dfs.append(df)
 
-            # If no exact match found, check for replicate pattern matches
-            if test_data_name is None:
-                for base_name, pattern in base_test_patterns.items():
-                    # Look for replicate suffix in filename
-                    rep_match = re.search(r"_rep(\d+)", file_name)
-                    if rep_match and base_name in file_name:
-                        rep_num = rep_match.group(1)
-                        test_data_name = f"{base_name}_rep{rep_num}"
-                        break
-
-            param_id = None
-            for param in param_ids:
-                if param in file_name:
-                    param_id = param
-                    break
-
-            # Skip if we couldn't identify all the metadata
-            if None in [model_name, train_data_name, test_data_name, param_id]:
-                print(
-                    f"Warning: Could not identify all metadata for {file_name}, skipping."
-                )
-                print(
-                    f"Found: model={model_name}, train={train_data_name}, test={test_data_name}, param={param_id}"
-                )
-                continue
-
-            # Add metadata columns
-            df["model_name"] = model_name
-            df["train_data_name"] = train_data_name
-            df["test_data_name"] = test_data_name
-            df["param_id"] = param_id
-
-            dfs.append(df)
-
-        except Exception as e:
-            print(f"Error processing file {csv_file}: {e}")
-
-    # Combine all dataframes
-    if not dfs:
-        print("Warning: No evaluation files could be processed!")
-        return pd.DataFrame()
-
-    print(f"Successfully processed {len(dfs)} evaluation files.")
     combined_df = pd.concat(dfs, ignore_index=True)
 
     # Ensure column order is consistent - metadata columns first
@@ -504,14 +479,7 @@ def concatenate_tree_eval_files(
     other_cols = [col for col in combined_df.columns if col not in metadata_cols]
     combined_df = combined_df[metadata_cols + other_cols]
 
-    # Print summary of test_data_name values
-    test_datasets = combined_df["test_data_name"].unique()
-    print(f"Found {len(test_datasets)} unique test datasets in the combined data:")
-    for test_dataset in test_datasets:
-        print(f"  - {test_dataset}")
-
     combined_df.to_csv(summary_file, index=False)
-    print(f"Wrote combined dataset with {len(combined_df)} rows to {summary_file}")
     return combined_df
 
 
@@ -567,39 +535,33 @@ def plot_treesearch_evaluation(
 
     # Process each test dataset to get parsimony scores and non-MP edges
     for test_data in test_data_names:
-        try:
-            test_data_path = os.path.join(
-                dataset_dict["data_dir"], dataset_dict[test_data]
-            )
-            with open(test_data_path, "rb") as f:
-                data_dict = pickle.load(f)
+        test_data_path = os.path.join(
+            dataset_dict["data_dir"], dataset_dict[test_data]
+        )
+        with open(test_data_path, "rb") as f:
+            data_dict = pickle.load(f)
 
-            # Calculate parsimony scores and non-MP edges for this replicate
-            data_basename = dataset_dict[test_data].split("_tree_search")[0]
-            if "_rep" in data_basename:
-                data_basename = data_basename.split("_rep")[0]
-            fasta_path = (
-                fasta_dir + "/" + data_basename + "/" + data_basename + ".fasta"
-            )
+        # Calculate parsimony scores and non-MP edges for this replicate
+        data_basename = dataset_dict[test_data].split("_tree_search")[0]
+        if "_rep" in data_basename:
+            data_basename = data_basename.split("_rep")[0]
+        fasta_path = (
+            fasta_dir + "/" + data_basename + "/" + data_basename + ".fasta"
+        )
 
-            parsimony_scores = get_parsimony_scores(list(data_dict.keys()), fasta_path)
-            num_int_edges = len(list(data_dict.keys())[0]) - 2
-            frac_non_mp_edges = [sum(l) / num_int_edges for l in data_dict.values()]
+        parsimony_scores = get_parsimony_scores(list(data_dict.keys()), fasta_path)
+        num_int_edges = len(list(data_dict.keys())[0]) - 2
+        frac_non_mp_edges = [sum(l) / num_int_edges for l in data_dict.values()]
 
-            # Track maximum length for normalization later
-            max_length = max(max_length, len(parsimony_scores))
+        # Track maximum length for normalization later
+        max_length = max(max_length, len(parsimony_scores))
 
-            # Store the values
-            all_parsimony_scores.append(parsimony_scores)
-            all_frac_non_mp_edges.append(frac_non_mp_edges)
-
-            print(f"Processed {test_data}: {len(parsimony_scores)} trees")
-        except Exception as e:
-            print(f"Error processing {test_data}: {e}")
+        # Store the values
+        all_parsimony_scores.append(parsimony_scores)
+        all_frac_non_mp_edges.append(frac_non_mp_edges)
 
     # Read the comparison data
     df = pd.read_csv(csv_file)
-    print(f"Original dataframe has {len(df)} rows")
 
     # Filter for test datasets that match our test_data_names
     base_patterns = [name.split("_rep")[0] for name in test_data_names]
@@ -612,17 +574,6 @@ def plot_treesearch_evaluation(
     filtered_df["base_test_name"] = filtered_df["test_data_name"].apply(
         lambda x: x.split("_rep")[0] if "_rep" in x else x
     )
-
-    # Print debug info
-    unique_test_names = filtered_df["test_data_name"].unique()
-    print(f"Found {len(unique_test_names)} matching test datasets:")
-    for name in unique_test_names:
-        print(f"  - {name}")
-
-    if len(filtered_df) == 0:
-        print("No data found that matches the test dataset patterns!")
-        print(f"Available test datasets: {df['test_data_name'].unique()}")
-        return
 
     # Filter data based on comparison type
     no_training = (
@@ -644,15 +595,10 @@ def plot_treesearch_evaluation(
             # Apply the combined filter
             filtered_df = filtered_df[combined_mask]
 
-            # Print debug info about included models
-            print(
-                f"Including models with training data '{fixed_training_data}' and baseline models"
-            )
         else:
             filtered_df = filtered_df[
                 filtered_df["train_data_name"] == fixed_training_data
             ]
-            print(f"Including only models with training data '{fixed_training_data}'")
 
         comparison_column = "model_name"
         title_prefix = (
@@ -671,10 +617,6 @@ def plot_treesearch_evaluation(
 
     # Get unique values for the comparison
     comparison_values = filtered_df[comparison_column].unique()
-
-    if len(comparison_values) == 0:
-        print(f"No data found for {comparison_column}!")
-        return
 
     # Create color palette for the different models/training datasets
     metric_labels = {
@@ -798,10 +740,6 @@ def plot_treesearch_evaluation(
                     test_dataset = test_datasets[0]
                     test_df = group_df[group_df["test_data_name"] == test_dataset]
                     test_df = test_df.sort_values("tree_idx")
-
-                    if len(test_df) == 0:
-                        print(f"No data found for {test_dataset} with {value}")
-                        continue
 
                     # Create a normalized x-axis
                     normalized_x = np.linspace(0, 1, len(test_df))
@@ -977,7 +915,7 @@ def plot_treesearch_evaluation(
 
     # Position legend for model/training data comparisons ABOVE all plots
     if model_handles and model_labels and not no_training:
-        # No need to print legend distinguishing training data for baseline models
+        # No need to add legend distinguishing training data for baseline models
         unique_labels = []
         unique_handles = []
         seen_labels = set()
@@ -1025,4 +963,3 @@ def plot_treesearch_evaluation(
     # Save figure
     plt.savefig(output_file, bbox_inches="tight")
     plt.close(fig)
-    print(f"Saved combined metrics plot to {output_file}")

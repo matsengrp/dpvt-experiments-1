@@ -100,16 +100,24 @@ def evaluate_individual_trees(
 
     # Load model and hyperparameters
     model_class = build_model(model_name)
-    with open(hyperparameter_path, "r") as f:
-        hparams = json.load(f)
+    
+    # For BaselineReversion, we don't need to load from checkpoint since it doesn't require training
+    if model_name == "BaselineReversion":
+        model = model_class()
+        # BaselineReversion must run on CPU
+        device = "cpu"
+    else:
+        # For trained models, load hyperparameters and checkpoint
+        with open(hyperparameter_path, "r") as f:
+            hparams = json.load(f)
 
-    # Load the trained model
-    model = model_class.load_from_checkpoint(
-        trained_model_ckpt,
-        learning_rate=hparams["learning_rate"],
-        feature_length=hparams["feature_length"],
-        dim_mlp_layers=hparams["dim_mlp_layers"],
-    )
+        # Load the trained model
+        model = model_class.load_from_checkpoint(
+            trained_model_ckpt,
+            learning_rate=hparams["learning_rate"],
+            feature_length=hparams["feature_length"],
+            dim_mlp_layers=hparams["dim_mlp_layers"],
+        )
 
     # Set model to evaluation mode
     model.eval()
@@ -227,6 +235,148 @@ def evaluate_individual_trees(
     results_df.to_csv(output_file, index=False)
 
 
+def evaluate_baseline_reversion_on_trees(
+    test_data_name,
+    output_dir=".",
+    data_nicknames_path="data_nicknames.json",
+    output_file=None,
+    timestamp=None,
+):
+    """
+    Evaluates the BaselineReversion model on individual trees from the test dataset.
+    Since BaselineReversion doesn't require training, this function is simplified
+    compared to evaluate_individual_trees.
+
+    Args:
+        test_data_name (str): Name of the test dataset.
+        output_dir (str): Output directory.
+        data_nicknames_path (str): Path to the dataset nicknames file.
+        output_file (str): Optional path to save the evaluation results.
+        timestamp (str): Timestamp for file naming.
+
+    Returns:
+        pandas.DataFrame: DataFrame containing evaluation metrics for each tree.
+    """
+    from datetime import datetime
+    import torch
+    from dpvt import models
+    from dpvtex.dpvt_data import data_of_nicknames
+    from torchmetrics import AUROC
+
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y-%m-%d")
+
+    # Load the test data (must use CPU for BaselineReversion)
+    device = "cpu"
+    test_data = data_of_nicknames(
+        test_data_name, device, data_nicknames_path, data_struct="TreeDataset"
+    )
+
+    # Initialize the BaselineReversion model
+    model = models.BaselineReversion()
+    
+    # Set model to evaluation mode
+    model.eval()
+
+    # Initialize metrics for each tree
+    results = []
+
+    # Process each tree individually
+    for i in range(len(test_data)):
+        # For TraversalDataset, extract the data for a single tree
+        tree = test_data.data[i]  # Get the actual tree for BaselineReversion
+        labels = test_data.labels[i]
+        mask = test_data.mask[i]
+
+        # BaselineReversion directly generates predictions from the tree
+        with torch.no_grad():
+            # Get predictions directly from the tree using BaselineReversion's method
+            logits = model.get_reversion_labels_from_tree(tree)
+            probs = torch.sigmoid(logits)
+
+        # Apply mask to only evaluate on valid edges
+        # mask = mask.unsqueeze(-1)
+        # labels = labels.unsqueeze(-1)
+        masked_logits = logits[mask]
+        masked_labels = labels[mask]
+        masked_probs = probs[mask]
+
+        # Calculate metrics for this tree
+        auroc = AUROC(task="binary")
+        auroc_value = (
+            auroc(masked_probs, masked_labels.int())
+            if len(masked_labels) > 0
+            else float("nan")
+        )
+
+        # Calculate accuracy
+        predictions = (masked_probs > 0.5).float()
+        accuracy = (
+            (predictions == masked_labels).float().mean().item()
+            if len(masked_labels) > 0
+            else float("nan")
+        )
+
+        # Count true positives, false positives, etc.
+        tp = ((predictions == 1) & (masked_labels == 1)).sum().item()
+        fp = ((predictions == 1) & (masked_labels == 0)).sum().item()
+        tn = ((predictions == 0) & (masked_labels == 0)).sum().item()
+        fn = ((predictions == 0) & (masked_labels == 1)).sum().item()
+
+        # Calculate precision and recall
+        precision = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
+        recall = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if (precision + recall) > 0
+            else float("nan")
+        )
+
+        # Calculate average predicted probability for positive and negative
+        # examples
+        avg_prob_pos = (
+            masked_probs[masked_labels == 1].mean().item()
+            if (masked_labels == 1).sum() > 0
+            else float("nan")
+        )
+        avg_prob_neg = (
+            masked_probs[masked_labels == 0].mean().item()
+            if (masked_labels == 0).sum() > 0
+            else float("nan")
+        )
+
+        # Store the results
+        results.append(
+            {
+                "tree_idx": i,
+                "num_edges": len(masked_labels),
+                "num_pos": int((masked_labels == 1).sum().item()),
+                "num_neg": int((masked_labels == 0).sum().item()),
+                "auroc": float(auroc_value),
+                "accuracy": float(accuracy),
+                "precision": float(precision),
+                "recall": float(recall),
+                "f1": float(f1),
+                "tp": int(tp),
+                "fp": int(fp),
+                "tn": int(tn),
+                "fn": int(fn),
+                "avg_prob_pos": float(avg_prob_pos),
+                "avg_prob_neg": float(avg_prob_neg),
+            }
+        )
+
+    # Convert results to DataFrame
+    import pandas as pd
+    results_df = pd.DataFrame(results)
+    
+    # Save results if output file is provided
+    if output_file:
+        results_df.to_csv(output_file, index=False)
+    
+    return results_df
+
+
 def concatenate_tree_eval_files(
     eval_paths, model_names, train_data_names, test_data_names, param_ids, summary_file
 ):
@@ -342,385 +492,7 @@ def concatenate_tree_eval_files(
     return combined_df
 
 
-def plot_model_comparison(
-    csv_file,
-    data_nicknames_file,
-    test_data_name,
-    output_file_basename,
-    fasta_dir,
-    metrics=["auroc"],
-    compare_by="model",
-    fixed_model=None,
-    fixed_training_data=None,
-):
-    """
-    Plots performance metrics for multiple models or training datasets.
-
-    Args:
-        csv_file (str): Path to the CSV file containing evaluation data for
-        multiple models/datasets. data_nicknames_file (str): Path to the dataset
-        nicknames JSON file. test_data_name (str or list): Nickname of the
-        testing dataset or a list of test datasets
-                                      (e.g., for replicates).
-        output_file_basename (str): Path to basename for file saving plot.
-        fasta_dir (str): Path to the directory containing the FASTA files.
-        metrics (list): Metrics to plot (default: ["auroc"]). compare_by (str):
-        What to compare - "model" or "training_data". fixed_model (str): When
-        compare_by="training_data", the model to fix. fixed_training_data (str):
-        When compare_by="model", the training data to fix.
-    """
-    # Convert test_data_name to list if it's a string
-    if isinstance(test_data_name, str):
-        test_data_names = [test_data_name]
-    else:
-        test_data_names = test_data_name
-
-    # Load data nicknames
-    with open(data_nicknames_file, "r") as f:
-        dataset_dict = json.load(f)
-
-    # Get base test name (without replicate info) for plot title
-    if len(test_data_names) > 0:
-        base_test_name = test_data_names[0].split("_rep")[0]
-    else:
-        base_test_name = "unknown"
-
-    # Collect parsimony scores and fraction of non-MP edges for all replicates
-    all_parsimony_scores = []
-    all_frac_non_mp_edges = []
-    max_length = 0
-
-    # Process each test dataset to get parsimony scores and non-MP edges
-    for test_data in test_data_names:
-        try:
-            test_data_path = os.path.join(
-                dataset_dict["data_dir"], dataset_dict[test_data]
-            )
-            with open(test_data_path, "rb") as f:
-                data_dict = pickle.load(f)
-
-            # Calculate parsimony scores and non-MP edges for this replicate
-            data_basename = dataset_dict[test_data].split("_tree_search")[0]
-            if "_rep" in data_basename:
-                data_basename = data_basename.split("_rep")[0]
-            fasta_path = (
-                fasta_dir + "/" + data_basename + "/" + data_basename + ".fasta"
-            )
-
-            parsimony_scores = get_parsimony_scores(list(data_dict.keys()), fasta_path)
-            num_int_edges = len(list(data_dict.keys())[0]) - 2
-            frac_non_mp_edges = [sum(l) / num_int_edges for l in data_dict.values()]
-
-            # Track maximum length for normalization later
-            max_length = max(max_length, len(parsimony_scores))
-
-            # Store the values
-            all_parsimony_scores.append(parsimony_scores)
-            all_frac_non_mp_edges.append(frac_non_mp_edges)
-
-            print(f"Processed {test_data}: {len(parsimony_scores)} trees")
-        except Exception as e:
-            print(f"Error processing {test_data}: {e}")
-
-    # Read the comparison data
-    df = pd.read_csv(csv_file)
-    print(f"Original dataframe has {len(df)} rows")
-
-    # Filter for test datasets that match our test_data_names
-    base_patterns = [name.split("_rep")[0] for name in test_data_names]
-    mask = df["test_data_name"].apply(
-        lambda x: any(base in x for base in base_patterns)
-    )
-    filtered_df = df[mask]
-
-    # Add base_test_name column for grouping replicates
-    filtered_df["base_test_name"] = filtered_df["test_data_name"].apply(
-        lambda x: x.split("_rep")[0] if "_rep" in x else x
-    )
-
-    # Print debug info
-    unique_test_names = filtered_df["test_data_name"].unique()
-    print(f"Found {len(unique_test_names)} matching test datasets:")
-    for name in unique_test_names:
-        print(f"  - {name}")
-
-    if len(filtered_df) == 0:
-        print("No data found that matches the test dataset patterns!")
-        print(f"Available test datasets: {df['test_data_name'].unique()}")
-        return
-
-    # Filter data based on comparison type
-    if compare_by == "model":
-        if fixed_training_data is None:
-            raise ValueError("Must specify fixed_training_data when compare_by='model'")
-        filtered_df = filtered_df[filtered_df["train_data_name"] == fixed_training_data]
-        comparison_column = "model_name"
-        title_prefix = (
-            f"Models trained on {fixed_training_data}, tested on {base_test_name}"
-        )
-    elif compare_by == "training_data":
-        if fixed_model is None:
-            raise ValueError("Must specify fixed_model when compare_by='training_data'")
-        filtered_df = filtered_df[filtered_df["model_name"] == fixed_model]
-        comparison_column = "train_data_name"
-        title_prefix = f"Model {fixed_model} trained on different datasets, tested on {base_test_name}"
-    else:
-        raise ValueError("compare_by must be 'model' or 'training_data'")
-
-    # Get unique values for the comparison
-    comparison_values = filtered_df[comparison_column].unique()
-    metric_labels = {
-        "auroc": "AUROC",
-        "accuracy": "Accuracy",
-        "precision": "Precision",
-        "recall": "Recall",
-        "f1": "F1 Score",
-    }
-
-    # Create color palette for models/training datasets
-    palette = sns.color_palette(
-        "Dark2", len(comparison_values) + 2
-    )  # +2 for parsimony and non-MP
-    color_dict = dict(zip(comparison_values, palette[: len(comparison_values)]))
-
-    # Reserve the last two colors for parsimony and non-MP edges
-    parsimony_color = palette[-2]  # Second-to-last color for parsimony
-    nonmp_color = palette[-1]  # Last color for non-MP edges
-
-    # Create plots for each metric
-    for metric in metrics:
-        metric_label = metric_labels.get(metric, metric)
-
-        # Create figure with two subplots
-        fig, (ax1, ax2) = plt.subplots(
-            2, 1, figsize=(12, 10), gridspec_kw={"height_ratios": [1, 1]}
-        )
-
-        # For each comparison value, collect data from all replicates
-        for value in comparison_values:
-            value_df = filtered_df[filtered_df[comparison_column] == value]
-
-            # Group by replicates - now each replicate will have its own line
-            for test_name in test_data_names:
-                test_df = value_df[value_df["test_data_name"] == test_name]
-                test_df = test_df.sort_values("tree_idx")
-
-                # Use different alpha values for better visibility
-                alpha_val = 0.7 if len(test_data_names) == 1 else 0.8
-
-                # Create a label that includes replicate information
-                if "_rep" in test_name:
-                    rep_num = test_name.split("_rep")[1].split("_")[0]
-                    rep_label = f"{value} (Rep {rep_num})"
-                else:
-                    rep_label = value
-
-                # Plot the actual metric values using the normalized x-axis
-                # Create a normalized x-axis (0 to 1) to make datasets with
-                # different lengths comparable
-                total_trees = len(test_df)
-                normalized_x = np.linspace(0, 1, total_trees)
-
-                ax1.plot(
-                    normalized_x,
-                    test_df[
-                        metric
-                    ].values,  # Use the actual metric values from the dataframe
-                    color=color_dict[value],  # Same color for same model/training data
-                    label=rep_label,
-                    alpha=alpha_val,
-                    markersize=4,
-                    linewidth=2 if len(test_data_names) > 1 else 1.5,
-                )
-
-        ax1.set_xlabel("", fontsize=14)  # No x-label on top panel
-        ax1.set_ylabel(metric_label, fontsize=14)
-        ax1.set_title(f"{metric_label} by Tree Index", fontsize=14)
-        ax1.legend(
-            loc="center left",
-            bbox_to_anchor=(1.1, 0.9),
-            title=comparison_column.replace("_", " ").title(),
-            fontsize=12,
-        )
-        ax1.grid(True, linestyle="--", alpha=0.7)
-        ax1.tick_params(axis="both", which="major", labelsize=14)
-
-        # Bottom panel: Plot parsimony scores AND non-MP edges with percentile
-        # bands
-        ax2.set_title(
-            "Parsimony Scores and Non-MP Edges by Normalized Tree Index", fontsize=14
-        )
-        ax2.grid(True, linestyle="--", alpha=0.7)
-
-        # Create common x-axis grid for interpolation
-        common_x = (
-            np.linspace(0, 1, max_length) if max_length > 0 else np.linspace(0, 1, 100)
-        )
-
-        # Process parsimony scores with percentile bands
-        if all_parsimony_scores and not all(
-            len(scores) == 0 for scores in all_parsimony_scores
-        ):
-            # Interpolate all parsimony scores to common grid
-            interpolated_pscores = []
-            for scores in all_parsimony_scores:
-                if len(scores) > 0:
-                    dataset_x = np.linspace(0, 1, len(scores))
-                    interp_values = np.interp(
-                        common_x, dataset_x, scores, left=np.nan, right=np.nan
-                    )
-                    interpolated_pscores.append(interp_values)
-
-            # Calculate median and percentiles for parsimony scores
-            if interpolated_pscores:
-                parsimony_array = np.array(interpolated_pscores)
-                parsimony_median = np.nanmedian(parsimony_array, axis=0)
-                parsimony_lower = np.nanpercentile(
-                    parsimony_array, percentiles[0], axis=0
-                )
-                parsimony_upper = np.nanpercentile(
-                    parsimony_array, percentiles[1], axis=0
-                )
-
-                # Plot parsimony scores with median and percentile band
-                (line1,) = ax2.plot(
-                    common_x,
-                    parsimony_median,
-                    color=parsimony_color,  # Use reserved color from Dark2 palette
-                    linewidth=2.0,
-                    label=f"Parsimony Score (median)",
-                )
-
-                # Only add percentile band if we have multiple replicates
-                if len(all_parsimony_scores) > 1:
-                    ax2.fill_between(
-                        common_x,
-                        parsimony_lower,
-                        parsimony_upper,
-                        color=parsimony_color,
-                        alpha=0.2,
-                        label=f"Parsimony Score ({percentiles[0]}-{percentiles[1]}%)",
-                    )
-
-                    # Add rectangle for legend
-                    pscore_band = plt.Rectangle(
-                        (0, 0),
-                        1,
-                        1,
-                        color=parsimony_color,
-                        alpha=0.2,
-                        label=f"Parsimony Score ({percentiles[0]}-{percentiles[1]}%)",
-                    )
-                    all_handles.extend([line1, pscore_band])
-                    all_labels.extend(
-                        [
-                            f"Parsimony Score (median)",
-                            f"Parsimony Score ({percentiles[0]}-{percentiles[1]}%)",
-                        ]
-                    )
-                else:
-                    all_handles.append(line1)
-                    all_labels.append(f"Parsimony Score")
-        else:
-            ax2.text(
-                0.5,
-                0.5,
-                "No parsimony scores available",
-                ha="center",
-                va="center",
-                transform=ax2.transAxes,
-            )
-
-        # Process non-MP edges with percentile bands
-        if all_frac_non_mp_edges and not all(
-            len(fracs) == 0 for fracs in all_frac_non_mp_edges
-        ):
-            # Secondary y-axis for non-MP edges
-            ax2_twin = ax2.twinx()
-
-            # Interpolate all non-MP edge fractions to common grid
-            interpolated_fracs = []
-            for fracs in all_frac_non_mp_edges:
-                if len(fracs) > 0:
-                    dataset_x = np.linspace(0, 1, len(fracs))
-                    interp_values = np.interp(
-                        common_x, dataset_x, fracs, left=np.nan, right=np.nan
-                    )
-                    interpolated_fracs.append(interp_values)
-
-            # Calculate median and percentiles for non-MP edges
-            if interpolated_fracs:
-                fracs_array = np.array(interpolated_fracs)
-                fracs_median = np.nanmedian(fracs_array, axis=0)
-                fracs_lower = np.nanpercentile(fracs_array, percentiles[0], axis=0)
-                fracs_upper = np.nanpercentile(fracs_array, percentiles[1], axis=0)
-
-                # Plot non-MP edges with median and percentile band
-                (line2,) = ax2_twin.plot(
-                    common_x,
-                    fracs_median,
-                    color=nonmp_color,  # Use reserved color from Dark2 palette
-                    linewidth=2.0,
-                    label=f"Fraction of non-MP Edges (median)",
-                )
-
-                # Only add percentile band if we have multiple replicates
-                if len(all_frac_non_mp_edges) > 1:
-                    ax2_twin.fill_between(
-                        common_x,
-                        fracs_lower,
-                        fracs_upper,
-                        color=nonmp_color,
-                        alpha=0.2,
-                        label=f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
-                    )
-
-                    # Add rectangle for legend
-                    nonmp_band = plt.Rectangle(
-                        (0, 0),
-                        1,
-                        1,
-                        color=nonmp_color,
-                        alpha=0.2,
-                        label=f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
-                    )
-                    all_handles.extend([line2, nonmp_band])
-                    all_labels.extend(
-                        [
-                            f"Fraction of non-MP Edges (median)",
-                            f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
-                        ]
-                    )
-                else:
-                    all_handles.append(line2)
-                    all_labels.append(f"Fraction of non-MP Edges")
-
-            ax2_twin.set_ylabel(
-                "Fraction of non-MP Edges", color=nonmp_color, fontsize=14
-            )
-            ax2_twin.tick_params(axis="y", labelcolor=nonmp_color, labelsize=14)
-
-        # Explicitly set x-axis limits to ensure normalization is visible
-        ax2.set_xlim(0, 1)
-
-        # Add a suptitle to the entire figure If we have multiple replicates,
-        # indicate that in the title
-        replicate_text = (
-            f" ({len(test_data_names)} Replicates)" if len(test_data_names) > 1 else ""
-        )
-        fig.suptitle(
-            f"Performance Comparison - {base_test_name}{replicate_text}", fontsize=16
-        )
-        plt.rcParams.update({"font.size": 14})  # Set default font size globally
-        fig.tight_layout(rect=[0, 0, 1, 0.96])  # Leave room for suptitle
-
-        # Save figure
-        output_file = f"{output_file_basename}-{metric}.pdf"
-        plt.savefig(output_file)
-        plt.close(fig)
-
-
-def plot_all_metrics_comparison(
+def plot_treesearch_evaluation(
     csv_file,
     data_nicknames_file,
     test_data_name,
@@ -731,6 +503,7 @@ def plot_all_metrics_comparison(
     fixed_model=None,
     fixed_training_data=None,
     percentiles=[25, 75],
+    include_baseline=False,
 ):
     """
     Plots all performance metrics for multiple models or training datasets in a
@@ -746,6 +519,7 @@ def plot_all_metrics_comparison(
         compare_by (str): What to compare - "model" or "training_data".
         fixed_model (str): When compare_by="training_data", the model to fix.
         fixed_training_data (str): When compare_by="model", the training data to fix.
+        include_baseline (bool): Whether to include baseline models in the comparison
     """
     # Convert test_data_name to list if it's a string
     if isinstance(test_data_name, str):
@@ -831,7 +605,25 @@ def plot_all_metrics_comparison(
     if compare_by == "model":
         if fixed_training_data is None:
             raise ValueError("Must specify fixed_training_data when compare_by='model'")
-        filtered_df = filtered_df[filtered_df["train_data_name"] == fixed_training_data]
+        
+        # If include_baseline is True, also include rows where train_data_name is "baseline"
+        if include_baseline:
+            # Create a mask for the regular training data and baseline data
+            regular_mask = filtered_df["train_data_name"] == fixed_training_data
+            baseline_mask = filtered_df["train_data_name"] == "baseline"
+            
+            # Combine the masks with OR
+            combined_mask = regular_mask | baseline_mask
+            
+            # Apply the combined filter
+            filtered_df = filtered_df[combined_mask]
+            
+            # Print debug info about included models
+            print(f"Including models with training data '{fixed_training_data}' and baseline models")
+        else:
+            filtered_df = filtered_df[filtered_df["train_data_name"] == fixed_training_data]
+            print(f"Including only models with training data '{fixed_training_data}'")
+            
         comparison_column = "model_name"
         title_prefix = (
             f"Models trained on {fixed_training_data}, tested on {base_test_name}"
@@ -949,7 +741,7 @@ def plot_all_metrics_comparison(
                         common_x,
                         median,
                         color=color_dict[value],
-                        label=f"{value} (median)",
+                        label=f"{value}",
                         linewidth=2.0,
                         alpha=0.9,
                     )
@@ -961,27 +753,13 @@ def plot_all_metrics_comparison(
                         upper,
                         color=color_dict[value],
                         alpha=0.2,
-                        label=f"{value} ({percentiles[0]}-{percentiles[1]} percentile)",
+                        # label=f"{value} ({percentiles[0]}-{percentiles[1]} percentile)",
                     )
 
                     # Only add to legend for the first metric plot
                     if i == 0:
                         model_handles.append(line[0])
-                        model_labels.append(f"{value} (median)")
-
-                        # Add fill_between to legend
-                        model_handles.append(
-                            plt.Rectangle(
-                                (0, 0),
-                                1,
-                                1,
-                                color=color_dict[value],
-                                alpha=0.2,
-                            )
-                        )
-                        model_labels.append(
-                            f"{value} ({percentiles[0]}-{percentiles[1]} percentile)"
-                        )
+                        model_labels.append(f"{value}")
 
                 else:  # Single dataset (no replicates)
                     # Process just the one dataset
@@ -1068,7 +846,6 @@ def plot_all_metrics_comparison(
                     parsimony_upper,
                     color=parsimony_color,
                     alpha=0.2,
-                    label=f"Parsimony Score ({percentiles[0]}-{percentiles[1]}%)",
                 )
 
                 # Add rectangle for legend
@@ -1078,13 +855,11 @@ def plot_all_metrics_comparison(
                     1,
                     color=parsimony_color,
                     alpha=0.2,
-                    label=f"Parsimony Score ({percentiles[0]}-{percentiles[1]}%)",
                 )
-                all_handles.extend([line1, pscore_band])
+                all_handles.extend([line1])
                 all_labels.extend(
                     [
                         f"Parsimony Score (median)",
-                        f"Parsimony Score ({percentiles[0]}-{percentiles[1]}%)",
                     ]
                 )
             else:
@@ -1141,23 +916,13 @@ def plot_all_metrics_comparison(
                     fracs_upper,
                     color=nonmp_color,
                     alpha=0.2,
-                    label=f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
+                    # label=f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
                 )
 
-                # Add rectangle for legend
-                nonmp_band = plt.Rectangle(
-                    (0, 0),
-                    1,
-                    1,
-                    color=nonmp_color,
-                    alpha=0.2,
-                    label=f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
-                )
-                all_handles.extend([line2, nonmp_band])
+                all_handles.extend([line2])
                 all_labels.extend(
                     [
-                        f"Fraction of non-MP Edges (median)",
-                        f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
+                        f"Fraction of non-MP Edges",
                     ]
                 )
             else:
@@ -1206,7 +971,7 @@ def plot_all_metrics_comparison(
             title=comparison_column.replace("_", " ").title(),
             title_fontsize=14,
             fontsize=12,
-            ncol=min(3, len(unique_labels)),  # Use multiple columns for better spacing
+            ncol=min(2, len(unique_labels)),  # Use multiple columns for better spacing
         )
         # Ensure the first legend is drawn
         fig.add_artist(first_legend)
@@ -1217,7 +982,7 @@ def plot_all_metrics_comparison(
             all_handles,
             all_labels,
             loc="lower center",
-            bbox_to_anchor=(0.5, 0.05),  # Position at bottom center
+            bbox_to_anchor=(0.5, 0.07),  # Position at bottom center
             fontsize=12,
             ncol=2,  # Use two columns for better spacing
         )
@@ -1235,3 +1000,4 @@ def plot_all_metrics_comparison(
     # Save figure
     plt.savefig(output_file, bbox_inches="tight")
     plt.close(fig)
+    print(f"Saved combined metrics plot to {output_file}")

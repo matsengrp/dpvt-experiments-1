@@ -493,7 +493,7 @@ def plot_treesearch_evaluation(
     compare_by="model",
     fixed_model=None,
     fixed_training_data=None,
-    percentiles=[25, 75],
+    percentiles=[2.5, 97.5],
     include_baseline=False,
 ):
     """

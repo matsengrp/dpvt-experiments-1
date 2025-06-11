@@ -36,6 +36,8 @@ papermill = "*"
 r-base = "*"
 r-optparse = "*"
 r-remotes = "*"
+r-devtools = ">=2.4.5,<3"
+r-matrix = ">=1.6_5,<2"
 
 [pypi-dependencies]
 dpvt = { path = "../dpvt", editable = true }

@@ -39,9 +39,6 @@ num_replicates = config["replicates"]
 baseline_models = [model for model in model_names if "Baseline" in model]
 regular_models = [model for model in model_names if "Baseline" not in model]
 
-print(f"Regular models requiring training: {regular_models}")
-print(f"Baseline models (no training required): {baseline_models}")
-
 # Find all test data sets with replicates
 with open(data_nicknames_path, "r") as f:
     dataset_dict = json.load(f)
@@ -400,29 +397,16 @@ rule evaluate_baseline_model:
             output_dir=output_dir,
         ),
     wildcard_constraints:
-        # This constraint ensures this rule only matches baseline models
+        # only use rule for baseline model
         baseline_model="|".join(baseline_models)
     run:
-        # Different handling for different baseline models
-        if wildcards.baseline_model == "BaselineReversion":
-            evaluate_baseline_reversion_on_trees(
-                test_data_name=wildcards.test_data_name,
-                output_dir=output_dir,
-                data_nicknames_path=data_nicknames_path,
-                output_file=output.eval_path,
-                timestamp=timestamp,
-            )
-        else:
-            # For future baseline models, could add different handlers here
-            print(f"Warning: No specific handler implemented for baseline model: {wildcards.baseline_model}")
-            print(f"Using BaselineReversion handler as fallback")
-            evaluate_baseline_reversion_on_trees(
-                test_data_name=wildcards.test_data_name,
-                output_dir=output_dir,
-                data_nicknames_path=data_nicknames_path,
-                output_file=output.eval_path,
-                timestamp=timestamp,
-            )
+        evaluate_baseline_reversion_on_trees(
+            test_data_name=wildcards.test_data_name,
+            output_dir=output_dir,
+            data_nicknames_path=data_nicknames_path,
+            output_file=output.eval_path,
+            timestamp=timestamp,
+        )
 
 
 rule concat_tree_eval:

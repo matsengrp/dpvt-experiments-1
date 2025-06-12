@@ -370,7 +370,7 @@ def evaluate_baseline_reversion_on_trees(
     # Process each tree individually
     for i in range(len(test_data)):
         # Get the actual tree, labels and mask for BaselineReversion
-        tree = test_data.trees[i]  # Using trees attribute instead of data
+        tree = test_data.data[i]
         labels = test_data.labels[i]
         mask = test_data.mask[i]
 
@@ -489,7 +489,7 @@ def plot_treesearch_evaluation(
     test_data_name,
     output_file,
     fasta_dir,
-    metrics=["auroc", "accuracy", "precision", "recall"],
+    metrics=["auroc", "accuracy", "precision", "recall", "tp", "fp", "tn", "fn"],
     compare_by="model",
     fixed_model=None,
     fixed_training_data=None,
@@ -625,6 +625,10 @@ def plot_treesearch_evaluation(
         "precision": "Precision",
         "recall": "Recall",
         "f1": "F1 Score",
+        "tp": "True Positives",
+        "fp": "False Positives",
+        "tn": "True Negatives",
+        "fn": "False Negatives",
     }
 
     # Create color palette for models/training datasets

@@ -9,8 +9,6 @@ def aggregate_treesearch_data(filenames):
     """
 
     data = {}
-    print("Aggregating tree search data from files:")
-    print(filenames)
     for filename in filenames:
         base_name = filename.split("_rep")[0]
         print(base_name)
@@ -20,7 +18,6 @@ def aggregate_treesearch_data(filenames):
             data[base_name] = {}
         data[base_name] |= treesearch_data
     for base_name in data:
-        base_name += "_tree_search.p"
-        print(base_name)
-        with open(base_name, "wb") as f:
+        filename = base_name + "_tree_search.p"
+        with open(filename, "wb") as f:
             pickle.dump(data[base_name], f)

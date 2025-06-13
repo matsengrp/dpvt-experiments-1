@@ -122,18 +122,6 @@ rule compute_labels:
         "{output.test_p} {input.tree_log} {input.fasta}"
 
 
-rule add_to_dataset_nicknames:
-    input:
-        treesearch_data_paths,
-    output:
-        touch("nicknames_added.flag"),
-    params:
-        dpvt_data_dir=dpvt_data_dir,
-        nicknames=nicknames,
-    shell:
-        "python add_to_dataset_nicknames.py {params.dpvt_data_dir} {params.nicknames}"
-
-
 rule aggregate_all_treesearch_data:
     input:
         filenames = treesearch_data_paths,
@@ -141,3 +129,16 @@ rule aggregate_all_treesearch_data:
         aggregated_treesearch_data_paths
     run:
         aggregate_treesearch_data(input.filenames)
+
+
+rule add_to_dataset_nicknames:
+    input:
+        treesearch_data_paths,
+        aggregated_treesearch_data_paths
+    output:
+        touch("nicknames_added.flag"),
+    params:
+        dpvt_data_dir=dpvt_data_dir,
+        nicknames=nicknames,
+    shell:
+        "python add_to_dataset_nicknames.py {params.dpvt_data_dir} {params.nicknames}"

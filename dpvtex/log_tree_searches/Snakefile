@@ -1,5 +1,6 @@
 import os
 from glob import glob
+from aggregate_treesearch_data import aggregate_treesearch_data
 
 # get config from command line or use default
 snakefile_dir = workflow.basedir
@@ -36,16 +37,22 @@ def get_input_files():
     return input_files
 
 
+treesearch_data_paths = expand(
+    os.path.join(dpvt_data_dir, "{basename}_rep{replicate}_tree_search_test.p"),
+    basename=[os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()],
+    replicate=range(1, num_replicates + 1),
+)
+
+aggregated_treesearch_data_paths = expand(
+    os.path.join(dpvt_data_dir, "{basename}_tree_search.p"),
+    basename=[os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()],
+)
+
+
 rule all:
     input:
-        expand(
-            "{dpvt_data_dir}/{basename}_rep{replicate}_tree_search_test.p",
-            dpvt_data_dir=dpvt_data_dir,
-            basename=[
-                os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()
-            ],
-            replicate=range(1, num_replicates + 1),
-        ),
+        treesearch_data_paths,
+        aggregated_treesearch_data_paths,
         "nicknames_added.flag",
 
 
@@ -117,22 +124,20 @@ rule compute_labels:
 
 rule add_to_dataset_nicknames:
     input:
-        test_p=expand(
-            os.path.join(
-                dpvt_data_dir, "{basename}_rep{replicate}_tree_search_test.p"
-            ),
-            basename=[
-                os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()
-            ],
-            replicate=range(1, num_replicates + 1),
-        ),
+        treesearch_data_paths,
     output:
         touch("nicknames_added.flag"),
     params:
         dpvt_data_dir=dpvt_data_dir,
         nicknames=nicknames,
+    shell:
+        "python add_to_dataset_nicknames.py {params.dpvt_data_dir} {params.nicknames}"
+
+
+rule aggregate_all_treesearch_data:
+    input:
+        filenames = treesearch_data_paths,
+    output:
+        aggregated_treesearch_data_paths
     run:
-        if params.nicknames and os.path.exists(params.nicknames):
-            shell(
-                "python add_to_dataset_nicknames.py {params.dpvt_data_dir} {params.nicknames}"
-            )
+        aggregate_treesearch_data(input.filenames)

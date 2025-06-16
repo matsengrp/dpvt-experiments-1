@@ -3,7 +3,7 @@ import os
 import argparse
 
 
-def generate_config_files(num_sequences, num_sites, num_algnmnts):
+def generate_sim_config_files(num_sequences, num_sites, num_algnmnts):
     """
     Generate config files for running the larch pipeline to generate
     training and testing data for dpvt.
@@ -48,7 +48,7 @@ def generate_config_files(num_sequences, num_sites, num_algnmnts):
             print(f"Generated {filename}")
 
 
-if __name__ == "__main__":
+def main():
     # Parse command line arguments (number of sequences and number of sites)
     parser = argparse.ArgumentParser(description="Provide number of sequences, number of sites, and number of alignments.")
     parser.add_argument('num_sequences', type=int, help='Number of sequences.')
@@ -56,4 +56,8 @@ if __name__ == "__main__":
     parser.add_argument('num_algnmnts', type=int, help='Number of alignments in dataset')
     args = parser.parse_args()
 
-    generate_config_files(args.num_sequences, args.num_sites, args.num_algnmnts)
+    generate_sim_config_files(args.num_sequences, args.num_sites, args.num_algnmnts)
+
+
+if __name__ == "__main__":
+    main()

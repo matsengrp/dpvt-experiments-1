@@ -84,7 +84,6 @@ rule run_larch:
         """
 
 
-
 rule extract_dpvt_data:
     input:
         pb=input_data+"/{subdir}/larch-output.pb",

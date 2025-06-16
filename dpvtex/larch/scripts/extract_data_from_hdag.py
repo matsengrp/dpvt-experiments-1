@@ -240,6 +240,7 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
                 # make tree worse until at least a third of all edges are non MP
                 print("Tree modification iteration ", i)
                 i += 1
+                print("Use SPRs to create non-MP edges:", use_make_worse_spr)
                 if use_make_worse_spr:
                     # Maximum of 100 SPR moves per iteration -- if we don't have enough non-MP
                     # edges after that, we add more in next iteration (until done_modifying)
@@ -249,6 +250,7 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
                         # for large trees, we use a more efficient version of make_worse_spr
                         # that doesn't check the parsimony score for each move
                         efficient_sprs = True
+                        print("Using efficient SPRs")
                     new_tree = make_worse_spr(modified_tree, num_spr_moves, efficient_sprs)
                 else:
                     # replace random subtree of depth td // 2 with a random subtree

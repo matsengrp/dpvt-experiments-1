@@ -210,9 +210,12 @@ def make_worse_spr(input_tree, num_sprs, efficient = True):
             If True, perform moves without checking parsimony
     """
     tree = copy.deepcopy(input_tree)
+    print("Start running Sankoff")
     sankoff_for_missing_sequences(tree)
+    print("Finish running Sankoff")
     any(node.add_feature("random_tree", False) for node in tree.traverse())
     for i in range(num_sprs):
+        print(f"SPR move {i + 1} of {num_sprs}")
         random.seed()
         # we cannot prune children or grandchildren of root
         # also avoid moving leaves, as that doesn't change MP edge to non-MP edge
@@ -232,10 +235,14 @@ def make_worse_spr(input_tree, num_sprs, efficient = True):
         if len(allowed_edges) > 0:
             insertion_node = random.choice(allowed_edges)
             perturbed_tree = spr_move(tree, prune_node, insertion_node)
-            sankoff_for_missing_sequences(perturbed_tree)
+            if not efficient:
+                # we don't check parsimony score if efficient is True
+                # this is faster, but may not yield a tree with higher parsimony score
+                sankoff_for_missing_sequences(perturbed_tree)
             if efficient or (not efficient and parsimony_score(perturbed_tree) > parsimony_score(tree)):
                 tree = perturbed_tree
     if not efficient and parsimony_score(tree) <= parsimony_score(input_tree):
         print("No worse tree found")
         return None
+    sankoff_for_missing_sequences(tree)
     return tree

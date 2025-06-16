@@ -188,13 +188,20 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
     return edge_labels
 
 
-def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=True):
+def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=True, balance = True):
     """
     Perturbs trees in tree_list to create num_trees perturbed trees containing
     edges that are not present in the given dag Args:
         tree_list: list of ete trees dag: sequence_dag num_trees: number of
         trees to return. If 0, returns as many trees as
             there are in tree_list
+        num_children_file: file to write number of children per node in each
+            tree to
+        use_make_worse_spr: if True, we use SPRs to create non-MP edges
+        balance: if True, we balance the number of MP and non-MP edges in the
+            resulting trees. If False, we vary the ratio of MP to non-MP edges
+            by varying the number of SPR moves. This assumes that
+            use_make_worse_spr is True.
     Returns:
         dictionary with keys ete3 trees and values list of edge labels
         indicating MP (0) vs non-MP (1) edges, sorted by preorder traversal
@@ -251,7 +258,14 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
                         # that doesn't check the parsimony score for each move
                         efficient_sprs = True
                         print("Using efficient SPRs")
-                    new_tree = make_worse_spr(modified_tree, num_spr_moves, efficient_sprs)
+                    if balance:
+                        new_tree = make_worse_spr(modified_tree, num_spr_moves, efficient_sprs)
+                    else:
+                        # i SPR moves, where i is the number of iterations
+                        new_tree = make_worse_spr(modified_tree, i, efficient_sprs)
+                        if i > num_spr_moves:
+                            done_modifying = True
+                        continue
                 else:
                     # replace random subtree of depth td // 2 with a random subtree
                     new_tree = make_worse_tree(modified_tree, td // 2)

@@ -162,7 +162,7 @@ def spr_move(tree, node1, node2):
     """
 
     # deep copy tree and find node1 and node2 in new tree
-    new_tree = copy.deepcopy(tree)
+    new_tree = tree.copy("deepcopy")
     node1_set = node1.get_leaf_names()
     node2_set = node2.get_leaf_names()
     if len(node1_set) > 1:
@@ -195,8 +195,8 @@ def spr_move(tree, node1, node2):
 
 
 def make_worse_spr(input_tree, num_sprs, efficient = True):
-    """
-    Peform a at least num_sprs random SPR move on input tree to create tree
+    """ 
+    Perform a at least num_sprs random SPR move on input tree to create tree
     with higher parsimony score.
     If the keyword efficient is set to True, the function will not check
     parsimony score of the new tree. This is faster, but the resulting tree
@@ -209,7 +209,7 @@ def make_worse_spr(input_tree, num_sprs, efficient = True):
         efficient: bool
             If True, perform moves without checking parsimony
     """
-    tree = copy.deepcopy(input_tree)
+    tree = input_tree.copy("deepcopy")
     print("Start running Sankoff")
     sankoff_for_missing_sequences(tree)
     print("Finish running Sankoff")

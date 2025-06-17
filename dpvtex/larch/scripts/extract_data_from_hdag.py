@@ -4,9 +4,7 @@ import random
 import os
 import signal
 import multiprocessing
-import time
-import subprocess
-import psutil
+import sys
 
 from dpvtex.perfect_phylogenies.perturb_phylogeny import (
     make_worse_tree,
@@ -14,7 +12,6 @@ from dpvtex.perfect_phylogenies.perturb_phylogeny import (
     tree_depth,
     sankoff_for_missing_sequences,
 )
-import sys
 
 
 def get_MP_trees_from_hdag(dag, num_trees, unlabel=True):
@@ -188,7 +185,9 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
     return edge_labels
 
 
-def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=True, balance = True):
+def get_non_dag_edges(
+    dag, num_children_file, num_trees=0, use_make_worse_spr=True, balance=True
+):
     """
     Perturbs trees in tree_list to create num_trees perturbed trees containing
     edges that are not present in the given dag Args:
@@ -241,43 +240,57 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
             # introduce non-MP edges, if possible
             td = tree_depth(tree)
             done_modifying = False
-            modified_tree = tree.copy()
-            i = 0
-            while not done_modifying:
-                # make tree worse until at least a third of all edges are non MP
-                print("Tree modification iteration ", i)
-                i += 1
-                print("Use SPRs to create non-MP edges:", use_make_worse_spr)
-                if use_make_worse_spr:
-                    # Maximum of 100 SPR moves per iteration -- if we don't have enough non-MP
-                    # edges after that, we add more in next iteration (until done_modifying)
-                    num_spr_moves = min(len(modified_tree) // 2, 100)
-                    efficient_sprs = False
-                    if num_spr_moves == 100:
-                        # for large trees, we use a more efficient version of make_worse_spr
-                        # that doesn't check the parsimony score for each move
-                        efficient_sprs = True
-                        print("Using efficient SPRs")
-                    if balance:
-                        new_tree = make_worse_spr(modified_tree, num_spr_moves, efficient_sprs)
+
+            # Only set higher recursion limit if we're performing a deep copy
+            old_limit = sys.getrecursionlimit()
+            try:
+                # No need to increase the recursion limit here as tree.copy() without
+                # "deepcopy" parameter doesn't recursively copy the entire structure
+                modified_tree = tree.copy()
+                i = 0
+                while not done_modifying:
+                    # make tree worse until at least a third of all edges are non MP
+                    print("Tree modification iteration ", i)
+                    i += 1
+                    print("Use SPRs to create non-MP edges:", use_make_worse_spr)
+                    if use_make_worse_spr:
+                        # Maximum of 100 SPR moves per iteration -- if we don't have enough non-MP
+                        # edges after that, we add more in next iteration (until done_modifying)
+                        num_spr_moves = min(len(modified_tree) // 2, 100)
+                        efficient_sprs = False
+                        if num_spr_moves == 100:
+                            # for large trees, we use a more efficient version of make_worse_spr
+                            # that doesn't check the parsimony score for each move
+                            efficient_sprs = True
+                            print("Using efficient SPRs")
+                        if balance:
+                            new_tree = make_worse_spr(
+                                modified_tree, num_spr_moves, efficient_sprs
+                            )
+                        else:
+                            # i SPR moves, where i is the number of iterations
+                            new_tree = make_worse_spr(modified_tree, i, efficient_sprs)
+                            if i > num_spr_moves:
+                                done_modifying = True
+                            continue
                     else:
-                        # i SPR moves, where i is the number of iterations
-                        new_tree = make_worse_spr(modified_tree, i, efficient_sprs)
-                        if i > num_spr_moves:
-                            done_modifying = True
-                        continue
-                else:
-                    # replace random subtree of depth td // 2 with a random subtree
-                    new_tree = make_worse_tree(modified_tree, td // 2)
-                if new_tree is not None:
-                    modified_tree = new_tree
-                # assign edge labels
-                edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
-                print("Fraction of non-MP edges (of all edges incl pendant): ", sum(edge_labels)/len(edge_labels))
-                if sum(edge_labels) / len(edge_labels) >= 1 / 6 or i > 100:
-                    # note that len(edge_labels) is roughly 2*internal edges, so we are aiming at a third of non-MP edges here
-                    done_modifying = True
-            tree_to_label_dict[modified_tree] = edge_labels
+                        # replace random subtree of depth td // 2 with a random subtree
+                        new_tree = make_worse_tree(modified_tree, td // 2)
+                    if new_tree is not None:
+                        modified_tree = new_tree
+                    # assign edge labels
+                    edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
+                    print(
+                        "Fraction of non-MP edges (of all edges incl pendant): ",
+                        sum(edge_labels) / len(edge_labels),
+                    )
+                    if sum(edge_labels) / len(edge_labels) >= 1 / 6 or i > 100:
+                        # note that len(edge_labels) is roughly 2*internal edges, so we are aiming at a third of non-MP edges here
+                        done_modifying = True
+                tree_to_label_dict[modified_tree] = edge_labels
+            finally:
+                # Restore original recursion limit
+                sys.setrecursionlimit(old_limit)
     if len(tree_to_label_dict) < num_trees:
         print("Produced ", len(tree_to_label_dict), " trees instead of ", num_trees)
     return tree_to_label_dict
@@ -285,10 +298,10 @@ def get_non_dag_edges(dag, num_children_file, num_trees=0, use_make_worse_spr=Tr
 
 def memory_safe_count_topologies(dag, max_time=10):
     """Count topologies with a timeout, using SIGKILL if needed."""
-    
+
     # Create a queue for communication between processes
     result_queue = multiprocessing.Queue()
-    
+
     # Define a function to put the result in the queue
     def count_and_return():
         try:
@@ -296,6 +309,7 @@ def memory_safe_count_topologies(dag, max_time=10):
             result_queue.put(count)
         except Exception as e:
             result_queue.put(f"Error: {str(e)}")
+
     # Start a separate process
     p = multiprocessing.Process(target=count_and_return)
     p.start()
@@ -309,21 +323,23 @@ def memory_safe_count_topologies(dag, max_time=10):
             os.kill(p.pid, signal.SIGKILL)
         except Exception as e:
             print(f"Error killing process: {e}")
-        return float('inf')
+        return float("inf")
     # Process completed within time limit, get the result
     if not result_queue.empty():
         result = result_queue.get()
         # Check if we got an error
         if isinstance(result, str) and result.startswith("Error"):
             print(f"Stop counting topologies, returning inf: {result}")
-            return float('inf')
+            return float("inf")
         return result
     else:
         print("Stop counting topologies, returning inf: No result returned")
-        return float('inf')
+        return float("inf")
 
 
-def extract_data_from_hdag(dag_file, dpvt_data_file, num_children_file, make_worse_tree):
+def extract_data_from_hdag(
+    dag_file, dpvt_data_file, num_children_file, make_worse_tree
+):
     """
     Extracts dpvt data from a history DAG and saves it to a file.
     Args:
@@ -362,4 +378,3 @@ def extract_data_from_hdag(dag_file, dpvt_data_file, num_children_file, make_wor
     )
     with open(dpvt_data_file, "wb") as f:
         pickle.dump(tree_label_dict, f)
-

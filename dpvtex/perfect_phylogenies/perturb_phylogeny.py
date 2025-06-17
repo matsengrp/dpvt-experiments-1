@@ -1,8 +1,32 @@
 from ete3 import Tree
 import random
-import copy
+import sys
 from historydag.parsimony import disambiguate, parsimony_score
 from dpvtex.perfect_phylogenies.utils import populate, get_distance
+
+
+def make_random_subtree_maybe_keep_leaves(node, depth):
+    """
+    Creates a random subtree rooted at the given node of the given depth while
+    preserving the leaf nodes of the original subtree.
+    """
+    if node.is_leaf():
+        return
+
+    # Get all descendants at depth or leaf nodes at less than depth
+    leaves = node.get_leaves()
+    tips = []
+    for leaf in leaves:
+        distance = edge_distance(node, leaf)
+        if (distance <= depth and leaf.is_leaf()) or distance == depth:
+            tips.append(leaf.detach())
+
+    # Create new random subtree with these tips
+    random_tree = make_random_tree(tips)
+
+    # Replace the detached subtree with the random tree
+    node.add_child(random_tree)
+    any(child.detach() for child in node.get_children() if child != random_tree)
 
 
 def perturb_tree(tree, depth, skip_root=True, exception_on_fail=False):
@@ -22,6 +46,7 @@ def perturb_tree(tree, depth, skip_root=True, exception_on_fail=False):
             when the tree does not contain a subtree of the given depth.
             Otherwise, the method returns None in such cases.
     """
+
     if tree is None:
         if exception_on_fail:
             raise ValueError("Tree cannot be None.")
@@ -30,33 +55,32 @@ def perturb_tree(tree, depth, skip_root=True, exception_on_fail=False):
     if depth < 1:
         raise ValueError("Depth must be at least 1.")
 
-    tree = tree.copy()
-    any(node.add_feature("random_tree", False) for node in tree.traverse())
-    valid_nodes = [
-        node
-        for node in tree.traverse(strategy="preorder")
-        if not (skip_root and node.is_root()) and 0 < depth <= tree_depth(node)
-    ]
-    n = len(valid_nodes)
-    if n == 0:
-        if exception_on_fail:
-            raise ValueError("Input tree has no subtree of required depth.")
-        else:
-            return None
+    # Set a higher recursion limit for large trees
+    old_limit = sys.getrecursionlimit()
+    try:
+        sys.setrecursionlimit(10000)
+        tree = tree.copy()
+        any(node.add_feature("random_tree", False) for node in tree.traverse())
+        valid_nodes = [
+            node
+            for node in tree.traverse(strategy="preorder")
+            if not (skip_root and node.is_root()) and 0 < depth <= tree_depth(node)
+        ]
+        n = len(valid_nodes)
+        if n == 0:
+            if exception_on_fail:
+                raise ValueError("Input tree has no subtree of required depth.")
+            else:
+                return None
 
-    selected_node = random.choice(valid_nodes)
-    parent_node = None if selected_node.is_root() else selected_node.up
-    selected_node.detach()
-    is_sorta_tip = lambda x: is_subtree_depth_tip(selected_node, x, depth)
-    sorta_tips = [n.detach() for n in selected_node.get_leaves(is_leaf_fn=is_sorta_tip)]
-    new_subtree = make_random_tree(sorta_tips)
-
-    if parent_node is None:
-        tree = new_subtree
-    else:
-        parent_node.add_child(new_subtree)
-
-    return tree
+        chosen_node = random.choice(valid_nodes)
+        if depth > tree_depth(chosen_node):
+            print("Warning: depth > tree_depth(chosen_node)")
+        make_random_subtree_maybe_keep_leaves(chosen_node, depth)
+        return tree
+    finally:
+        # Restore original recursion limit
+        sys.setrecursionlimit(old_limit)
 
 
 def tree_depth(node):
@@ -142,16 +166,25 @@ def make_worse_tree(tree, depth, max_attempts=100):
     Attempt to replace a random subtree of the given depth of the tree, with the
     new tree having a higher parsimony score.
     """
+
     old_score = parsimony_score(tree)
     perturbed_tree = None
-    for _ in range(max_attempts):
-        perturbed_tree = perturb_tree(tree, depth, exception_on_fail=False)
-        if perturbed_tree is None:
-            return None
-        sankoff_for_missing_sequences(perturbed_tree)
-        if parsimony_score(perturbed_tree) > old_score:
-            return perturbed_tree
-    return None
+
+    # The perturb_tree function may do deep copying internally
+    old_limit = sys.getrecursionlimit()
+    try:
+        sys.setrecursionlimit(10000)
+        for _ in range(max_attempts):
+            perturbed_tree = perturb_tree(tree, depth, exception_on_fail=False)
+            if perturbed_tree is None:
+                return None
+            sankoff_for_missing_sequences(perturbed_tree)
+            if parsimony_score(perturbed_tree) > old_score:
+                return perturbed_tree
+        return None
+    finally:
+        # Restore original recursion limit
+        sys.setrecursionlimit(old_limit)
 
 
 def spr_move(tree, node1, node2):
@@ -161,41 +194,49 @@ def spr_move(tree, node1, node2):
     of `tree`
     """
 
-    # deep copy tree and find node1 and node2 in new tree
-    new_tree = tree.copy("deepcopy")
-    node1_set = node1.get_leaf_names()
-    node2_set = node2.get_leaf_names()
-    if len(node1_set) > 1:
-        node1 = new_tree.get_common_ancestor(node1_set)
-    else:
-        node1 = new_tree.search_nodes(name=node1_set[0])[0]
+    # Set a higher recursion limit only for deep copy operation
+    old_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(10000)  # Increase recursion limit
 
-    if len(node2_set) > 1:
-        node2 = new_tree.get_common_ancestor(node2_set)
-    else:
-        node2 = new_tree.search_nodes(name=node2_set[0])[0]
+    try:
+        # deep copy tree and find node1 and node2 in new tree
+        new_tree = tree.copy("deepcopy")
+        node1_set = node1.get_leaf_names()
+        node2_set = node2.get_leaf_names()
+        if len(node1_set) > 1:
+            node1 = new_tree.get_common_ancestor(node1_set)
+        else:
+            node1 = new_tree.search_nodes(name=node1_set[0])[0]
 
-    if node2 in node1.get_descendants() or node2 in node1.get_sisters():
-        raise ValueError("No SPR move possible, node2 is child of node1")
+        if len(node2_set) > 1:
+            node2 = new_tree.get_common_ancestor(node2_set)
+        else:
+            node2 = new_tree.search_nodes(name=node2_set[0])[0]
 
-    # prune node1 and reattach on edge above node2
-    node1_parent = node1.up
-    node1_sibling = node1.get_sisters()[0]  # bifurcating tree -> only one sibling
-    pruned_tree = node1.detach()
-    node1_parent.up.add_child(node1_sibling)
-    node1_parent.detach()
+        if node2 in node1.get_descendants() or node2 in node1.get_sisters():
+            raise ValueError("No SPR move possible, node2 is child of node1")
 
-    node2_p = node2.up
-    new_node = node2_p.add_child()
-    node2.detach()
-    new_node.add_child(node2)
-    new_node.add_child(pruned_tree)
-    new_node.add_feature("random_tree", True)
-    return new_tree
+        # prune node1 and reattach on edge above node2
+        node1_parent = node1.up
+        node1_sibling = node1.get_sisters()[0]  # bifurcating tree -> only one sibling
+        pruned_tree = node1.detach()
+        node1_parent.up.add_child(node1_sibling)
+        node1_parent.detach()
+
+        node2_p = node2.up
+        new_node = node2_p.add_child()
+        node2.detach()
+        new_node.add_child(node2)
+        new_node.add_child(pruned_tree)
+        new_node.add_feature("random_tree", True)
+        return new_tree
+    finally:
+        # Restore the original recursion limit
+        sys.setrecursionlimit(old_limit)
 
 
-def make_worse_spr(input_tree, num_sprs, efficient = True):
-    """ 
+def make_worse_spr(input_tree, num_sprs, efficient=True):
+    """
     Perform a at least num_sprs random SPR move on input tree to create tree
     with higher parsimony score.
     If the keyword efficient is set to True, the function will not check
@@ -209,40 +250,61 @@ def make_worse_spr(input_tree, num_sprs, efficient = True):
         efficient: bool
             If True, perform moves without checking parsimony
     """
-    tree = input_tree.copy("deepcopy")
-    print("Start running Sankoff")
-    sankoff_for_missing_sequences(tree)
-    print("Finish running Sankoff")
-    any(node.add_feature("random_tree", False) for node in tree.traverse())
-    for i in range(num_sprs):
-        print(f"SPR move {i + 1} of {num_sprs}")
-        random.seed()
-        # we cannot prune children or grandchildren of root
-        # also avoid moving leaves, as that doesn't change MP edge to non-MP edge
-        node_list = list(
-            [node for node in tree.iter_descendants() if not (node.up.is_root() or node.up in tree.children or node in tree.get_leaves())]
-        )
-        # prune edge above randomly chosen node prune_node
-        prune_node = random.choice(node_list)
-        # pick random edge to insert -- cannot be in pruned subtree
-        allowed_edges = [
-            node
-            for node in tree.iter_descendants()
-            if node not in list(prune_node.traverse())
-            and not node.up == prune_node.up
-            and not node == prune_node.up
-        ]
-        if len(allowed_edges) > 0:
-            insertion_node = random.choice(allowed_edges)
-            perturbed_tree = spr_move(tree, prune_node, insertion_node)
-            if not efficient:
-                # we don't check parsimony score if efficient is True
-                # this is faster, but may not yield a tree with higher parsimony score
-                sankoff_for_missing_sequences(perturbed_tree)
-            if efficient or (not efficient and parsimony_score(perturbed_tree) > parsimony_score(tree)):
-                tree = perturbed_tree
-    if not efficient and parsimony_score(tree) <= parsimony_score(input_tree):
-        print("No worse tree found")
-        return None
-    sankoff_for_missing_sequences(tree)
-    return tree
+
+    # Set a higher recursion limit only for the deep copy operation
+    old_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(10000)  # Increase recursion limit for large trees
+
+    try:
+        # This is where the deep copy happens that can trigger recursion errors
+        tree = input_tree.copy("deepcopy")
+        print("Start running Sankoff")
+        sankoff_for_missing_sequences(tree)
+        print("Finish running Sankoff")
+        any(node.add_feature("random_tree", False) for node in tree.traverse())
+        for i in range(num_sprs):
+            print(f"SPR move {i + 1} of {num_sprs}")
+            random.seed()
+            # we cannot prune children or grandchildren of root
+            # also avoid moving leaves, as that doesn't change MP edge to non-MP edge
+            node_list = list(
+                [
+                    node
+                    for node in tree.iter_descendants()
+                    if not (
+                        node.up.is_root()
+                        or node.up in tree.children
+                        or node in tree.get_leaves()
+                    )
+                ]
+            )
+            # prune edge above randomly chosen node prune_node
+            prune_node = random.choice(node_list)
+            # pick random edge to insert -- cannot be in pruned subtree
+            allowed_edges = [
+                node
+                for node in tree.iter_descendants()
+                if node not in list(prune_node.traverse())
+                and not node.up == prune_node.up
+                and not node == prune_node.up
+            ]
+            if len(allowed_edges) > 0:
+                insertion_node = random.choice(allowed_edges)
+                perturbed_tree = spr_move(tree, prune_node, insertion_node)
+                if not efficient:
+                    # we don't check parsimony score if efficient is True
+                    # this is faster, but may not yield a tree with higher parsimony score
+                    sankoff_for_missing_sequences(perturbed_tree)
+                if efficient or (
+                    not efficient
+                    and parsimony_score(perturbed_tree) > parsimony_score(tree)
+                ):
+                    tree = perturbed_tree
+        if not efficient and parsimony_score(tree) <= parsimony_score(input_tree):
+            print("No worse tree found")
+            return None
+        sankoff_for_missing_sequences(tree)
+        return tree
+    finally:
+        # Restore original recursion limit
+        sys.setrecursionlimit(old_limit)

@@ -20,7 +20,7 @@ scaling_factor=2
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Check if simulated_alignments directory exists, create it if not
-simulated_alignments_dir="$(cd "${script_dir}/../../../data" && pwd)/simulated_alignments"
+simulated_alignments_dir="$(cd "${script_dir}/../../../shared_data" && pwd)/simulated_alignments"
 if [ ! -d "$simulated_alignments_dir" ]; then
     echo "Creating simulated_alignments directory at: $simulated_alignments_dir"
     mkdir -p "$simulated_alignments_dir"

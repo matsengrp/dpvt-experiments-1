@@ -3,7 +3,7 @@ import os
 import argparse
 
 
-def generate_sim_config_files(num_sequences, num_sites, num_algnmnts):
+def generate_sim_config_files(num_sequences, num_sites, num_algnmnts, balance=True):
     """
     Generate config files for running the larch pipeline to generate
     training and testing data for dpvt.
@@ -25,12 +25,13 @@ def generate_sim_config_files(num_sequences, num_sites, num_algnmnts):
     for use_spr in [True, False]:
         # Create the config dictionary
         config = {
-            "input_data": os.path.join(script_dir, "..", "..", "data", "simulated_alignments", dataset_name),
+            "input_data": os.path.join(script_dir, "..", "..", "..", "shared_data", "simulated_alignments", dataset_name),
             "larch_build": os.path.join(script_dir, "..", "..", "..", "..", "larch", "build"),
-            "output_data": os.path.join(script_dir, "..", "..", "data"),
+            "output_data": os.path.join(script_dir, "..", "..", "..", "shared_data"),
             "dataset_name": dataset_name,
             "num_cores": 2,
-            "make_worse_spr": use_spr
+            "make_worse_spr": use_spr,
+            "balance": balance
         }
         
         # Create filename for the config
@@ -54,9 +55,10 @@ def main():
     parser.add_argument('num_sequences', type=int, help='Number of sequences.')
     parser.add_argument('num_sites', type=int, help='Number of sites')
     parser.add_argument('num_algnmnts', type=int, help='Number of alignments in dataset')
+    parser.add_argument('balance', type=bool, help='Should the number of non-MP and MP edges be balanced?')
     args = parser.parse_args()
 
-    generate_sim_config_files(args.num_sequences, args.num_sites, args.num_algnmnts)
+    generate_sim_config_files(args.num_sequences, args.num_sites, args.num_algnmnts, args.balance)
 
 
 if __name__ == "__main__":

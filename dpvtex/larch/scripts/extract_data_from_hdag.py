@@ -186,7 +186,7 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
 
 
 def get_non_dag_edges(
-    dag, num_children_file, num_trees=0, use_make_worse_spr=True, balance=True
+    dag, num_children_file, num_trees=0, use_make_worse_spr=True, balance=False
 ):
     """
     Perturbs trees in tree_list to create num_trees perturbed trees containing
@@ -270,12 +270,16 @@ def get_non_dag_edges(
                         else:
                             # i SPR moves, where i is the number of iterations
                             new_tree = make_worse_spr(modified_tree, i, efficient_sprs)
-                            if i > num_spr_moves:
+                            if i == num_spr_moves:
                                 done_modifying = True
-                            continue
                     else:
-                        # replace random subtree of depth td // 2 with a random subtree
-                        new_tree = make_worse_tree(modified_tree, td // 2)
+                        # replace random subtree of depth i or td // 2 with a random subtree
+                        if not balance:
+                            depth = min(i, int(td//2))
+                        else:
+                            depth = int(d//2)
+                        print("depth of subtree to replace:", depth)
+                        new_tree = make_worse_tree(modified_tree, depth)
                     if new_tree is not None:
                         modified_tree = new_tree
                     # assign edge labels

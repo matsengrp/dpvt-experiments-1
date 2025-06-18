@@ -21,6 +21,7 @@ output_data=config["output_data"]
 larch_build=config["larch_build"]
 dataset_name=config["dataset_name"]
 make_worse_spr=config["make_worse_spr"]
+balance = config.get("balance", False)
 
 
 # special suffices if spr moves to introduce non-MP edges
@@ -29,6 +30,9 @@ csv_suffix = ".csv"
 if bool(make_worse_spr) == True:
     pickle_suffix = "_spr.p"
     csv_suffix = "_spr.csv"
+if not balance:
+    pickle_suffix = pickle_suffix[:-2] + "_unbalanced.p"
+    csv_suffix = csv_suffix[:-4] + "_unbalanced.csv"
 
 
 def get_subdirs(data_dir):

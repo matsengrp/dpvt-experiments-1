@@ -109,7 +109,7 @@ def load_model(
     model.eval()
 
     # Move model to the appropriate device if needed
-    if device != "cpu-tree-dataset" and device != "cpu":
+    if device != "cpu-tree-dataset":
         model = model.to(device)
 
     return model, device

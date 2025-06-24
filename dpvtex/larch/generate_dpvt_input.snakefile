@@ -21,19 +21,36 @@ output_data=config["output_data"]
 larch_build=config["larch_build"]
 dataset_name=config["dataset_name"]
 make_worse_spr=config["make_worse_spr"]
-balance = config.get("balance", False)
+balance=config["balance"]
 
 
+# Convert make_worse_spr to boolean if it is a string
+if type(make_worse_spr) is str:
+    make_worse_spr = make_worse_spr.lower() == "true"
 # special suffices if spr moves to introduce non-MP edges
-pickle_suffix = ".p"
-csv_suffix = ".csv"
-if bool(make_worse_spr) == True:
+# Convert to boolean if balance is a string
+if type(balance) is str:
+    unbalanced = balance.lower() != "true"
+else:
+    unbalanced = balance != True
+
+
+# Define suffixes based on make_worse_spr and unbalanced flags
+if unbalanced and make_worse_spr:
+    pickle_suffix = "_spr_unbalanced.p"
+    csv_suffix = "_spr_unbalanced.csv"
+elif unbalanced and not make_worse_spr:
+    pickle_suffix = "_unbalanced.p"
+    csv_suffix = "_unbalanced.csv"
+elif not unbalanced and make_worse_spr:
     pickle_suffix = "_spr.p"
     csv_suffix = "_spr.csv"
-if not balance:
-    pickle_suffix = pickle_suffix[:-2] + "_unbalanced.p"
-    csv_suffix = csv_suffix[:-4] + "_unbalanced.csv"
+else:
+    pickle_suffix = ".p"
+    csv_suffix = ".csv"
 
+print("pickle_suffix:", pickle_suffix)
+print("csv_suffix:", csv_suffix)
 
 def get_subdirs(data_dir):
     subdirs_with_flag = []
@@ -106,5 +123,5 @@ rule aggregate_training_data:
         data_props=input_data+"/data_properties_"+dataset_name+csv_suffix,
         dpvt_data=output_data+"/larch_"+dataset_name+pickle_suffix,
     run:
-        aggregate_data(data_dir = input_data, data_props_file = output.data_props, dpvt_train_data = output.dpvt_data, dpvt_test_data = None)
+        aggregate_data(data_dir = input_data, data_props_file = output.data_props, dpvt_train_data = output.dpvt_data, spr=make_worse_spr, unbalanced=unbalanced, dpvt_test_data = None)
 

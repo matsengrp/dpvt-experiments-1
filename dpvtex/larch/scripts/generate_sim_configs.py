@@ -38,6 +38,8 @@ def generate_sim_config_files(num_sequences, num_sites, num_algnmnts, balance=Tr
         filename = f"config_{num_sequences}seq_{num_sites}sites_{num_algnmnts}alignments.json"
         if use_spr:
             filename = filename.replace(".json", "_spr.json")
+        if not balance:
+            filename = filename.replace(".json", "_unbalanced.json")
         filepath = os.path.join(config_dir, filename)
         
         # Write the JSON file
@@ -55,10 +57,15 @@ def main():
     parser.add_argument('num_sequences', type=int, help='Number of sequences.')
     parser.add_argument('num_sites', type=int, help='Number of sites')
     parser.add_argument('num_algnmnts', type=int, help='Number of alignments in dataset')
-    parser.add_argument('balance', type=bool, help='Should the number of non-MP and MP edges be balanced?')
+    parser.add_argument('balance', type=str, help='Should the number of non-MP and MP edges be balanced?')
     args = parser.parse_args()
 
-    generate_sim_config_files(args.num_sequences, args.num_sites, args.num_algnmnts, args.balance)
+    # Properly convert string to boolean
+    balance = False
+    if args.balance.lower() == 'true':
+        balance = True
+
+    generate_sim_config_files(args.num_sequences, args.num_sites, args.num_algnmnts, balance)
 
 
 if __name__ == "__main__":

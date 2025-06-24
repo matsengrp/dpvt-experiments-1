@@ -15,7 +15,7 @@ def get_dict(file_path):
             return None
 
 
-def extract_trees_and_labels(data_dir):
+def extract_trees_and_labels(data_dir, spr=False, unbalanced=False):
     """
     Extracts trees and labels from .p files in the given directory.
     Args:
@@ -37,6 +37,8 @@ def extract_trees_and_labels(data_dir):
             if (
                 file_name.endswith(".p")
                 and os.path.relpath(file_path, data_dir) != file_name
+                and (not spr or "spr" in file_name)
+                and (not unbalanced or "unbalanced" in file_name)
             ):
                 file_path = os.path.join(root, file_name)
                 dataset_name = file_name[:-2]
@@ -145,7 +147,7 @@ def save_data_properties(data_props, data_props_file, data_dir):
     print(f"Data properties saved to '{data_props_file}'")
 
 
-def aggregate_data(data_dir, data_props_file, dpvt_train_data, dpvt_test_data = None):
+def aggregate_data(data_dir, data_props_file, dpvt_train_data, spr=False, unbalanced=False, dpvt_test_data = None):
     """
     Aggregate data from the specified directory and save it to a pickle file.
     Args:
@@ -154,6 +156,6 @@ def aggregate_data(data_dir, data_props_file, dpvt_train_data, dpvt_test_data = 
         dpvt_train_data (str): Path to save the training data.
         dpvt_test_data (str): Path to save the testing data.
     """
-    trees, labels, all_trees_dict, data_props = extract_trees_and_labels(data_dir)
+    trees, labels, all_trees_dict, data_props = extract_trees_and_labels(data_dir, spr, unbalanced)
     pickle_and_save_data(dpvt_train_data, dpvt_test_data, all_trees_dict, trees, labels)
     save_data_properties(data_props, data_props_file, data_dir)

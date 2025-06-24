@@ -4,8 +4,11 @@ import json, yaml
 from pathlib import Path
 import pandas as pd
 import re
+import itertools
 
 from dpvtex.dpvt_zoo import (
+    train_model,
+    optimize_hyperparameters,
     build_log_path,
     get_trained_model_path,
     get_model_params_path,
@@ -34,6 +37,8 @@ device = config["device"]
 timestamp = config["timestamp"]
 metrics = config["metrics"]
 num_replicates = config["replicates"]
+use_hyperparameter_optimize = bool(config["use_hyperparameter_optimize"])
+hyperparameters = config["hyperparameters"]
 
 # Automatically identify baseline models based on name (any model containing "Baseline")
 baseline_models = [model for model in model_names if "Baseline" in model]
@@ -268,6 +273,25 @@ comparison_plot_paths = generate_comparison_plot_paths(
 )
 
 
+def generate_hyperparameter_dicts(hyperparameters, use_hyperparameter_optimize):
+    if use_hyperparameter_optimize:
+        return ["ParamOpt"], {}
+
+    param_dicts = {}
+    keys = hyperparameters.keys()
+    values = [x for x in hyperparameters.values()]
+    for id, combination in enumerate(itertools.product(*values)):
+        param_id = f"Param{id}"
+        result_dict = dict(zip(keys, combination))
+        param_dicts[param_id] = result_dict
+    return list(param_dicts.keys()), param_dicts
+
+param_ids, param_dicts = generate_hyperparameter_dicts(
+    hyperparameters=hyperparameters,
+    use_hyperparameter_optimize=use_hyperparameter_optimize,
+)
+
+
 # Specify ruleorder - baseline models should be handled by the evaluate_baseline_models rule
 ruleorder: evaluate_baseline_model > evaluate_individual_trees
 
@@ -450,8 +474,6 @@ rule plot_treesearch_evaluation:
             if len(matching_test_data) == 0:
                 matching_test_data = [wildcards.test_data_name]
                 
-            print(f"Test datasets for all metrics comparison: {matching_test_data}")
-            
         else:  # compare_by == "training_data"
             fixed_model = wildcards.fixed_value
             fixed_training_data = None

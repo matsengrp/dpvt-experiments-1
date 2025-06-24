@@ -9,9 +9,10 @@
 # training and testing datasets.
 
 # Parameters
-num_alignments_list=(200 500)
-num_sequences_list=(10 15 20 25)
-alignment_length_list=(50 100)
+num_alignments_list=(500)
+num_sequences_list=(15 25)
+alignment_length_list=(100)
+balance="False"  # Set directly as Python string
 
 max_attempts=20
 # How much larger to make the initial alignment to account for cleaning
@@ -90,7 +91,7 @@ for num_alignments in "${num_alignments_list[@]}"; do
             fi
             # We generate config file independent of datasets
             echo "Generate config file..."
-            python ${script_dir}/generate_sim_configs.py $target_num_sequences $target_alignment_length $num_alignments
+            python ${script_dir}/generate_sim_configs.py $target_num_sequences $target_alignment_length $num_alignments $balance
         done
     done
 done

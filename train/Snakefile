@@ -22,6 +22,13 @@ from dpvtex.dpvt_zoo import (
     aggregate_baseline_data_to_csv,
 )
 
+from dpvtex.dpvt_data import (
+    get_traversal_data_path,
+    preprocess_and_save_traversal_data,
+    load_nicknames_dict,
+    train_val_data_from_preprocessed,
+)
+
 
 snakefile_dir = workflow.basedir
 sys.path.append(f"{snakefile_dir}/..")
@@ -47,6 +54,9 @@ default_config = {
     # if hyperparameter_optimize is False, then uses hyperparameter arguments
     # below.
     "use_hyperparameter_optimize": True,
+    # preprocessing options
+    "use_preprocessing": True,  # Enable TraversalDataset preprocessing
+    "force_repreprocess": False,  # Force reprocessing even if cached data exists
     "hyperparameters": {
         "learning_rate": [0.0002, 0.0004],
         "batch_size": [512],
@@ -84,6 +94,8 @@ timestamp = config["timestamp"]
 n_hyperparameter_trials = config["n_hyperparameter_trials"]
 use_cross_datasets = config["use_cross_datasets"]
 use_hyperparameter_optimize = config["use_hyperparameter_optimize"]
+use_preprocessing = config["use_preprocessing"]
+force_repreprocess = config["force_repreprocess"]
 hyperparameters = config["hyperparameters"]
 notebook_input_paths = config["notebook_paths"]
 
@@ -268,12 +280,47 @@ def get_notebook_input_path(notebook_dict, notebook_name):
     return notebook_dict[os.path.basename(notebook_name)]
 
 
+def generate_preprocessing_paths(data_names, data_nicknames_path):
+    """
+    Generate static paths for preprocessed data files (for Snakemake dependency tracking).
+    
+    Args:
+        data_names: List of dataset nicknames
+        data_nicknames_path: Path to data nicknames JSON
+        
+    Returns:
+        List of static paths for preprocessed data (for Snakemake outputs)
+    """
+    # Read the data directory from the nicknames file
+    with open(data_nicknames_path, "r") as f:
+        dataset_dict = json.load(f)
+    data_dir = dataset_dict["data_dir"]
+    
+    return [f"{data_dir}/TraversalDataset/{data_name}_traversal.p" for data_name in data_names]
+
+
+# Read the data directory from the nicknames file at module level
+with open(data_nicknames_path, "r") as f:
+    nicknames_dict = json.load(f)
+    data_dir = nicknames_dict["data_dir"]
+
+
 # rule input/output paths
 data_pairs = generate_data_pairs(train_data_names, test_data_names, use_cross_datasets)
 param_ids, param_dicts = generate_hyperparameter_dicts(
     hyperparameters=hyperparameters,
     use_hyperparameter_optimize=use_hyperparameter_optimize,
 )
+
+# Generate preprocessing paths if preprocessing is enabled
+if use_preprocessing and device != "cpu-tree-dataset":
+    # For all data (both training and test data)
+    all_data_names = list(set(train_data_names + test_data_names))
+    all_preprocessing_paths = generate_preprocessing_paths(
+        all_data_names, data_nicknames_path
+    )
+else:
+    all_preprocessing_paths = []
 
 
 # create trained_model_list containing only trainable model, not baseline models
@@ -358,6 +405,7 @@ rule all:
         notebook_output_paths=notebook_output_paths,
         csv_output_path=csv_output_path,
         baseline_csv_output_path=baseline_csv_output_path if baseline_model_list else [],
+        preprocessing_paths=all_preprocessing_paths if use_preprocessing else [],
 
 
 rule log_metadata_step:
@@ -368,6 +416,44 @@ rule log_metadata_step:
         with open(output.config_output_path, "w") as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
         shutil.copy(data_nicknames_path, output.data_nicknames_output_path)
+
+
+rule preprocess_data:
+    output:
+        data_path=f"{data_dir}/TraversalDataset/{{data_name}}_traversal.p",
+    run:
+        import pickle
+        
+        # Load original data
+        dataset_dict = load_nicknames_dict(data_nicknames_path)
+        file_path = dataset_dict[wildcards.data_name]
+        file_path = os.path.realpath(file_path)
+        
+        # Get the correct output path (in the data directory, not working directory)
+        actual_output_path = get_traversal_data_path(wildcards.data_name, data_nicknames_path)
+        
+        # Check if preprocessed data already exists and force_repreprocess is False
+        if not force_repreprocess and os.path.exists(actual_output_path):
+            print(f"Preprocessed data already exists for {wildcards.data_name}. Skipping.")
+            # Create symlink to satisfy Snakemake output requirements
+            os.makedirs(os.path.dirname(output.data_path), exist_ok=True)
+            if not os.path.exists(output.data_path):
+                os.symlink(actual_output_path, output.data_path)
+            return
+            
+        with open(file_path, "rb") as f:
+            data_dict = pickle.load(f)
+
+        labels = list(data_dict.values())
+        trees = list(data_dict.keys())
+        
+        # Preprocess and save data to actual path
+        preprocess_and_save_traversal_data(trees, labels, actual_output_path, device)
+        
+        # Create symlink to satisfy Snakemake output requirements
+        os.makedirs(os.path.dirname(output.data_path), exist_ok=True)
+        if not os.path.exists(output.data_path):
+            os.symlink(actual_output_path, output.data_path)
 
 
 rule optimize_hyperparameters_step:
@@ -420,6 +506,7 @@ rule train_model_step:
             timestamp=timestamp,
             output_dir=output_dir,
         ),
+        preprocessing=lambda wildcards: f"{data_dir}/TraversalDataset/{wildcards.train_data_name}_traversal.p" if use_preprocessing and device != "cpu-tree-dataset" else [],
     output:
         trained_model=get_trained_model_ckpt(
             model="{model_name}",
@@ -452,6 +539,7 @@ rule train_model_step:
             param_id=wildcards.param_id,
             output_dir=output_dir,
             data_nicknames_path=data_nicknames_path,
+            use_preprocessed=use_preprocessing,
         )
 
 
@@ -473,6 +561,7 @@ rule test_model_step:
             timestamp=timestamp,
             output_dir=output_dir,
         ),
+        test_preprocessing=lambda wildcards: f"{data_dir}/TraversalDataset/{wildcards.test_data_name}_traversal.p" if use_preprocessing and device != "cpu-tree-dataset" else [],
     output:
         tested_model=get_tested_model_ckpt(
             model="{model_name}",

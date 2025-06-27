@@ -4,6 +4,8 @@ from dpvtex.dpvt_data import (
     load_nicknames_dict,
     data_of_nicknames,
     train_val_data_of_nicknames,
+    train_val_data_from_preprocessed,
+    get_traversal_data_path,
 )
 import json
 import torch
@@ -397,6 +399,7 @@ def train_model(
     param_id=None,
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
+    use_preprocessed=False,
     **wrap_kwargs,
 ):
     """
@@ -416,9 +419,17 @@ def train_model(
         train_checkpoint = path_dict["train_checkpoint"]
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
-    train_data, val_data = train_val_data_of_nicknames(
-        data_name, device, data_nicknames_path
-    )
+    
+    # Use preprocessed data if requested, otherwise use original method
+    if use_preprocessed and device != "cpu-tree-dataset":
+        print(f"Using preprocessed data for training: {data_name}")
+        train_data, val_data = train_val_data_from_preprocessed(
+            data_name, device, data_nicknames_path
+        )
+    else:
+        train_data, val_data = train_val_data_of_nicknames(
+            data_name, device, data_nicknames_path
+        )
     model = build_model(model_name)
     log_path = path_dict["train_llog"]
     custom_log_path = path_dict["train_clog"]

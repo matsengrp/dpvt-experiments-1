@@ -24,6 +24,8 @@ output_dir: "_output"
 data_nicknames_path: "data_nicknames.json"
 evaluate_tree_search: False
 use_hyperparameter_optimize: False
+use_preprocessing: True
+force_repreprocess: False
 n_hyperparameter_trials: 50
 
 hyperparameters:

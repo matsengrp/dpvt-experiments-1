@@ -267,44 +267,40 @@ def train_val_data_from_preprocessed(data_name, device, data_nicknames_path):
         )
         cat_counter = Counter(categories)
 
-    print_memory_usage("Before train_test_split")
+    print_memory_usage("Before creating indices split")
     
-    # Split all tensor components at once
-    print("Splitting preprocessed data into train and validation sets")
-    (
-        train_traversal,
-        val_traversal,
-        train_mutations,
-        val_mutations,
-        train_labels,
-        val_labels,
-        train_mask,
-        val_mask,
-    ) = train_test_split(
-        full_dataset.traversal,
-        full_dataset.mutations,
-        full_dataset.labels,
-        full_dataset.mask,
+    # Split indices instead of data to avoid loading memory-mapped arrays
+    print("Creating train/val indices for memory-efficient splitting")
+    indices = list(range(len(full_dataset)))
+    train_indices, val_indices = train_test_split(
+        indices,
         train_size=0.8,
         test_size=0.2,
         stratify=categories,
         random_state=42,
     )
-    print_memory_usage("After train_test_split")
+    print_memory_usage("After creating indices split")
 
-    # Create new TraversalDatasets with the split tensors
-    train_data = TraversalDataset(
-        traversal=train_traversal,
-        mutations=train_mutations,
-        traversal_labels=train_labels,
-        mask=train_mask,
-    )
+    # Create datasets that use subsets of the memory-mapped arrays
+    print("Creating train dataset...")
+    train_data = TraversalDataset()
+    train_data.device = "cpu"
+    train_data.traversal = full_dataset.traversal[train_indices]
+    train_data.mutations = full_dataset.mutations[train_indices]
+    train_data.labels = full_dataset.labels[train_indices]
+    train_data.mask = full_dataset.mask[train_indices]
+    print_memory_usage("After creating train dataset")
 
-    val_data = TraversalDataset(
-        traversal=val_traversal,
-        mutations=val_mutations,
-        traversal_labels=val_labels,
-        mask=val_mask,
-    )
+    print("Creating val dataset...")
+    val_data = TraversalDataset()
+    val_data.device = "cpu"
+    val_data.traversal = full_dataset.traversal[val_indices]
+    val_data.mutations = full_dataset.mutations[val_indices]
+    val_data.labels = full_dataset.labels[val_indices]
+    val_data.mask = full_dataset.mask[val_indices]
+    print_memory_usage("After creating val dataset")
+
+    print(f"Train dataset: {len(train_data)} samples")
+    print(f"Val dataset: {len(val_data)} samples")
 
     return train_data, val_data

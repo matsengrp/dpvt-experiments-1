@@ -8,6 +8,7 @@ from collections import Counter
 import json
 import psutil
 import torch
+from torch.utils.data import Dataset
 
 
 def print_memory_usage(stage=""):
@@ -238,20 +239,19 @@ def train_val_data_from_preprocessed(data_name, device, data_nicknames_path):
     full_dataset = load_preprocessed_traversal_data(preprocessed_path, device)
     print_memory_usage("After loading preprocessed data")
 
-    # We need to get the stratification categories from the original data
-    dataset_dict = load_nicknames_dict(data_nicknames_path)
-    file_path = dataset_dict[data_name]
-    file_path = os.path.realpath(file_path)
-    print(f"Loading original data for stratification from {file_path}")
-    with open(file_path, "rb") as f:
-        data_dict = pickle.load(f)
-    print_memory_usage("After loading original data for stratification")
-
-    labels = list(data_dict.values())
-    sum_of_ones = [sum(label) for label in labels]
+    # Get stratification categories more efficiently using the loaded dataset's labels
+    print("Computing stratification categories from loaded dataset...")
+    n_samples = len(full_dataset.labels)
+    sum_of_ones = []
     
-    # Free the original data dict since we only need sum_of_ones
-    del data_dict
+    # Process labels in chunks to avoid memory issues
+    chunk_size = 1000
+    for i in range(0, n_samples, chunk_size):
+        end_idx = min(i + chunk_size, n_samples)
+        chunk_labels = full_dataset.labels[i:end_idx]
+        for j in range(len(chunk_labels)):
+            sum_of_ones.append(float(chunk_labels[j].sum()))
+    
     print_memory_usage("After processing labels for stratification")
 
     # Convert sums to a categorical variable for balancing number of non-MP edges in train/test/val
@@ -281,26 +281,36 @@ def train_val_data_from_preprocessed(data_name, device, data_nicknames_path):
     )
     print_memory_usage("After creating indices split")
 
-    # Create datasets that use subsets of the memory-mapped arrays
-    print("Creating train dataset...")
-    train_data = TraversalDataset()
-    train_data.device = "cpu"
-    train_data.traversal = full_dataset.traversal[train_indices]
-    train_data.mutations = full_dataset.mutations[train_indices]
-    train_data.labels = full_dataset.labels[train_indices]
-    train_data.mask = full_dataset.mask[train_indices]
+    # Create indexed datasets that keep references to the original memory-mapped arrays
+    print("Creating indexed train dataset...")
+    train_data = IndexedDataset(full_dataset, train_indices)
     print_memory_usage("After creating train dataset")
 
-    print("Creating val dataset...")
-    val_data = TraversalDataset()
-    val_data.device = "cpu"
-    val_data.traversal = full_dataset.traversal[val_indices]
-    val_data.mutations = full_dataset.mutations[val_indices]
-    val_data.labels = full_dataset.labels[val_indices]
-    val_data.mask = full_dataset.mask[val_indices]
+    print("Creating indexed val dataset...")
+    val_data = IndexedDataset(full_dataset, val_indices)
     print_memory_usage("After creating val dataset")
 
     print(f"Train dataset: {len(train_data)} samples")
     print(f"Val dataset: {len(val_data)} samples")
 
     return train_data, val_data
+
+
+class IndexedDataset(Dataset):
+    """Dataset that provides indexed access to a base dataset without copying data."""
+    
+    def __init__(self, base_dataset, indices):
+        self.base_dataset = base_dataset
+        self.indices = indices
+        self.device = "cpu"
+    
+    def __len__(self):
+        return len(self.indices)
+    
+    def __getitem__(self, idx):
+        print_memory_usage(f"Getting item {idx}")
+        # Map to the actual index in the base dataset
+        real_idx = self.indices[idx]
+        result = self.base_dataset[real_idx]
+        print_memory_usage(f"Got item {idx}")
+        return result

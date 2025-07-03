@@ -6,6 +6,24 @@ import os
 import pandas as pd
 from collections import Counter
 import json
+import psutil
+import torch
+
+
+def print_memory_usage(stage=""):
+    """Print current memory usage."""
+    process = psutil.Process(os.getpid())
+    memory_info = process.memory_info()
+    memory_gb = memory_info.rss / 1024 / 1024 / 1024
+    
+    # GPU memory if available
+    gpu_mem = ""
+    if torch.cuda.is_available():
+        gpu_allocated = torch.cuda.memory_allocated() / 1024 / 1024 / 1024
+        gpu_reserved = torch.cuda.memory_reserved() / 1024 / 1024 / 1024
+        gpu_mem = f" | GPU: {gpu_allocated:.2f}GB allocated, {gpu_reserved:.2f}GB reserved"
+    
+    print(f"[{stage}] Memory usage: {memory_gb:.2f}GB RAM{gpu_mem}")
 
 
 def load_nicknames_dict(data_nicknames_path):
@@ -201,6 +219,8 @@ def train_val_data_from_preprocessed(data_name, device, data_nicknames_path):
     Returns:
         tuple: (train_dataset, val_dataset)
     """
+    print_memory_usage("Function start")
+    
     if device == "cpu-tree-dataset":
         # For cpu-tree-dataset, fall back to the original function since preprocessing isn't used
         return train_val_data_of_nicknames(data_name, device, data_nicknames_path)
@@ -216,16 +236,23 @@ def train_val_data_from_preprocessed(data_name, device, data_nicknames_path):
 
     print(f"Loading preprocessed data from {preprocessed_path}")
     full_dataset = load_preprocessed_traversal_data(preprocessed_path, device)
+    print_memory_usage("After loading preprocessed data")
 
     # We need to get the stratification categories from the original data
     dataset_dict = load_nicknames_dict(data_nicknames_path)
     file_path = dataset_dict[data_name]
     file_path = os.path.realpath(file_path)
+    print(f"Loading original data for stratification from {file_path}")
     with open(file_path, "rb") as f:
         data_dict = pickle.load(f)
+    print_memory_usage("After loading original data for stratification")
 
     labels = list(data_dict.values())
     sum_of_ones = [sum(label) for label in labels]
+    
+    # Free the original data dict since we only need sum_of_ones
+    del data_dict
+    print_memory_usage("After processing labels for stratification")
 
     # Convert sums to a categorical variable for balancing number of non-MP edges in train/test/val
     num_categories = 4  # Aim for 4 categories
@@ -240,36 +267,30 @@ def train_val_data_from_preprocessed(data_name, device, data_nicknames_path):
         )
         cat_counter = Counter(categories)
 
-    # Split the tensor components directly
+    print_memory_usage("Before train_test_split")
+    
+    # Split all tensor components at once
     print("Splitting preprocessed data into train and validation sets")
-    train_traversal, val_traversal = train_test_split(
+    (
+        train_traversal,
+        val_traversal,
+        train_mutations,
+        val_mutations,
+        train_labels,
+        val_labels,
+        train_mask,
+        val_mask,
+    ) = train_test_split(
         full_dataset.traversal,
-        train_size=0.8,
-        test_size=0.2,
-        stratify=categories,
-        random_state=42,
-    )
-    train_mutations, val_mutations = train_test_split(
         full_dataset.mutations,
-        train_size=0.8,
-        test_size=0.2,
-        stratify=categories,
-        random_state=42,
-    )
-    train_labels, val_labels = train_test_split(
         full_dataset.labels,
-        train_size=0.8,
-        test_size=0.2,
-        stratify=categories,
-        random_state=42,
-    )
-    train_mask, val_mask = train_test_split(
         full_dataset.mask,
         train_size=0.8,
         test_size=0.2,
         stratify=categories,
         random_state=42,
     )
+    print_memory_usage("After train_test_split")
 
     # Create new TraversalDatasets with the split tensors
     train_data = TraversalDataset(

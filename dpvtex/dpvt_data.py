@@ -188,7 +188,128 @@ def preprocess_and_save_traversal_data(data_name, device, data_nicknames_path):
     return save_path
 
 
+def train_val_data_of_nicknames_semipreprocessed(
+    data_name, device, data_nicknames_path
+):
+    """
+    Load raw data and split into train/val, then convert to TraversalDataset format.
+    This differs from the fully preprocessed version by doing the train/val split
+    before the expensive tensor conversion.
+
+    Args:
+        data_name: Dataset nickname
+        device: Device to use
+        data_nicknames_path: Path to data nicknames JSON file
+
+    Returns:
+        tuple: (train_dataset, val_dataset)
+    """
+    dataset_dict = load_nicknames_dict(data_nicknames_path)
+    file_path = dataset_dict[data_name]
+    file_path = os.path.realpath(file_path)
+
+    print(f"Loading raw data from {file_path}...")
+    with open(file_path, "rb") as f:
+        data_dict = pickle.load(f)
+
+    # Split into balanced training, validation, and test data using sklearn
+    labels = list(data_dict.values())
+    trees = list(data_dict.keys())
+
+    sum_of_ones = [sum(label) for label in labels]
+
+    # Convert sums to a categorical variable for balancing number of non-MP edges in train/test/val
+    num_categories = 4  # Aim for 4 categories
+    categories = pd.qcut(sum_of_ones, q=num_categories, labels=False, duplicates="drop")
+    cat_counter = Counter(categories)
+
+    while any(count < 0.2 * len(labels) for count in cat_counter.values()):
+        print("decrease number of categories")
+        num_categories -= 1
+        categories = pd.qcut(
+            sum_of_ones, q=num_categories, labels=False, duplicates="drop"
+        )
+        cat_counter = Counter(categories)
+
+    print("Splitting data into train and validation sets...")
+    train_trees, val_trees, train_labels, val_labels = train_test_split(
+        trees,
+        labels,
+        train_size=0.8,
+        test_size=0.2,
+        stratify=categories,
+        random_state=42,
+    )
+
+    if device == "cpu-tree-dataset":
+        train_dataset = TreeDataset(train_trees, train_labels)
+        val_dataset = TreeDataset(val_trees, val_labels)
+    else:
+        # Check if preprocessed versions exist
+        # Load the data nicknames to get the data_dir
+        with open(data_nicknames_path, "r") as f:
+            dataset_dict_raw = json.load(f)
+        data_dir = dataset_dict_raw["data_dir"]
+
+        # Get the absolute data directory path
+        config_dir = os.path.dirname(os.path.abspath(data_nicknames_path))
+        data_dir_abs = os.path.abspath(os.path.join(config_dir, data_dir))
+
+        # Create TraversalDataset subdirectory if it doesn't exist
+        traversal_dir = os.path.join(data_dir_abs, "TraversalDataset")
+        os.makedirs(traversal_dir, exist_ok=True)
+
+        train_preprocessed_path = os.path.join(
+            traversal_dir, f"{data_name}_train_traversal.p"
+        )
+        val_preprocessed_path = os.path.join(
+            traversal_dir, f"{data_name}_val_traversal.p"
+        )
+
+        if os.path.exists(train_preprocessed_path) and os.path.exists(
+            val_preprocessed_path
+        ):
+            print("Loading preprocessed train/val datasets...")
+            train_dataset = TraversalDataset(
+                preprocessed_path=train_preprocessed_path, device=device
+            )
+            val_dataset = TraversalDataset(
+                preprocessed_path=val_preprocessed_path, device=device
+            )
+        else:
+            print(
+                f"Creating TraversalDataset for training set ({len(train_trees)} trees)..."
+            )
+            train_dataset = TraversalDataset(
+                trees=train_trees, labels=train_labels, device=device
+            )
+
+            print(
+                f"Creating TraversalDataset for validation set ({len(val_trees)} trees)..."
+            )
+            val_dataset = TraversalDataset(
+                trees=val_trees, labels=val_labels, device=device
+            )
+
+            # Save preprocessed versions for future use
+            print("Saving preprocessed train/val datasets for future use...")
+            train_dataset.save_preprocessed_data(train_preprocessed_path)
+            val_dataset.save_preprocessed_data(val_preprocessed_path)
+
+        return train_dataset, val_dataset
+
+
 def train_val_data_from_preprocessed(data_name, device, data_nicknames_path):
+    """
+    Memory-efficient version using the semipreprocessed approach.
+    This avoids loading the full 13GB dataset by preprocessing train/val separately.
+    """
+    return train_val_data_of_nicknames_semipreprocessed(
+        data_name, device, data_nicknames_path
+    )
+
+
+def train_val_data_from_preprocessed_old(data_name, device, data_nicknames_path):
     """
     Load preprocessed TraversalDataset data and split into train/val sets.
     This avoids reprocessing data that has already been preprocessed.

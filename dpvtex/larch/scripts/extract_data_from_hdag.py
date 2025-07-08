@@ -5,6 +5,7 @@ import os
 import signal
 import multiprocessing
 import sys
+from ete3 import Tree
 
 from dpvtex.perfect_phylogenies.utils import populate
 from dpvtex.perfect_phylogenies.perturb_phylogeny import (
@@ -78,7 +79,7 @@ def root_and_outgroup_leaf(tree, leaf):
     tree.sequence = leaf.sequence
 
 
-def create_random_tree_on_same_leaf_set(new_tree):
+def create_random_tree_on_same_leaf_set(tree):
     """
     Create a random tree on the leaf set of the given tree.
     Args:
@@ -87,18 +88,19 @@ def create_random_tree_on_same_leaf_set(new_tree):
         ete3 tree with random topology on the same leaf set with the same leaf
         sequences as the input tree
     """
-    leaf_names = [leaf.name for leaf in new_tree.get_leaf_names()]
+    leaf_names = [leaf.name for leaf in tree.get_leaves()]
     new_tree = Tree()
-    populate(new_tree, leaf_names, model="uniform")
+    populate(new_tree, len(leaf_names), model="uniform")
+    leaf_names = tree.get_leaf_names()
     for leaf in new_tree.get_leaves():
         # copy sequences from original tree
-        leaf.sequence = new_tree.get_leaves_by_name(leaf.name)[0].sequence
+        leaf.name = leaf_names.pop(random.randint(0, len(leaf_names) - 1))
+        leaf.sequence = tree.get_leaves_by_name(leaf.name)[0].sequence
     # re-root tree on first leaf
     outgroup_leaf = new_tree.search_nodes(name=tree.get_leaves()[0].name)[0]
     root_and_outgroup_leaf(new_tree, outgroup_leaf)
     sankoff_for_missing_sequences(new_tree)
     return new_tree
-
 
 
 def extract_hdag_clade_child_clades(dag):
@@ -283,42 +285,52 @@ def get_non_dag_edges(
             # introduce non-MP edges, if possible
             td = tree_depth(tree)
             done_modifying = False
+            i = 0  # count number of tries to modify a tree
             modified_tree = tree.copy()
             if not edge_distribution == "random_subtree":
-                # use SPR moves to introduce non-MP edges
-                # Decide on the number of SPR moves to perform depending on edge_distribution
-                if edge_distribution == "uniform":
-                    # draw number of SPR moves from [0, num_leaves]
-                    max_num_spr_moves = min(len(modified_tree.get_leaves()), 100)
-                    num_spr_moves = random.randint(0, max_num_spr_moves)
-                elif edge_distribution == "constant":
-                    # number of SPR moves is num_leaves // 2 or a maximum of 100
-                    num_spr_moves = min(len(modified_tree.get_leaves()) // 2, 100)
-                elif edge_distribution == "treesearch":
-                    # for the first half of trees, we use perform min(num_leaves, 100) SPR moves
-                    if index < len(mp_trees) // 2:
-                        num_spr_moves = min(len(modified_tree.get_leaves()), 100)
-                    else:
-                        # for the second half of trees, we use a uniform distribution
+                while not done_modifying and i < 100:
+                    # use SPR moves to introduce non-MP edges
+                    # Decide on the number of SPR moves to perform depending on edge_distribution
+                    if edge_distribution == "uniform":
+                        # draw number of SPR moves from [0, num_leaves]
                         max_num_spr_moves = min(len(modified_tree.get_leaves()), 100)
                         num_spr_moves = random.randint(0, max_num_spr_moves)
+                    elif edge_distribution == "constant":
+                        # number of SPR moves is num_leaves // 2 or a maximum of 100
+                        num_spr_moves = min(len(modified_tree.get_leaves()) // 2, 100)
+                    elif edge_distribution == "treesearch":
+                        # for the first half of trees, we use perform min(num_leaves, 100) SPR moves
+                        if index < len(mp_trees) // 2:
+                            num_spr_moves = min(len(modified_tree.get_leaves()), 100)
+                        else:
+                            # for the second half of trees, we use a uniform distribution
+                            max_num_spr_moves = min(
+                                len(modified_tree.get_leaves()), 100
+                            )
+                            num_spr_moves = random.randint(0, max_num_spr_moves)
 
-                # Actually perform tree perturbations
-                print("Number of SPR moves:", num_spr_moves)
-                efficient_sprs = False
-                if num_spr_moves >= 100:
-                    # for large trees, we use a more efficient version of make_worse_spr
-                    # that doesn't check the parsimony score for each move
-                    efficient_sprs = True
-                    print("Using efficient SPRs")
-                new_tree = make_worse_spr(
-                    modified_tree, num_spr_moves, efficient_sprs
-                )
+                    # Actually perform tree perturbations
+                    print("Number of SPR moves:", num_spr_moves)
+                    efficient_sprs = False
+                    if num_spr_moves >= 100:
+                        # for large trees, we use a more efficient version of make_worse_spr
+                        # that doesn't check the parsimony score for each move
+                        efficient_sprs = True
+                        print("Using efficient SPRs")
+                    new_tree = make_worse_spr(
+                        modified_tree, num_spr_moves, efficient_sprs
+                    )
+                    if new_tree is not None:
+                        modified_tree = new_tree
+                        edge_labels = assign_edge_labels(
+                            modified_tree, tree, dag_clades
+                        )
+                        done_modifying = True
+                    # Assign edge labels after SPR moves
+                    i += 1
 
             else:
                 # replace a random subtree to introduce non-MP edges
-                done_modifying = False
-                i = 0 # count number of tries to replace a subtree
                 while not done_modifying:
                     # replace a random subtree of depth d // 2 with a random subtree
                     # of the same depth, where d is the depth of the original subtree

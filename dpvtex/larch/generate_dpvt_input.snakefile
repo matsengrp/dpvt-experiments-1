@@ -58,6 +58,8 @@ rule all:
     input:
         input_data+"/data_properties_"+dataset_name+csv_suffix,
         output_data+"/larch_"+dataset_name+pickle_suffix,
+    output:
+        touch(f"run_all_{edge_distribution}.done")
 
 
 rule preprocessing:
@@ -89,10 +91,8 @@ rule run_larch:
     shell:
         """
         echo "All input files are present, processing..."
-        cd {larch_build}
-        # Run larch-usher
-        ./larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
-        cd {snakefile_dir}
+        # Run larch-usher from bin directory
+        {larch_build}/bin/larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
         """
 
 

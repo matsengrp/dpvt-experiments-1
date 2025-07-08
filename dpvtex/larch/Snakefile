@@ -15,7 +15,7 @@ configfile: config_path
 
 
 input_data=os.path.realpath(config["input_data"])
-
+edge_distribution=config.get("edge_distribution", "constant")
 
 preprocessing_snakefile = os.path.join(snakefile_dir,"preprocess_alignments.snakefile")
 generating_data_snakefile = os.path.join(snakefile_dir,"generate_dpvt_input.snakefile")
@@ -40,14 +40,16 @@ module preprocessing:
 
 rule this_all:
     input:
-        "run_all.done"
+        f"run_all_{edge_distribution}.done"
 
 
 rule generate_dpvt_input:
     input:
         expand(input_data+"/{subdir}/checkpoint.done", subdir=get_subdirs(input_data))
     output:
-        temp(touch("run_all.done"))
+        f"run_all_{edge_distribution}.done"
+    params:
+        edge_distribution=edge_distribution
     shell:
         """
         snakemake --unlock --configfile {config_path}

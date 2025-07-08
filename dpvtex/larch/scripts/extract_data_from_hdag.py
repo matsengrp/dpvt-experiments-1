@@ -318,10 +318,11 @@ def get_non_dag_edges(
             else:
                 # replace a random subtree to introduce non-MP edges
                 done_modifying = False
+                i = 0 # count number of tries to replace a subtree
                 while not done_modifying:
-                    i = 0 # count number of tries to replace a subtree
                     # replace a random subtree of depth d // 2 with a random subtree
                     # of the same depth, where d is the depth of the original subtree
+                    depth = td // 2  # Use half the tree depth
                     num_spr_moves = 0
                     print("depth of subtree to replace:", depth)
                     new_tree = make_worse_tree(modified_tree, depth)
@@ -381,7 +382,7 @@ def memory_safe_count_topologies(dag, max_time=10):
 
 
 def extract_data_from_hdag(
-    dag_file, dpvt_data_file, num_children_file, make_worse_tree
+    dag_file, dpvt_data_file, num_children_file, edge_distribution="constant"
 ):
     """
     Extracts dpvt data from a history DAG and saves it to a file.
@@ -389,7 +390,8 @@ def extract_data_from_hdag(
         dag_file (str): Path to the history DAG file.
         dpvt_data_file (str): Path to save the DPVT data.
         num_children_file (str): Path to save the number of children data.
-        make_worse_tree (bool): Whether to use make_worse_tree or not.
+        edge_distribution (str): Method for introducing non-MP edges. Options:
+            "constant", "uniform", "treesearch", "random_subtree"
     """
     print("Start reading DAG")
     if dag_file[-2:] == ".p":
@@ -417,7 +419,7 @@ def extract_data_from_hdag(
     print("Done counting DAG topologies")
 
     tree_label_dict = get_non_dag_edges(
-        dag, num_children_file, num_topologies, make_worse_tree
+        dag, num_children_file, num_topologies, edge_distribution
     )
     with open(dpvt_data_file, "wb") as f:
         pickle.dump(tree_label_dict, f)

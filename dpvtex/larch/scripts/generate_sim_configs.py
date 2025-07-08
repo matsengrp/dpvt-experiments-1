@@ -3,14 +3,12 @@ import os
 import argparse
 
 
-def generate_sim_config_files(num_sequences, num_sites, num_algnmnts, balance=True):
+def generate_sim_config_files(num_sequences, num_sites, num_algnmnts, edge_distribution="constant"):
     """
     Generate config files for running the larch pipeline to generate
     training and testing data for dpvt.
     These are config files for data simulated by alisim using the
-    script create_alisim_alignments.sh in `dpvtex/larch/sripts`
-    We create one config to use SPRs to make the alignments worse
-    and one for random subtrees.
+    script create_alisim_alignments.sh in `dpvtex/larch/scripts`
     """
     # Get the directory of the current script
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -22,25 +20,19 @@ def generate_sim_config_files(num_sequences, num_sites, num_algnmnts, balance=Tr
     # Create the dataset name
     dataset_name = f"alisim_alignment_{num_sequences}_seq_{num_sites}_sites_{num_algnmnts}_algnmnts"
     
-    for use_spr in [True, False]:
-        # Create the config dictionary
-        config = {
-            "input_data": os.path.join(script_dir, "..", "..", "..", "shared_data", "simulated_alignments", dataset_name),
-            "larch_build": os.path.join(script_dir, "..", "..", "..", "..", "larch", "build"),
-            "output_data": os.path.join(script_dir, "..", "..", "..", "shared_data"),
-            "dataset_name": dataset_name,
-            "num_cores": 2,
-            "make_worse_spr": use_spr,
-            "balance": balance
-        }
-        
-        # Create filename for the config
-        filename = f"config_{num_sequences}seq_{num_sites}sites_{num_algnmnts}alignments.json"
-        if use_spr:
-            filename = filename.replace(".json", "_spr.json")
-        if not balance:
-            filename = filename.replace(".json", "_unbalanced.json")
-        filepath = os.path.join(config_dir, filename)
+    # Create the config dictionary
+    config = {
+        "input_data": os.path.join(script_dir, "..", "..", "..", "shared_data", "simulated_alignments", dataset_name),
+        "larch_build": os.path.join(script_dir, "..", "..", "..", "..", "larch", "build"),
+        "output_data": os.path.join(script_dir, "..", "..", "..", "shared_data"),
+        "dataset_name": dataset_name,
+        "num_cores": 2,
+        "edge_distribution": edge_distribution
+    }
+    
+    # Create filename for the config
+    filename = f"config_{num_sequences}seq_{num_sites}sites_{num_algnmnts}alignments_{edge_distribution}.json"
+    filepath = os.path.join(config_dir, filename)
         
         # Write the JSON file
         if os.path.exists(filepath):
@@ -52,20 +44,18 @@ def generate_sim_config_files(num_sequences, num_sites, num_algnmnts, balance=Tr
 
 
 def main():
-    # Parse command line arguments (number of sequences and number of sites)
-    parser = argparse.ArgumentParser(description="Provide number of sequences, number of sites, and number of alignments.")
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Generate config files for larch pipeline.")
     parser.add_argument('num_sequences', type=int, help='Number of sequences.')
     parser.add_argument('num_sites', type=int, help='Number of sites')
     parser.add_argument('num_algnmnts', type=int, help='Number of alignments in dataset')
-    parser.add_argument('balance', type=str, help='Should the number of non-MP and MP edges be balanced?')
+    parser.add_argument('--edge_distribution', type=str, 
+                        default='constant',
+                        choices=['constant', 'uniform', 'treesearch', 'random_subtree'],
+                        help='Edge distribution method (default: constant)')
     args = parser.parse_args()
 
-    # Properly convert string to boolean
-    balance = False
-    if args.balance.lower() == 'true':
-        balance = True
-
-    generate_sim_config_files(args.num_sequences, args.num_sites, args.num_algnmnts, balance)
+    generate_sim_config_files(args.num_sequences, args.num_sites, args.num_algnmnts, args.edge_distribution)
 
 
 if __name__ == "__main__":

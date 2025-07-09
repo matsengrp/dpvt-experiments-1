@@ -16,10 +16,28 @@ configfile: config_path
 
 input_data=os.path.realpath(config["input_data"])
 edge_distribution=config.get("edge_distribution", "constant")
+dataset_name=config["dataset_name"]
 
 preprocessing_snakefile = os.path.join(snakefile_dir,"preprocess_alignments.snakefile")
 generating_data_snakefile = os.path.join(snakefile_dir,"generate_dpvt_input.snakefile")
 num_cores = config["num_cores"]
+
+# Define suffixes based on edge_distribution (same as in generate_dpvt_input.snakefile)
+if edge_distribution == "constant":
+    pickle_suffix = "_spr.p"
+    csv_suffix = "_spr.csv"
+elif edge_distribution == "uniform":
+    pickle_suffix = "_uniform.p"
+    csv_suffix = "_uniform.csv"
+elif edge_distribution == "treesearch":
+    pickle_suffix = "_treesearch.p"
+    csv_suffix = "_treesearch.csv"
+elif edge_distribution == "random_subtree":
+    pickle_suffix = "_subtree.p"
+    csv_suffix = "_subtree.csv"
+else:
+    pickle_suffix = ".p"
+    csv_suffix = ".csv"
 
 
 def get_subdirs(data_dir):
@@ -40,14 +58,17 @@ module preprocessing:
 
 rule this_all:
     input:
-        f"run_all_{edge_distribution}.done"
+        data_props=input_data+"/data_properties_"+dataset_name+csv_suffix,
+        dpvt_data=config["output_data"]+"/larch_"+dataset_name+pickle_suffix
 
 
 rule generate_dpvt_input:
     input:
         expand(input_data+"/{subdir}/checkpoint.done", subdir=get_subdirs(input_data))
     output:
-        f"run_all_{edge_distribution}.done"
+        # Use the actual outputs from the nested Snakefile with proper suffixes
+        data_props=input_data+"/data_properties_"+dataset_name+csv_suffix,
+        dpvt_data=config["output_data"]+"/larch_"+dataset_name+pickle_suffix
     params:
         edge_distribution=edge_distribution
     shell:

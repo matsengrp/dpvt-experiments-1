@@ -58,8 +58,6 @@ rule all:
     input:
         input_data+"/data_properties_"+dataset_name+csv_suffix,
         output_data+"/larch_"+dataset_name+pickle_suffix,
-    output:
-        touch(f"run_all_{edge_distribution}.done")
 
 
 rule preprocessing:

@@ -13,6 +13,8 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 import argparse
+import glob
+import os
 
 
 def load_tree_label_data(pickle_file):
@@ -127,18 +129,30 @@ def create_violin_plots(valid_results, output_dir):
     # Organize results by dataset and method
     datasets = sorted(set(r["dataset"] for r in valid_results))
 
+    # Define nickname mapping for long dataset names
+    dataset_short_nicknames = {
+        "alisim_alignment_25_seq_50_sites_5_algnmnts": "25seq_50sites_5aln",
+        "alisim_alignment_25_seq_100_sites_500_algnmnts": "25seq_100sites_500aln",
+        "alisim_alignment_15_seq_50_sites_5_algnmnts": "15seq_50sites_5aln",
+        # Add more mappings as needed
+    }
+
     all_data = []
     for result in valid_results:
         # Calculate proportions for each tree instead of raw counts
         non_mp_counts = result["non_mp_edge_counts"]
         total_edges_counts = result["total_edges_per_tree"]
-        
+
         for i, count in enumerate(non_mp_counts):
             total_edges = total_edges_counts[i] if i < len(total_edges_counts) else 1
             proportion = count / total_edges if total_edges > 0 else 0
+            # Use nickname if available, otherwise use full name
+            dataset_label = dataset_short_nicknames.get(
+                result["dataset"], result["dataset"]
+            )
             all_data.append(
                 {
-                    "Dataset": result["dataset"],
+                    "Dataset": dataset_label,
                     "Method": result["method"],
                     "Proportion_Non_MP_Edges": proportion,
                 }
@@ -147,10 +161,13 @@ def create_violin_plots(valid_results, output_dir):
     if all_data:
         df = pd.DataFrame(all_data)
         sns.violinplot(
-            data=df, x="Dataset", y="Proportion_Non_MP_Edges", hue="Method"  # , ax=axes[1, 0]
+            data=df,
+            x="Dataset",
+            y="Proportion_Non_MP_Edges",
+            hue="Method",  # , ax=axes[1, 0]
         )
         plt.ylabel("Proportion of Non-MP Edges")
-        plt.xticks(rotation=45, ha="right")
+        # plt.xticks(ha="right")
         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
 
     plt.tight_layout()
@@ -198,7 +215,7 @@ def main():
             args.dataset_names = ["alisim_alignment_15_seq_50_sites_5_algnmnts"]
 
     # Define the edge distribution methods to analyze
-    edge_methods = ["constant", "uniform", "treesearch", "random_subtree"]
+    edge_methods = ["constant", "uniform", "treesearch", "random_subtree", ""]
 
     # Load data for each dataset and method
     analysis_results = []
@@ -217,15 +234,33 @@ def main():
                 suffix = "_treesearch"
             elif method == "random_subtree":
                 suffix = "_subtree"
-
-            pickle_file = f"{args.data_dir}/larch_{dataset_name}{suffix}.p"
-
-            data = load_tree_label_data(pickle_file)
-
-            if data:
-                analysis = analyze_edge_distributions(data, method, dataset_name)
-                analysis_results.append(analysis)
             else:
+                suffix = ""
+
+            # Search for files that contain both the dataset_name and suffix as substrings
+            all_pickle_files = glob.glob(f"{args.data_dir}/*.p")
+            
+            matching_files = [
+                f for f in all_pickle_files 
+                if dataset_name in os.path.basename(f) and suffix in os.path.basename(f)
+            ]
+            
+            if matching_files:
+                # Use the first matching file (or you could handle multiple matches differently)
+                pickle_file = matching_files[0]
+                print(f"Found file for {method} method: {pickle_file}")
+                
+                data = load_tree_label_data(pickle_file)
+                
+                if data:
+                    analysis = analyze_edge_distributions(data, method, dataset_name)
+                    analysis_results.append(analysis)
+                else:
+                    analysis_results.append(
+                        analyze_edge_distributions({}, method, dataset_name)
+                    )
+            else:
+                print(f"No file found for dataset '{dataset_name}' with method '{method}'")
                 # Add empty result for completeness
                 analysis_results.append(
                     analyze_edge_distributions({}, method, dataset_name)

@@ -58,7 +58,7 @@ def analyze_edge_distributions(data_dict, method_name, dataset_name=None):
             "std_non_mp_edges": 0,
             "min_non_mp_edges": 0,
             "max_non_mp_edges": 0,
-            "total_edges_per_tree": 0,
+            "total_edges_per_tree": [],
             "non_mp_edge_counts": [],
             "proportion_non_mp": 0,
         }
@@ -85,6 +85,7 @@ def analyze_edge_distributions(data_dict, method_name, dataset_name=None):
             np.mean(total_edges_per_tree) if total_edges_per_tree else 0
         ),
         "non_mp_edge_counts": non_mp_counts,
+        "total_edges_per_tree": total_edges_per_tree,
         "proportion_non_mp": (
             np.mean(non_mp_counts) / np.mean(total_edges_per_tree)
             if total_edges_per_tree
@@ -128,20 +129,27 @@ def create_violin_plots(valid_results, output_dir):
 
     all_data = []
     for result in valid_results:
-        for count in result["non_mp_edge_counts"]:
+        # Calculate proportions for each tree instead of raw counts
+        non_mp_counts = result["non_mp_edge_counts"]
+        total_edges_counts = result["total_edges_per_tree"]
+        
+        for i, count in enumerate(non_mp_counts):
+            total_edges = total_edges_counts[i] if i < len(total_edges_counts) else 1
+            proportion = count / total_edges if total_edges > 0 else 0
             all_data.append(
                 {
                     "Dataset": result["dataset"],
                     "Method": result["method"],
-                    "Non_MP_Edges": count,
+                    "Proportion_Non_MP_Edges": proportion,
                 }
             )
 
     if all_data:
         df = pd.DataFrame(all_data)
         sns.violinplot(
-            data=df, x="Dataset", y="Non_MP_Edges", hue="Method"  # , ax=axes[1, 0]
+            data=df, x="Dataset", y="Proportion_Non_MP_Edges", hue="Method"  # , ax=axes[1, 0]
         )
+        plt.ylabel("Proportion of Non-MP Edges")
         plt.xticks(rotation=45, ha="right")
         plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
 

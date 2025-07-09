@@ -322,11 +322,12 @@ def get_non_dag_edges(
                     )
                     if new_tree is not None:
                         modified_tree = new_tree
-                        edge_labels = assign_edge_labels(
-                            modified_tree, tree, dag_clades
-                        )
                         done_modifying = True
+                    else:
+                        print("Cannot get non-MP edges, stop modifying tree")
+                        modified_tree = tree
                     # Assign edge labels after SPR moves
+                    edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
                     i += 1
 
             else:
@@ -334,8 +335,7 @@ def get_non_dag_edges(
                 while not done_modifying:
                     # replace a random subtree of depth d // 2 with a random subtree
                     # of the same depth, where d is the depth of the original subtree
-                    depth = td // 2  # Use half the tree depth
-                    num_spr_moves = 0
+                    depth = int(td // 2)  # Use half the tree depth
                     print("depth of subtree to replace:", depth)
                     new_tree = make_worse_tree(modified_tree, depth)
                     if new_tree is not None:

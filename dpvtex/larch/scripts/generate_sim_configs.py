@@ -33,14 +33,14 @@ def generate_sim_config_files(num_sequences, num_sites, num_algnmnts, edge_distr
     # Create filename for the config
     filename = f"config_{num_sequences}seq_{num_sites}sites_{num_algnmnts}alignments_{edge_distribution}.json"
     filepath = os.path.join(config_dir, filename)
-        
-        # Write the JSON file
-        if os.path.exists(filepath):
-            print(f"Config file {filename} exists already.")
-        else:
-            with open(filepath, "w") as f:
-                json.dump(config, f, indent=2)
-            print(f"Generated {filename}")
+    
+    # Write the JSON file
+    if os.path.exists(filepath):
+        print(f"Config file {filename} exists already.")
+    else:
+        with open(filepath, "w") as f:
+            json.dump(config, f, indent=2)
+        print(f"Generated {filename}")
 
 
 def main():

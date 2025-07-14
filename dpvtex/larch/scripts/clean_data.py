@@ -111,27 +111,90 @@ def remove_duplicate_sequences(multiple_seq_alignment):
     return MultipleSeqAlignment(unique_sequences), len(unique_sequences)
 
 
+def remove_identical_site_patterns(multiple_seq_alignment):
+    """
+    Remove identical site patterns from the alignment.
+
+    Parameters:
+    -----------
+    multiple_seq_alignment : MultipleSeqAlignment
+        The original alignment
+
+    Returns:
+    --------
+    MultipleSeqAlignment
+        A new alignment with identical site patterns removed
+    int
+        The number of unique site patterns in the new alignment
+    """
+    if len(multiple_seq_alignment) == 0:
+        return multiple_seq_alignment, 0
+
+    # Get the alignment length
+    alignment_length = multiple_seq_alignment.get_alignment_length()
+
+    # Dictionary to store unique patterns and their first occurrence index
+    unique_patterns = {}
+    unique_site_indices = []
+
+    # Iterate through each site (column) in the alignment
+    for site_idx in range(alignment_length):
+        # Extract the site pattern (column) as a tuple (hashable)
+        site_pattern = tuple(
+            str(record.seq[site_idx]) for record in multiple_seq_alignment
+        )
+
+        # Check if we've seen this pattern before
+        if site_pattern not in unique_patterns:
+            unique_patterns[site_pattern] = site_idx
+            unique_site_indices.append(site_idx)
+
+    # Create new sequences with only unique site patterns
+    new_sequences = []
+    for record in multiple_seq_alignment:
+        # Extract only the sites at unique indices
+        new_seq = "".join(str(record.seq[i]) for i in unique_site_indices)
+        new_record = SeqRecord(
+            Seq(new_seq), id=record.id, name=record.name, description=record.description
+        )
+        new_sequences.append(new_record)
+
+    # Create a new MultipleSeqAlignment with reduced site patterns
+    return MultipleSeqAlignment(new_sequences), len(unique_site_indices)
+
+
 if __name__ == "__main__":
     import sys
 
     # Simple command-line argument parsing
     if len(sys.argv) < 4:
         print(
-            "Usage: python clean_data.py <input_file> <output_file> <length_file> [target_length] [target_seqs]"
+            "Usage: python clean_data.py <input_file> <output_file> <length_file> [--remove-site-patterns] [target_length] [target_seqs]"
         )
         sys.exit(1)
+
+    # Get target dimensions of alignment if used for data generation
+    target_length = None
+    target_seqs = None
+    remove_site_patterns = False  # Default to not removing duplicate site patterns
+    if len(sys.argv) == 6:
+        target_length = int(sys.argv[4])
+        target_seqs = int(sys.argv[5])
+    # optionally remove duplicate site patterns
+    elif len(sys.argv) == 5:
+        remove_site_patterns = sys.argv[4].lower() == "true"
+        if not sys.argv[4].lower() in ["true", "false"]:
+            print(
+                "Error: remove-site-patterns flag must be 'true' or 'false'. If you want to specify target dimensions, use the format: <input_file> <output_file> <length_file> --remove-site-patterns <target_length> <target_seqs>.\n Your input was: ",
+                sys.argv[4].lower(),
+            )
+            sys.exit(1)
 
     input_filename = sys.argv[1]
     output_filename = sys.argv[2]
     algn_length_filename = sys.argv[3]
 
-    # Get target dimensions if provided
-    target_length = None
-    target_seqs = None
-    if len(sys.argv) > 4:
-        target_length = int(sys.argv[4])
-    if len(sys.argv) > 5:
-        target_seqs = int(sys.argv[5])
+    # Check for remove-site-patterns flag
 
     # Read the original alignment
     alignment = AlignIO.read(input_filename, "fasta")
@@ -143,6 +206,14 @@ if __name__ == "__main__":
 
     # Remove duplicate sequences first
     clean_alignment, num_unique_seqs = remove_duplicate_sequences(alignment)
+
+    # Remove duplicate site patterns if requested
+    if remove_site_patterns:
+        print("Removing duplicate site patterns...")
+        clean_alignment, num_unique_sites = remove_identical_site_patterns(
+            clean_alignment
+        )
+        print(f"Unique site patterns: {num_unique_sites}")
 
     # If we need to trim to target dimensions
     if target_length is not None and target_seqs is not None:
@@ -156,9 +227,13 @@ if __name__ == "__main__":
         else:
             clean_alignment = MultipleSeqAlignment(clean_alignment[:target_seqs])
             # Using create_trimmed_informative_alignment which filters for informative sites
-            clean_alignment = create_trimmed_informative_alignment(clean_alignment, target_length, target_seqs)
+            clean_alignment = create_trimmed_informative_alignment(
+                clean_alignment, target_length, target_seqs
+            )
             # Again remove duplicates after trimming
-            clean_alignment, num_unique_seqs = remove_duplicate_sequences(clean_alignment)
+            clean_alignment, num_unique_seqs = remove_duplicate_sequences(
+                clean_alignment
+            )
 
     final_num_sites = clean_alignment.get_alignment_length()
     final_num_seqs = len(clean_alignment)

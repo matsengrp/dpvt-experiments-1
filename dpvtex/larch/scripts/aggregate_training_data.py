@@ -5,6 +5,7 @@ import sys
 from sklearn.model_selection import train_test_split
 from collections import Counter
 
+
 # Function to read a .p file and return the length of the dictionary it contains
 def get_dict(file_path):
     with open(file_path, "rb") as file:
@@ -40,10 +41,10 @@ def extract_trees_and_labels(data_dir, edge_distribution="constant"):
                 "constant": "_spr",
                 "uniform": "_uniform",
                 "treesearch": "_treesearch",
-                "random_subtree": "_subtree"
+                "random_subtree": "_subtree",
             }
             expected_suffix = suffix_map.get(edge_distribution, "")
-            
+
             if (
                 file_name.endswith(".p")
                 and os.path.relpath(file_path, data_dir) != file_name
@@ -80,7 +81,9 @@ def extract_trees_and_labels(data_dir, edge_distribution="constant"):
     return trees, labels, all_trees_dict, data_props
 
 
-def pickle_and_save_data(dpvt_train_data, dpvt_test_data, all_trees_dict, trees, labels):
+def pickle_and_save_data(
+    dpvt_train_data, dpvt_test_data, all_trees_dict, trees, labels
+):
     """
     Pickle and save the training and testing data.
     If test data is not provided, save all data as training data.
@@ -115,9 +118,13 @@ def pickle_and_save_data(dpvt_train_data, dpvt_test_data, all_trees_dict, trees,
             # If a ValueError occurs (e.g., due to insufficient data for
             # stratification), print a custom message
             print(f"Error during train-test split: {e}")
-            print("The dataset is not large enough to split in training and testing data. Increase number of trees extracted from hDAG or even better the number of alignments used.")
+            print(
+                "The dataset is not large enough to split in training and testing data. Increase number of trees extracted from hDAG or even better the number of alignments used."
+            )
             # Optionally, re-raise the error or handle it further
-            sys.exit("Dataset too small, will not generate training/testing data split.")
+            sys.exit(
+                "Dataset too small, will not generate training/testing data split."
+            )
             raise
 
         train_dict = {i: j for (i, j) in zip(train_trees, train_labels)}
@@ -139,28 +146,42 @@ def save_data_properties(data_props, data_props_file, data_dir):
         data_dir (str): Directory containing subdirs with .p pickle files.
     """
     for root, dirs, files in os.walk(data_dir):
-        if "cleaned_alignment_length.txt" in files:
+        alignment_length_file = [f for f in files if "cleaned_alignment_length" in f]
+        if alignment_length_file:
+            alignment_length_file = alignment_length_file[0]
             subdir = os.path.relpath(root, data_dir)
             data_subdir = root
             if os.path.isdir(data_subdir):
-                alignment_length_file = os.path.join(root, "cleaned_alignment_length.txt")
+                alignment_length_file = os.path.join(root, alignment_length_file)
                 dataset_name = alignment_length_file.split("/")[-2]
-                if dataset_name in data_props:
-                    # only take those datasets for which we actually have pickled
-                    # tree dictionaries
-                    with open(alignment_length_file, "r") as f:
-                        data_props[dataset_name].append(int(f.read().split(",")[0].strip()))
-
+                if "_no_dup_sites" in data_props_file:
+                    dataset_name += "_no_dup_sites"
+                # only take those datasets for which we actually have pickled
+                # tree dictionaries
+                with open(alignment_length_file, "r") as f:
+                    data_props[dataset_name].append(int(f.read().split(",")[0].strip()))
     data_props_df = pd.DataFrame.from_dict(
         data_props,
-        columns=["num_trees", "num_leaves", "MP edges", "non MP edges", "alignment_length"],
+        columns=[
+            "num_trees",
+            "num_leaves",
+            "MP edges",
+            "non MP edges",
+            "alignment_length",
+        ],
         orient="index",
     )
     data_props_df.to_csv(data_props_file)
     print(f"Data properties saved to '{data_props_file}'")
 
 
-def aggregate_data(data_dir, data_props_file, dpvt_train_data, edge_distribution="constant", dpvt_test_data = None):
+def aggregate_data(
+    data_dir,
+    data_props_file,
+    dpvt_train_data,
+    edge_distribution="constant",
+    dpvt_test_data=None,
+):
     """
     Aggregate data from the specified directory and save it to a pickle file.
     Args:
@@ -170,6 +191,8 @@ def aggregate_data(data_dir, data_props_file, dpvt_train_data, edge_distribution
         edge_distribution (str): Type of edge distribution ("constant", "uniform", "treesearch", "random_subtree")
         dpvt_test_data (str): Path to save the testing data.
     """
-    trees, labels, all_trees_dict, data_props = extract_trees_and_labels(data_dir, edge_distribution)
+    trees, labels, all_trees_dict, data_props = extract_trees_and_labels(
+        data_dir, edge_distribution
+    )
     pickle_and_save_data(dpvt_train_data, dpvt_test_data, all_trees_dict, trees, labels)
     save_data_properties(data_props, data_props_file, data_dir)

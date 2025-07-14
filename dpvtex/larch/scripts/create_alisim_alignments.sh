@@ -9,10 +9,12 @@
 # training and testing datasets.
 
 # Parameters - Test configuration
-num_alignments_list=(5)
-num_sequences_list=(25)
-alignment_length_list=(50)
-edge_distributions=("constant" "uniform" "treesearch" "random_subtree")  # All edge distribution methods
+num_alignments_list=(200 500)
+num_sequences_list=(15 25)
+alignment_length_list=(200)
+# edge_distributions=("constant" "uniform" "treesearch" "random_subtree")  # All edge distribution methods
+edge_distributions=("constant")
+no_dup_sites=False # Whether to remove duplicate site patterns in the alignments
 
 max_attempts=20
 # How much larger to make the initial alignment to account for cleaning
@@ -93,7 +95,7 @@ for num_alignments in "${num_alignments_list[@]}"; do
             echo "Generate config files for all edge distribution methods..."
             for edge_dist in "${edge_distributions[@]}"; do
                 echo "  Generating config for edge distribution: $edge_dist"
-                python ${script_dir}/generate_sim_configs.py $target_num_sequences $target_alignment_length $num_alignments --edge_distribution $edge_dist
+                python ${script_dir}/generate_sim_configs.py $target_num_sequences $target_alignment_length $num_alignments --edge_distribution $edge_dist --remove_duplicate_site_patterns $no_dup_sites
             done
         done
     done

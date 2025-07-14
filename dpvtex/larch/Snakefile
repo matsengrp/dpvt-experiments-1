@@ -21,6 +21,7 @@ dataset_name=config["dataset_name"]
 preprocessing_snakefile = os.path.join(snakefile_dir,"preprocess_alignments.snakefile")
 generating_data_snakefile = os.path.join(snakefile_dir,"generate_dpvt_input.snakefile")
 num_cores = config["num_cores"]
+remove_site_patterns = config.get("remove_duplicate_site_patterns", False)
 
 # Define suffixes based on edge_distribution (same as in generate_dpvt_input.snakefile)
 if edge_distribution == "constant":
@@ -38,6 +39,13 @@ elif edge_distribution == "random_subtree":
 else:
     pickle_suffix = ".p"
     csv_suffix = ".csv"
+
+
+dup_sites_suffix = ""
+if remove_site_patterns in [True, "True", "true"]:
+    pickle_suffix = pickle_suffix.replace(".p", "_no_dup_sites.p")
+    csv_suffix = csv_suffix.replace(".csv", "_no_dup_sites.csv")
+    dup_sites_suffix = "_no_dup_sites"
 
 
 def get_subdirs(data_dir):
@@ -58,19 +66,17 @@ module preprocessing:
 
 rule this_all:
     input:
-        data_props=input_data+"/data_properties_"+dataset_name+csv_suffix,
-        dpvt_data=config["output_data"]+"/larch_"+dataset_name+pickle_suffix
+        input_data+"/data_properties_"+dataset_name+csv_suffix,
+        config["output_data"]+"/larch_"+dataset_name+pickle_suffix,
 
 
 rule generate_dpvt_input:
     input:
-        expand(input_data+"/{subdir}/checkpoint.done", subdir=get_subdirs(input_data))
+        expand(input_data+"/{subdir}/checkpoint" + dup_sites_suffix + ".done", subdir=get_subdirs(input_data))
     output:
         # Use the actual outputs from the nested Snakefile with proper suffixes
         data_props=input_data+"/data_properties_"+dataset_name+csv_suffix,
-        dpvt_data=config["output_data"]+"/larch_"+dataset_name+pickle_suffix
-    params:
-        edge_distribution=edge_distribution
+        dpvt_data=config["output_data"]+"/larch_"+dataset_name+pickle_suffix,
     shell:
         """
         snakemake --unlock --configfile {config_path}

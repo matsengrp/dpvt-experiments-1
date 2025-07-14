@@ -1,1 +1,2 @@
-faToVcf_path: "/fh/fast/matsen_e/lcollien/dpvt-experiments-1/dpvtex/larch/setup_larch_inputs/faToVcf"
+faToVcf_path: "/home/lcollien/work/git/dpvt-experiments-1/.pixi/envs/default/bin/faToVcf"
+dup_sites_suffix: ""

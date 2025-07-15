@@ -228,9 +228,9 @@ def get_non_dag_edges(
                 create non-MP edges.
             "uniform": draw the number of SPR moves from [0, num_leaves].
             "treesearch": mimic the distribution of edges in trees along a
-                tree search by returning 1/3 random tree edges (most of which
-                will be non-MP edges), 1/3 trees with num_leaves SPR moves, and
-                1/3 trees with SPR moves drawn from a uniform distribution on
+                tree search by returning 1/2 random tree edges (most of which
+                will be non-MP edges), 1/4 trees with num_leaves SPR moves, and
+                1/4 trees with SPR moves drawn from a uniform distribution on
                 [0, num_leaves].
             "random_subtree": replace a random subtree of depth d // 2
                 with a random subtree of the same depth, where d is the depth of
@@ -251,7 +251,7 @@ def get_non_dag_edges(
     if edge_distribution == "treesearch":
         print("Start adding random trees for treesearch...")
         # generate 1/2 * len(mp_trees) random trees
-        num_random_trees = len(mp_trees) // 2
+        num_random_trees = len(mp_trees)
         for i in range(num_random_trees):
             print("Adding random tree number", i)
             new_tree = create_random_tree_on_same_leaf_set(mp_trees[0])

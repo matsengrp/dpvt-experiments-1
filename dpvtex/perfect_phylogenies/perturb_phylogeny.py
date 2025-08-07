@@ -266,16 +266,11 @@ def make_worse_spr(input_tree, num_sprs, efficient=True):
             print(f"SPR move {i + 1} of {num_sprs}")
             random.seed()
             # we cannot prune children or grandchildren of root
-            # also avoid moving leaves, as that doesn't change MP edge to non-MP edge
             node_list = list(
                 [
                     node
                     for node in tree.iter_descendants()
-                    if not (
-                        node.up.is_root()
-                        or node.up in tree.children
-                        or node in tree.get_leaves()
-                    )
+                    if not (node.up.is_root() or node.up in tree.children)
                 ]
             )
             # prune edge above randomly chosen node prune_node

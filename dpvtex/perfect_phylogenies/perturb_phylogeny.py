@@ -13,20 +13,17 @@ def make_random_subtree_maybe_keep_leaves(node, depth):
     if node.is_leaf():
         return
 
-    # Get all descendants at depth or leaf nodes at less than depth
-    leaves = node.get_leaves()
     tips = []
-    for leaf in leaves:
-        distance = edge_distance(node, leaf)
-        if (distance <= depth and leaf.is_leaf()) or distance == depth:
-            tips.append(leaf.detach())
-
+    descendants = [n for n in node.get_descendants() if edge_distance(node, n) <= depth]
+    for desc in descendants:
+        distance = edge_distance(node, desc)
+        if (distance <= depth and desc.is_leaf()) or distance == depth:
+            tips.append(desc.detach())
     # Create new random subtree with these tips
     random_tree = make_random_tree(tips)
-
     # Replace the detached subtree with the random tree
-    node.add_child(random_tree)
-    any(child.detach() for child in node.get_children() if child != random_tree)
+    node.up.add_child(random_tree)
+    node.detach()
 
 
 def perturb_tree(tree, depth, skip_root=True, exception_on_fail=False):
@@ -72,7 +69,6 @@ def perturb_tree(tree, depth, skip_root=True, exception_on_fail=False):
                 raise ValueError("Input tree has no subtree of required depth.")
             else:
                 return None
-
         chosen_node = random.choice(valid_nodes)
         if depth > tree_depth(chosen_node):
             print("Warning: depth > tree_depth(chosen_node)")

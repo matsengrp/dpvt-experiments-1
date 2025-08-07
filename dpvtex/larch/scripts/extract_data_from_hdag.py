@@ -336,7 +336,6 @@ def get_non_dag_edges(
                     # replace a random subtree of depth d // 2 with a random subtree
                     # of the same depth, where d is the depth of the original subtree
                     depth = int(td // 2)  # Use half the tree depth
-                    print("depth of subtree to replace:", depth)
                     new_tree = make_worse_tree(modified_tree, depth)
                     if new_tree is not None:
                         modified_tree = new_tree

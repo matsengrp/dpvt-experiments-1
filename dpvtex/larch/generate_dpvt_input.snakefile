@@ -97,7 +97,7 @@ rule run_larch:
         """
         echo "All input files are present, processing..."
         # Run larch-usher from bin directory
-        {larch_build}/bin/larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
+        {larch_build}/larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
         """
 
 

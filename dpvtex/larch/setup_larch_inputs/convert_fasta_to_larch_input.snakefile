@@ -139,9 +139,12 @@ rule create_vcf_from_fasta:
         vcf_file=base_filename+".vcf"
     shell:
         """
-        {faToVcf} {input.input_file} {base_filename}.vcf -ambiguousToN
+        if [ ! -f faToVcf ]; then
+          rsync -aP rsync://hgdownload.soe.ucsc.edu/genome/admin/exe/linux.x86_64/faToVcf .
+        fi
+        chmod +x faToVcf
+        ./faToVcf {input.input_file} {base_filename}.vcf -ambiguousToN
         """
-
 
 rule create_mat_protobuf:
     input:

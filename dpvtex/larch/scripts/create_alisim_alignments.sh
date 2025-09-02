@@ -13,8 +13,8 @@ num_alignments_list=(200 500)
 num_sequences_list=(15 25)
 alignment_length_list=(200)
 # edge_distributions=("constant" "uniform" "treesearch" "random_subtree")  # All edge distribution methods
-edge_distributions=("constant")
-no_dup_sites=False # Whether to remove duplicate site patterns in the alignments
+edge_distributions=("constant" "uniform" "treesearch" "random_subtree")
+no_dup_sites="False" # Whether to remove duplicate site patterns in the alignments
 
 max_attempts=20
 # How much larger to make the initial alignment to account for cleaning

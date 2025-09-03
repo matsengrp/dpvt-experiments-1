@@ -39,6 +39,12 @@ def build_model(model_name):
         model = models.TraverseMaxPooling
     elif model_name == "TraverseAvgPooling":
         model = models.TraverseAvgPooling
+    elif model_name == "LinearNN":
+        model = models.LinearNN
+    elif model_name == "LinearMaxPooling":
+        model = models.LinearMaxPooling
+    elif model_name == "LinearAvgPooling":
+        model = models.LinearAvgPooling
     elif model_name == "BaselineReversion":
         model = models.BaselineReversion
     return model

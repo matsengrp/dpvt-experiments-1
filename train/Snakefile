@@ -276,7 +276,7 @@ param_ids, param_dicts = generate_hyperparameter_dicts(
 
 
 # create trained_model_list containing only trainable model, not baseline models
-baseline_models = ["BaselineReversion"]
+baseline_models = ["BaselineReversion", "BaselineSubCount"]
 trained_models = [model for model in model_names if model not in baseline_models]
 baseline_model_list = [model for model in model_names if model in baseline_models]
 
@@ -587,6 +587,8 @@ rule run_notebook_step:
             output_dir=run_dir,
             notebook_name="{notebook_name}",
         ),
+    wildcard_constraints:
+        notebook_name=".*\.ipynb"
     run:
         notebook_input_path = get_notebook_input_path(
             notebook_dict=notebook_dict,
@@ -650,8 +652,8 @@ rule create_baseline_csv_step:
             output_dir=output_dir,
         )
     wildcard_constraints:
-        # Only apply to baseline model
-        model_name="BaselineReversion"
+        # Only apply to baseline models
+        model_name="(BaselineReversion|BaselineSubCount)"
     run:
         aggregate_baseline_data_to_csv(
             model_name=wildcards.model_name,

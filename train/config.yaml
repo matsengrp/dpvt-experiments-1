@@ -3,6 +3,7 @@ models: [
     "TraverseMaxPooling",
     "TraverseAvgPooling",
     "BaselineReversion", # can only run on CPU!
+    "BaselineSubCount"
   ]
 train_data: [
   "larch_alisim_alignment_10_seq_20_sites_100_algnmnts",

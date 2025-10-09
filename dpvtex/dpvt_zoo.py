@@ -1,6 +1,10 @@
 from dpvt import models
 from dpvt.wrapper import Wrap, HyperWrap, Wraplet
-from dpvtex.dpvt_data import load_nicknames_dict,data_of_nicknames,train_val_data_of_nicknames
+from dpvtex.dpvt_data import (
+    load_nicknames_dict,
+    data_of_nicknames,
+    train_val_data_of_nicknames,
+)
 import json
 import torch
 import os
@@ -26,6 +30,7 @@ todays_date = datetime.now().strftime("%Y-%m-%d")
 
 
 def build_model(model_name):
+    """Builds a model class based on the provided model name."""
     if model_name == "TraverseNN":
         model = models.TraverseNN
     elif model_name == "TraverseMaxPooling":
@@ -34,10 +39,22 @@ def build_model(model_name):
         model = models.TraverseAvgPooling
     elif model_name == "BaselineReversion":
         model = models.BaselineReversion
+    elif model_name == "BaselineSubCount":
+        model = models.BaselineSubCount
     return model
 
 
 def get_trained_model_str(model_name, train_data_name, param_id):
+    """
+    Generates a string representation of the trained model path based on the model name,
+    training data name, and optional parameter ID.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        param_id (str, optional): Identifier for the parameters used in training.
+    Returns:
+        str: A formatted string representing the trained model path.
+    """
     model = f"{model_name}-{train_data_name}"
     if param_id != None:
         model = f"{model_name}-{train_data_name}-{param_id}"
@@ -50,12 +67,24 @@ def get_tested_model_str(model_name, train_data_name, test_data_name, param_id):
     model = f"{model_name}-{train_data_name}-ON-{test_data_name}"
     if param_id != None:
         model = f"{model_name}-{train_data_name}-ON-{test_data_name}-{param_id}"
-    if train_data_name == None:
+    elif train_data_name == None:
+        # No training data implies no param_id
         model = f"{model_name}-ON-{test_data_name}"
     return model
 
 
 def get_model_str(model_name, train_data_name, test_data_name=None, param_id=None):
+    """
+    Generates a string representation of the model path based on the model name,
+    training data name, optional test data name, and optional parameter ID.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        test_data_name (str, optional): Name of the test data.
+        param_id (str, optional): Identifier for the parameters used in training.
+    Returns:
+        str: A formatted string representing the model path.
+    """
     if test_data_name:
         path = get_tested_model_str(
             model_name, train_data_name, test_data_name, param_id
@@ -88,6 +117,22 @@ def build_log_path(
     step_name,
     output_dir=".",
 ):
+    """
+    Builds a standardized path for logging based on model name, training data,
+    test data, parameter ID, device, timestamp, log name, and step name.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        test_data_name (str): Name of the test data.
+        param_id (str): Identifier for the parameters used in training.
+        device (str): Device on which the model is trained (e.g., 'cpu', 'cuda').
+        timestamp (str): Timestamp for the run.
+        log_name (str): Name of the log directory.
+        step_name (str): Name of the step in the training process.
+        output_dir (str, optional): Base output directory. Defaults to current working directory.
+    Returns:
+        str: A formatted path string for logging.
+    """
     model_str = get_model_str(model_name, train_data_name, test_data_name, param_id)
     path = f"run.{timestamp}/{log_name}/{step_name}/{model_str}"
     path = prepend_dir_to_path(path, output_dir)
@@ -98,6 +143,18 @@ def build_log_path(
 def get_trained_model_path(
     model_name, train_data_name, param_id, device, timestamp, output_dir="."
 ):
+    """
+    Generates a path for the trained model checkpoint.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        param_id (str): Identifier for the parameters used in training.
+        device (str): Device on which the model is trained (e.g., 'cpu', 'cuda').
+        timestamp (str): Timestamp for the run.
+        output_dir (str, optional): Base output directory. Defaults to current working directory.
+    Returns:
+        str: A formatted path string for the trained model checkpoint.
+    """
     path = build_log_path(
         model_name=model_name,
         train_data_name=train_data_name,
@@ -121,6 +178,19 @@ def get_tested_model_path(
     timestamp,
     output_dir=".",
 ):
+    """
+    Generates a path for the tested model checkpoint.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        test_data_name (str): Name of the test data.
+        param_id (str): Identifier for the parameters used in training.
+        device (str): Device on which the model is trained (e.g., 'cpu', 'cuda').
+        timestamp (str): Timestamp for the run.
+        output_dir (str, optional): Base output directory. Defaults to current working directory.
+    Returns:
+        str: A formatted path string for the tested model checkpoint.
+    """
     path = build_log_path(
         model_name=model_name,
         train_data_name=train_data_name,
@@ -143,6 +213,18 @@ def get_model_params_path(
     timestamp,
     output_dir=".",
 ):
+    """
+    Generates a path for the model parameters JSON file.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        param_id (str): Identifier for the parameters used in training.
+        device (str): Device on which the model is trained (e.g., 'cpu', 'cuda').
+        timestamp (str): Timestamp for the run.
+        output_dir (str, optional): Base output directory. Defaults to current working directory.
+    Returns:
+        str: A formatted path string for the model parameters JSON file.
+    """
     path = build_log_path(
         model_name=model_name,
         train_data_name=train_data_name,
@@ -166,30 +248,28 @@ def get_baseline_result_path(
     """
     Generate a path for baseline model test results. This is independent from
     other path functions, as we don't require training for baseline models.
-    
+
     Args:
         model_name: Name of the baseline model
         test_data_name: Name of the test dataset
         timestamp: Timestamp for the run
         output_dir: Base output directory
-        
+
     Returns:
         Path to the baseline result JSON file
     """
     from pathlib import Path
-    
+
     # Create a cleaner path structure without param_id
-    path = f"run.{timestamp}/baseline_results/{model_name}-ON-{test_data_name}"
-    
+    path = f"run.{timestamp}/{model_name}_results/{model_name}-ON-{test_data_name}"
     # Add output directory if provided
     if output_dir is not None:
         path = str(Path(output_dir) / Path(path))
-        
+
     # Convert to absolute path
     path = f"{os.getcwd()}/{path}"
-    
-    return f"{path}.json"
 
+    return f"{path}.json"
 
 
 def build_paths_dict(
@@ -201,6 +281,21 @@ def build_paths_dict(
     timestamp,
     output_dir=".",
 ):
+    """Builds a dictionary of directories and paths for logging various stages of model training and testing.
+    Args:
+        model_name (str): Name of the model.
+        train_data_name (str): Name of the training data.
+        test_data_name (str): Name of the test data.
+        device (str): Device on which the model is trained (e.g., 'cpu', 'cuda').
+        param_id (str): Identifier for the parameters used in training.
+        timestamp (str): Timestamp for the run.
+        output_dir (str, optional): Base output directory. Defaults to current working directory.
+    Returns:
+        tuple: A tuple containing two dictionaries:
+            - dirs: Dictionary of directory paths for different logging stages.
+            - paths: Dictionary of file paths for different logging stages.
+    """
+
     def _get_path(test_data_name, log_name, step_name):
         path = build_log_path(
             model_name=model_name,
@@ -218,7 +313,9 @@ def build_paths_dict(
     dirs = {
         "hyper_json": _get_path(None, "checkpoint_logs", "optimize_hyperparameters"),
         "hyper_llog": _get_path(None, "lightning_logs", "optimize_hyperparameters"),
-        "hyper_benchmark": _get_path(None, "benchmark_logs", "optimize_hyperparameters"),
+        "hyper_benchmark": _get_path(
+            None, "benchmark_logs", "optimize_hyperparameters"
+        ),
         "hyper_checkpoint": _get_path(
             None, "checkpoint_logs", "optimize_hyperparameters"
         ),
@@ -256,6 +353,10 @@ def optimize_hyperparameters(
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
 ):
+    """
+    Creates a model in class `model_name` and optimizes its hyperparameters on data `data_name`.
+    The best hyperparameters are saved to `best_model_hparams_filepath`.
+    """
     dir_dict, path_dict = build_paths_dict(
         model_name=model_name,
         train_data_name=data_name,
@@ -263,9 +364,11 @@ def optimize_hyperparameters(
         device=device,
         param_id=param_id,
         timestamp=timestamp,
-        output_dir=output_dir
+        output_dir=output_dir,
     )
-    train_data, val_data = train_val_data_of_nicknames(data_name, device, data_nicknames_path)
+    train_data, val_data = train_val_data_of_nicknames(
+        data_name, device, data_nicknames_path
+    )
     model = build_model(model_name)
     log_path = path_dict["hyper_llog"]
     checkpoint_dir = dir_dict["hyper_checkpoint"]
@@ -308,14 +411,16 @@ def train_model(
         device=device,
         param_id=param_id,
         timestamp=timestamp,
-        output_dir=output_dir
+        output_dir=output_dir,
     )
     # set final and test checkpoint strings
     if train_checkpoint is None:
         train_checkpoint = path_dict["train_checkpoint"]
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
-    train_data, val_data = train_val_data_of_nicknames(data_name, device, data_nicknames_path)
+    train_data, val_data = train_val_data_of_nicknames(
+        data_name, device, data_nicknames_path
+    )
     model = build_model(model_name)
     log_path = path_dict["train_llog"]
     custom_log_path = path_dict["train_clog"]
@@ -364,7 +469,7 @@ def continue_train_model(
         device=device,
         param_id=param_id,
         timestamp=timestamp,
-        output_dir=output_dir
+        output_dir=output_dir,
     )
     # set final and test checkpoint strings
     if train_checkpoint is None:
@@ -380,7 +485,9 @@ def continue_train_model(
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
     # load dataset
-    train_data, val_data = train_val_data_of_nicknames(data_name, device, data_nicknames_path)
+    train_data, val_data = train_val_data_of_nicknames(
+        data_name, device, data_nicknames_path
+    )
     log_path = path_dict["train_llog"]
     custom_log_path = path_dict["train_clog"]
 
@@ -430,7 +537,7 @@ def test_model(
         device=device,
         param_id=param_id,
         timestamp=timestamp,
-        output_dir=output_dir
+        output_dir=output_dir,
     )
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
@@ -456,7 +563,6 @@ def test_model(
         device=device,
         accum_grad_batches=accum_grad_batches,
         hyperparameter_path=hyperparameter_path,
-        added_callbacks=[],
         timestamp=timestamp,
         **wrap_params,
     )
@@ -472,11 +578,11 @@ def test_baseline_model(
     timestamp=str(todays_date),
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
-    **wrap_kwargs
+    **wrap_kwargs,
 ):
     """
     Tests a baseline model on a dataset without requiring training.
-    
+
     Args:
         model_name: Name of the baseline model to test
         test_data_name: Nickname of the test dataset
@@ -485,7 +591,7 @@ def test_baseline_model(
         output_dir: Output directory
         data_nicknames_path: Path to data nicknames JSON file
         **wrap_kwargs: Additional parameters for the Wraplet
-    
+
     Returns:
         Test results
     """
@@ -493,35 +599,34 @@ def test_baseline_model(
     model = build_model(model_name)
     device = "cpu"  # Always use CPU for baseline models
     # Load test data
-    test_data = data_of_nicknames(test_data_name, device, data_nicknames_path, data_struct="TreeDataset")
-    
-    # Create lightweight wrapper for testing
-    test_wrap = Wraplet(
-        test_data=test_data,
-        model=model,
-        device="cpu",
-        **wrap_kwargs
+    test_data = data_of_nicknames(
+        test_data_name, device, data_nicknames_path, data_struct="TreeDataset"
     )
-    
+
+    # Create lightweight wrapper for testing
+    test_wrap = Wraplet(test_data=test_data, model=model, device=device, **wrap_kwargs)
+
     # Test the model and get results
     results = test_wrap.test()
-    
+
     # Create directory if it doesn't exist
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
-    
+
     # Save results to JSON
     result_data = {
-        'model': model_name,
-        'dataset': test_data_name,
-        'device': "cpu",
-        'timestamp': timestamp,
-        'results': results[0] if results else {}
+        "model": model_name,
+        "dataset": test_data_name,
+        "device": "cpu",
+        "timestamp": timestamp,
+        "results": results[0] if results else {},
     }
-    
-    with open(result_path, 'w') as f:
+
+    with open(result_path, "w") as f:
         json.dump(result_data, f, indent=2)
-    
-    print(f"Baseline model {model_name} tested on {test_data_name}, results saved to {result_path}")
+
+    print(
+        f"Baseline model {model_name} tested on {test_data_name}, results saved to {result_path}"
+    )
     return results
 
 
@@ -624,7 +729,7 @@ def aggregate_baseline_data_to_csv(
 ):
     """
     Aggregate baseline model result data in a CSV entry.
-    
+
     Args:
         model_name: Name of the baseline model
         test_data_name: Name of the test dataset
@@ -634,17 +739,17 @@ def aggregate_baseline_data_to_csv(
         output_dir: Base output directory
     """
     # Read results from JSON file
-    with open(result_path, 'r') as f:
+    with open(result_path, "r") as f:
         result_data = json.load(f)
-    
-    # Extract AUROC from results
+
+    # Extract AUROC and accuracy from results
     test_auroc = np.nan
-    if 'results' in result_data:
-        if 'test_auroc' in result_data['results']:
-            test_auroc = result_data['results']['test_auroc']
-        if 'test_accuracy' in result_data['results']:
-            test_accuracy = result_data['results']['test_accuracy']
-    device="cpu" #always cpu for baseline
+    if "results" in result_data:
+        if "test_auroc" in result_data["results"]:
+            test_auroc = result_data["results"]["test_auroc"]
+        if "test_accuracy" in result_data["results"]:
+            test_accuracy = result_data["results"]["test_accuracy"]
+    device = "cpu"  # always cpu for baseline
     # Create DataFrame with results.
     # Columns match those from more complex models and are filled with NaN where
     # appropriate
@@ -680,7 +785,7 @@ def aggregate_baseline_data_to_csv(
             "tested_model_checkpoint": [result_path],
         }
     )
-    
+
     # Add paths if necessary to match standard CSV format
     path_dict = {
         "hyper_json": "none",
@@ -694,15 +799,14 @@ def aggregate_baseline_data_to_csv(
         "test_llog": "none",
         "test_checkpoint": result_path,
     }
-    
+
     for key, path in path_dict.items():
         df_row[f"{key}_path"] = path
-    
+
     # Save to CSV
     df_row.to_csv(csv_output_path)
     print(f"Baseline results written to {csv_output_path}")
     return
-
 
 
 def concatenate_csvs(

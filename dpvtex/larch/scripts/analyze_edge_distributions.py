@@ -768,6 +768,144 @@ def create_longest_path_plot(analysis_results, output_dir="plots"):
     )
 
 
+def create_longest_path_plot(analysis_results, output_dir="plots"):
+    """
+    Create violin plots comparing longest non-MP edge paths across datasets and methods.
+    Creates two subplots: one for datasets with both methods, one for datasets with only constant.
+
+    Args:
+        analysis_results: List of dicts with 'pickle_file', 'dataset', and 'method' keys
+        output_dir: Directory to save plots
+    """
+    Path(output_dir).mkdir(exist_ok=True)
+
+    # Build dataframe with longest path data
+    all_data = []
+
+    for result in analysis_results:
+        pickle_file = result.get("pickle_file")
+        if not pickle_file:
+            continue
+
+        data = load_tree_label_data(pickle_file)
+
+        if not data:
+            continue
+
+        for tree, labels in data.items():
+            longest_path, normalized_path, max_depth = compute_longest_nonmp_path(
+                tree, labels
+            )
+            dataset_label = format_dataset_name(result["dataset"], result)
+
+            all_data.append(
+                {
+                    "Dataset": dataset_label,
+                    "Method": result["method"],
+                    "Longest_Path": longest_path,
+                    "Normalized_Longest_Path": normalized_path,
+                    "Max_Depth": max_depth,
+                }
+            )
+
+    if not all_data:
+        print("No data available for longest path plot")
+        return
+
+    df = pd.DataFrame(all_data)
+
+    # Replace method names for better legend labels
+    df["Method"] = df["Method"].replace(
+        {"constant": "SPR", "random_subtree": "random subtree"}
+    )
+
+    # Separate datasets by whether they have random subtree data
+    datasets_with_subtree = df[df["Method"] == "random subtree"]["Dataset"].unique()
+    df_with_subtree = df[df["Dataset"].isin(datasets_with_subtree)]
+    df_without_subtree = df[~df["Dataset"].isin(datasets_with_subtree)]
+
+    # Count datasets for each subplot
+    num_datasets_with = df_with_subtree["Dataset"].nunique()
+    num_datasets_without = df_without_subtree["Dataset"].nunique()
+
+    # Calculate heights for each subplot
+    height_with = max(4, num_datasets_with * 1.5) if num_datasets_with > 0 else 0
+    height_without = (
+        max(4, num_datasets_without * 1.5) if num_datasets_without > 0 else 0
+    )
+    total_height = height_with + height_without + 1  # Add 1 for spacing
+
+    # Create figure with subplots
+    fig, axes = plt.subplots(
+        2,
+        1,
+        figsize=(15, total_height),
+        gridspec_kw={
+            "height_ratios": (
+                [height_with, height_without] if height_without > 0 else [1, 0.01]
+            ),
+            "hspace": 0.15,
+        },
+    )
+
+    # Determine common x-axis limits across all data (normalized proportions)
+    x_min = 0  # Normalized values start at 0
+    x_max = min(1.0, df["Normalized_Longest_Path"].max() + 0.05)
+    x_limits = (x_min, x_max)
+
+    # Plot datasets with both methods (top subplot)
+    if num_datasets_with > 0:
+        sns.violinplot(
+            data=df_with_subtree,
+            x="Normalized_Longest_Path",
+            y="Dataset",
+            hue="Method",
+            orient="h",
+            ax=axes[0],
+        )
+        axes[0].set_xlabel("")
+        axes[0].set_ylabel("")
+        axes[0].tick_params(axis="y", labelsize=16)
+        axes[0].tick_params(axis="x", labelbottom=False)  # Hide x-axis tick labels
+        axes[0].set_xlim(x_limits)
+        axes[0].legend(
+            bbox_to_anchor=(0.5, 1.25), loc="upper center", fontsize=16, ncol=2
+        )
+    else:
+        axes[0].axis("off")
+
+    # Plot datasets with only constant method (bottom subplot)
+    if num_datasets_without > 0:
+        sns.violinplot(
+            data=df_without_subtree,
+            x="Normalized_Longest_Path",
+            y="Dataset",
+            hue="Method",
+            orient="h",
+            ax=axes[1],
+        )
+        axes[1].set_xlabel(
+            "Normalized Longest Path of Non-MP Edges", fontsize=16, labelpad=10
+        )
+        axes[1].set_ylabel("")
+        axes[1].tick_params(axis="both", labelsize=16)
+        axes[1].set_xlim(x_limits)
+        axes[1].get_legend().remove()  # Remove legend from bottom plot
+    else:
+        axes[1].axis("off")
+
+    # plt.tight_layout()
+    plt.savefig(
+        f"{output_dir}/longest_nonmp_path_comparison.pdf",
+        bbox_inches="tight",
+        dpi=150,
+    )
+    print(
+        f"Saved longest path comparison plot to {output_dir}/longest_nonmp_path_comparison.pdf"
+    )
+    plt.show()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Analyze edge distributions from larch pipeline output"

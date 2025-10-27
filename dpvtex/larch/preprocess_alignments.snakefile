@@ -42,8 +42,7 @@ rule clean_data:
         remove_site_patterns=remove_site_patterns,
     shell:
         """
-        python scripts/clean_data.py "{input.fasta_file}" "{output.input_fasta}"
-        "{output.algn_length}" "{params.remove_site_patterns}"
+        python scripts/clean_data.py "{input.fasta_file}" "{output.input_fasta}" "{output.algn_length}" "{params.remove_site_patterns}"
         """
 
 

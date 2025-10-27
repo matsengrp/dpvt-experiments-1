@@ -13,8 +13,7 @@
 num_alignments_list=(100 50)
 num_sequences_list=(10 15)
 alignment_length_list=(20)
-# edge_distributions=("constant" "uniform" "treesearch_mimic" "random_subtree")  # All edge distribution methods
-edge_distributions=("constant" "uniform" "treesearch_mimic" "random_subtree")
+edge_distributions=("constant" "random_subtree")
 no_dup_sites="False" # Whether to remove duplicate site patterns in the alignments
 
 max_attempts=20
@@ -24,7 +23,7 @@ scaling_factor=2
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Check if simulated_alignments directory exists, create it if not
-simulated_alignments_dir="$(cd "${script_dir}/../../../shared_data" && pwd)/simulated_alignments"
+simulated_alignments_dir="${script_dir}/../../../data/simulated_alignments"
 if [ ! -d "$simulated_alignments_dir" ]; then
     echo "Creating simulated_alignments directory at: $simulated_alignments_dir"
     mkdir -p "$simulated_alignments_dir"

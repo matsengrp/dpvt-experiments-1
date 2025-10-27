@@ -33,14 +33,14 @@ def generate_sim_config_files(
             "..",
             "..",
             "..",
-            "shared_data",
+            "data",
             "simulated_alignments",
             dataset_name,
         ),
         "larch_build": os.path.join(
             script_dir, "..", "..", "..", "..", "larch", "build"
         ),
-        "output_data": os.path.join(script_dir, "..", "..", "..", "shared_data"),
+        "output_data": os.path.join(script_dir, "..", "..", "..", "data"),
         "dataset_name": dataset_name,
         "num_cores": 2,
         "edge_distribution": edge_distribution,

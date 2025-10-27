@@ -41,6 +41,7 @@ r-ape = ">=5.8_1,<6"
 r-matrix = ">=1.7_4,<2"
 r-phangorn = ">=2.12.1,<3"
 torchmetrics = ">=1.8.2,<2"
+nodejs = "*"
 
 [pypi-dependencies]
 dpvt = { path = "../dpvt", editable = true }

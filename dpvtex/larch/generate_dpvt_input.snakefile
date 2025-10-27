@@ -78,9 +78,9 @@ rule preprocessing:
         dup_sites_suffix=dup_sites_suffix
     shell:
         """
-        cd {snakefile_dir}/setup_larch_inputs snakemake --snakefile
-        convert_fasta_to_larch_input.snakefile -d {params.input_dir} --cores 1
-        --config dup_sites_suffix="{params.dup_sites_suffix}" cd {snakefile_dir}
+        cd {snakefile_dir}/setup_larch_inputs
+        snakemake --snakefile convert_fasta_to_larch_input.snakefile -d {params.input_dir} --cores 1 --config dup_sites_suffix="{params.dup_sites_suffix}"
+        cd {snakefile_dir}
         """
 
 
@@ -97,8 +97,7 @@ rule run_larch:
         """
         echo "All input files are present, processing..."
         # Run larch-usher from bin directory
-        {larch_build}/larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o
-        {output.pb} -l {params.log} -S
+        {larch_build}/larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
         """
 
 

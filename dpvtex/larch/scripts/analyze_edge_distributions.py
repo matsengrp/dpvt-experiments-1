@@ -70,7 +70,7 @@ def analyze_edge_distributions(data_dict, method_name, dataset_name=None):
 
     for tree, labels in data_dict.items():
         non_mp_count = sum(labels)  # Count of 1s (non-MP edges)
-        total_edges = len(labels)
+        total_edges = len(labels) - len(tree)
 
         non_mp_counts.append(non_mp_count)
         total_edges_per_tree.append(total_edges)
@@ -94,6 +94,63 @@ def analyze_edge_distributions(data_dict, method_name, dataset_name=None):
             else 0
         ),
     }
+
+
+def compute_longest_nonmp_path(tree, labels):
+    """
+    Compute the longest path of consecutive non-MP edges from root to leaf,
+    normalized by the maximum tree depth.
+
+    Args:
+        tree: ete3 Tree object
+        labels: List of edge labels in preorder traversal order (1 = non-MP edge)
+
+    Returns:
+        tuple: (longest_path_length, normalized_longest_path, max_tree_depth)
+    """
+    # Create a mapping from nodes to their edge labels
+    # We need to traverse in preorder to match the labels list
+    node_to_label = {}
+    label_idx = 0
+
+    # Preorder traversal to assign labels to nodes
+    for node in tree.traverse("preorder"):
+        if not node.is_root():
+            node_to_label[node] = labels[label_idx]
+            label_idx += 1
+
+    max_path_length = 0
+    max_tree_depth = 0
+
+    # For each node, compute path lengths
+    for node in tree.traverse("preorder"):
+        # Compute depth (distance from root)
+        depth = 0
+        temp_node = node
+        while not temp_node.is_root():
+            depth += 1
+            temp_node = temp_node.up
+        max_tree_depth = max(max_tree_depth, depth)
+
+        # Compute longest consecutive non-MP path from root
+        current_path_length = 0
+        current_node = node
+
+        # Traverse from current node up to root, counting consecutive non-MP edges
+        while not current_node.is_root():
+            if node_to_label[current_node] == 1:
+                current_path_length += 1
+                current_node = current_node.up
+            else:
+                # Stop when we hit an MP edge (label 0)
+                break
+
+        max_path_length = max(max_path_length, current_path_length)
+
+    # Normalize by maximum tree depth
+    normalized_path = max_path_length / max_tree_depth if max_tree_depth > 0 else 0
+
+    return max_path_length, normalized_path, max_tree_depth
 
 
 def create_comparison_plots(
@@ -124,18 +181,59 @@ def create_comparison_plots(
     create_violin_plots(valid_results, output_dir)
 
 
+def format_dataset_name(dataset_name, result):
+    """Format dataset name based on type (alisim, rotavirus, or flu)"""
+
+    # Scenario (i): alisim datasets
+    if "alisim" in dataset_name:
+        # Extract number of leaves and sites from the dataset name
+        parts = dataset_name.split("_")
+        num_leaves = None
+        num_sites = None
+        data_type = "unknown"
+        if parts[-1] == "algnmnts":
+            if parts[-2] == "500":
+                data_type = "train"
+            elif parts[-2] == "200":
+                data_type = "test"
+
+        for i, part in enumerate(parts):
+            if part == "seq" and i > 0:
+                num_leaves = parts[i-1]
+            elif part == "sites" and i > 0:
+                num_sites = parts[i-1]
+
+        if num_leaves and data_type != "unknown":
+            return f"simulated-{num_leaves}-{data_type}"
+        elif num_leaves:
+            return f"simulated-{num_leaves}"
+        return dataset_name
+
+    # Scenario (ii): rotavirus datasets
+    elif "rotavirus" in dataset_name:
+        if "larch_" in dataset_name and "_spr" in dataset_name:
+            start_idx = dataset_name.find("larch_") + len("larch_")
+        else:
+            start_idx = 0
+        end_idx = dataset_name.find("_spr")
+        name = dataset_name[start_idx:end_idx]
+        name = name.replace("_", " ")
+        name = name.replace("rotavirusA", "rotavirus A")
+        return name
+
+    # Scenario (iii): flu datasets
+    elif "flu" in dataset_name:
+        parts = dataset_name.split("_")[-3:]
+        name = " ".join(parts) if isinstance(parts, list) else ""
+        return name.replace("influenzaC_fluC", "influenza C ")
+
+    return dataset_name
+
+
 def create_violin_plots(valid_results, output_dir):
     """Create plots comparing multiple datasets."""
     # Organize results by dataset and method
     datasets = sorted(set(r["dataset"] for r in valid_results))
-
-    # Define nickname mapping for long dataset names
-    dataset_short_nicknames = {
-        "alisim_alignment_25_seq_50_sites_5_algnmnts": "25seq_50sites_5aln",
-        "alisim_alignment_25_seq_100_sites_500_algnmnts": "25seq_100sites_500aln",
-        "alisim_alignment_15_seq_50_sites_5_algnmnts": "15seq_50sites_5aln",
-        # Add more mappings as needed
-    }
 
     all_data = []
     for result in valid_results:
@@ -146,10 +244,8 @@ def create_violin_plots(valid_results, output_dir):
         for i, count in enumerate(non_mp_counts):
             total_edges = total_edges_counts[i] if i < len(total_edges_counts) else 1
             proportion = count / total_edges if total_edges > 0 else 0
-            # Use nickname if available, otherwise use full name
-            dataset_label = dataset_short_nicknames.get(
-                result["dataset"], result["dataset"]
-            )
+            # Use formatted name
+            dataset_label = format_dataset_name(result["dataset"], result)
             all_data.append(
                 {
                     "Dataset": dataset_label,
@@ -160,17 +256,78 @@ def create_violin_plots(valid_results, output_dir):
 
     if all_data:
         df = pd.DataFrame(all_data)
-        sns.violinplot(
-            data=df,
-            x="Dataset",
-            y="Proportion_Non_MP_Edges",
-            hue="Method",  # , ax=axes[1, 0]
-        )
-        plt.ylabel("Proportion of Non-MP Edges")
-        # plt.xticks(ha="right")
-        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
 
-    plt.tight_layout()
+        # Replace method names for better legend labels
+        df["Method"] = df["Method"].replace({
+            "constant": "SPR",
+            "random_subtree": "random subtree"
+        })
+
+        # Separate datasets by whether they have random subtree data
+        datasets_with_subtree = df[df["Method"] == "random subtree"]["Dataset"].unique()
+        df_with_subtree = df[df["Dataset"].isin(datasets_with_subtree)]
+        df_without_subtree = df[~df["Dataset"].isin(datasets_with_subtree)]
+
+        # Count datasets for each subplot
+        num_datasets_with = df_with_subtree["Dataset"].nunique()
+        num_datasets_without = df_without_subtree["Dataset"].nunique()
+
+        # Calculate heights for each subplot
+        height_with = max(4, num_datasets_with * 1.5) if num_datasets_with > 0 else 0
+        height_without = max(4, num_datasets_without * 1.5) if num_datasets_without > 0 else 0
+        total_height = height_with + height_without + 1  # Add 1 for spacing
+
+        # Create figure with subplots
+        fig, axes = plt.subplots(
+            2, 1,
+            figsize=(15, total_height),
+            gridspec_kw={'height_ratios': [height_with, height_without] if height_without > 0 else [1, 0.01], 'hspace': 0.15}
+        )
+
+        # Determine common x-axis limits across all data
+        # Since these are proportions, start at 0 and add padding to max
+        x_min = -.02  # Proportions cannot be negative
+        x_max = min(1.0, df["Proportion_Non_MP_Edges"].max() + 0.05)
+        x_limits = (x_min, x_max)
+
+        # Plot datasets with both methods (top subplot)
+        if num_datasets_with > 0:
+            sns.violinplot(
+                data=df_with_subtree,
+                x="Proportion_Non_MP_Edges",
+                y="Dataset",
+                hue="Method",
+                orient="h",
+                ax=axes[0]
+            )
+            axes[0].set_xlabel("")
+            axes[0].set_ylabel("")
+            axes[0].tick_params(axis='y', labelsize=20)
+            axes[0].tick_params(axis='x', labelbottom=False)  # Hide x-axis tick labels
+            axes[0].set_xlim(x_limits)
+            axes[0].legend(bbox_to_anchor=(0.5, 1.25), loc="upper center", fontsize=20, ncol=2)
+        else:
+            axes[0].axis('off')
+
+        # Plot datasets with only constant method (bottom subplot)
+        if num_datasets_without > 0:
+            sns.violinplot(
+                data=df_without_subtree,
+                x="Proportion_Non_MP_Edges",
+                y="Dataset",
+                hue="Method",
+                orient="h",
+                ax=axes[1]
+            )
+            axes[1].set_xlabel("Proportion of Non-MP Edges", fontsize=20, labelpad=10)
+            axes[1].set_ylabel("")
+            axes[1].tick_params(axis='both', labelsize=20)
+            axes[1].set_xlim(x_limits)
+            axes[1].get_legend().remove()  # Remove legend from bottom plot
+        else:
+            axes[1].axis('off')
+
+    # plt.tight_layout()
     plt.savefig(
         f"{output_dir}/multi_dataset_edge_distribution_comparison.pdf",
         bbox_inches="tight",
@@ -181,6 +338,128 @@ def create_violin_plots(valid_results, output_dir):
     )
 
     # return fig
+
+
+def create_longest_path_plot(analysis_results, output_dir="plots"):
+    """
+    Create violin plots comparing longest non-MP edge paths across datasets and methods.
+    Creates two subplots: one for datasets with both methods, one for datasets with only constant.
+
+    Args:
+        analysis_results: List of dicts with 'pickle_file', 'dataset', and 'method' keys
+        output_dir: Directory to save plots
+    """
+    Path(output_dir).mkdir(exist_ok=True)
+
+    # Build dataframe with longest path data
+    all_data = []
+
+    for result in analysis_results:
+        pickle_file = result.get('pickle_file')
+        if not pickle_file:
+            continue
+
+        data = load_tree_label_data(pickle_file)
+
+        if not data:
+            continue
+
+        for tree, labels in data.items():
+            longest_path, normalized_path, max_depth = compute_longest_nonmp_path(tree, labels)
+            dataset_label = format_dataset_name(result['dataset'], result)
+
+            all_data.append({
+                "Dataset": dataset_label,
+                "Method": result['method'],
+                "Longest_Path": longest_path,
+                "Normalized_Longest_Path": normalized_path,
+                "Max_Depth": max_depth,
+            })
+
+    if not all_data:
+        print("No data available for longest path plot")
+        return
+
+    df = pd.DataFrame(all_data)
+
+    # Replace method names for better legend labels
+    df["Method"] = df["Method"].replace({
+        "constant": "SPR",
+        "random_subtree": "random subtree"
+    })
+
+    # Separate datasets by whether they have random subtree data
+    datasets_with_subtree = df[df["Method"] == "random subtree"]["Dataset"].unique()
+    df_with_subtree = df[df["Dataset"].isin(datasets_with_subtree)]
+    df_without_subtree = df[~df["Dataset"].isin(datasets_with_subtree)]
+
+    # Count datasets for each subplot
+    num_datasets_with = df_with_subtree["Dataset"].nunique()
+    num_datasets_without = df_without_subtree["Dataset"].nunique()
+
+    # Calculate heights for each subplot
+    height_with = max(4, num_datasets_with * 1.5) if num_datasets_with > 0 else 0
+    height_without = max(4, num_datasets_without * 1.5) if num_datasets_without > 0 else 0
+    total_height = height_with + height_without + 1  # Add 1 for spacing
+
+    # Create figure with subplots
+    fig, axes = plt.subplots(
+        2, 1,
+        figsize=(15, total_height),
+        gridspec_kw={'height_ratios': [height_with, height_without] if height_without > 0 else [1, 0.01], 'hspace': 0.15}
+    )
+
+    # Determine common x-axis limits across all data (normalized proportions)
+    x_min = 0  # Normalized values start at 0
+    x_max = min(1.0, df["Normalized_Longest_Path"].max() + 0.05)
+    x_limits = (x_min, x_max)
+
+    # Plot datasets with both methods (top subplot)
+    if num_datasets_with > 0:
+        sns.violinplot(
+            data=df_with_subtree,
+            x="Normalized_Longest_Path",
+            y="Dataset",
+            hue="Method",
+            orient="h",
+            ax=axes[0]
+        )
+        axes[0].set_xlabel("")
+        axes[0].set_ylabel("")
+        axes[0].tick_params(axis='y', labelsize=16)
+        axes[0].tick_params(axis='x', labelbottom=False)  # Hide x-axis tick labels
+        axes[0].set_xlim(x_limits)
+        axes[0].legend(bbox_to_anchor=(0.5, 1.25), loc="upper center", fontsize=16, ncol=2)
+    else:
+        axes[0].axis('off')
+
+    # Plot datasets with only constant method (bottom subplot)
+    if num_datasets_without > 0:
+        sns.violinplot(
+            data=df_without_subtree,
+            x="Normalized_Longest_Path",
+            y="Dataset",
+            hue="Method",
+            orient="h",
+            ax=axes[1]
+        )
+        axes[1].set_xlabel("Normalized Longest Path of Non-MP Edges", fontsize=16, labelpad=10)
+        axes[1].set_ylabel("")
+        axes[1].tick_params(axis='both', labelsize=16)
+        axes[1].set_xlim(x_limits)
+        axes[1].get_legend().remove()  # Remove legend from bottom plot
+    else:
+        axes[1].axis('off')
+
+    # plt.tight_layout()
+    plt.savefig(
+        f"{output_dir}/longest_nonmp_path_comparison.pdf",
+        bbox_inches="tight",
+        dpi=150,
+    )
+    print(f"Saved longest path comparison plot to {output_dir}/longest_nonmp_path_comparison.pdf")
+    plt.show()
+
 
 
 def main():
@@ -215,7 +494,9 @@ def main():
             args.dataset_names = ["alisim_alignment_15_seq_50_sites_5_algnmnts"]
 
     # Define the edge distribution methods to analyze
-    edge_methods = ["constant", "uniform", "treesearch_mimic", "random_subtree", ""]
+    # edge_methods = ["constant", "uniform", "treesearch_mimic", "random_subtree", ""]
+    # edge_methods = ["constant", "random_subtree", "mixed"]
+    edge_methods = ["constant", "random_subtree"]
 
     # Load data for each dataset and method
     analysis_results = []
@@ -226,14 +507,16 @@ def main():
     for dataset_name in args.dataset_names:
 
         for method in edge_methods:
-            if method == "constant":
-                suffix = "_spr"
+            if method == "mixed":
+                suffix = "_spr_subtree.p"
+            elif method == "constant":
+                suffix = "_spr.p"
             elif method == "uniform":
-                suffix = "_uniform"
+                suffix = "_uniform.p"
             elif method == "treesearch_mimic":
-                suffix = "_treesearch_mimic"
+                suffix = "_treesearch_mimic.p"
             elif method == "random_subtree":
-                suffix = "_subtree"
+                suffix = "algnmnts_subtree.p"
             else:
                 suffix = ""
 
@@ -251,9 +534,10 @@ def main():
                 print(f"Found file for {method} method: {pickle_file}")
                 
                 data = load_tree_label_data(pickle_file)
-                
+
                 if data:
                     analysis = analyze_edge_distributions(data, method, dataset_name)
+                    analysis['pickle_file'] = pickle_file  # Add pickle_file for longest path plot
                     analysis_results.append(analysis)
                 else:
                     analysis_results.append(
@@ -267,6 +551,9 @@ def main():
                 )
 
     create_comparison_plots(analysis_results, args.output_dir)
+
+    # Create longest path comparison plot
+    create_longest_path_plot(analysis_results, args.output_dir)
 
 
 if __name__ == "__main__":

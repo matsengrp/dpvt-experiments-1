@@ -5,14 +5,10 @@ models: [
     "BaselineReversion", # can only run on CPU!
   ]
 train_data: [
-  "larch_alisim_alignment_10_seq_20_sites_100_algnmnts_spr",
-  "larch_alisim_alignment_10_seq_20_sites_100_algnmnts_subtree",
   "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_spr",
   "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_subtree"
   ]
 test_data: [
-  "larch_alisim_alignment_10_seq_20_sites_50_algnmnts_spr",
-  "larch_alisim_alignment_10_seq_20_sites_50_algnmnts_subtree",
   "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_spr",
   "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_subtree"
   ]

@@ -1,19 +1,11 @@
 {
   "data_dir": "../data",
   "larch_alisim_alignment_10_seq_20_sites_100_algnmnts_spr": "larch_alisim_alignment_10_seq_20_sites_100_algnmnts_spr.p",
-  "larch_alisim_alignment_10_seq_20_sites_100_algnmnts_uniform": "larch_alisim_alignment_10_seq_20_sites_100_algnmnts_uniform.p",
-  "larch_alisim_alignment_10_seq_20_sites_100_algnmnts_treesearch_mimic": "larch_alisim_alignment_10_seq_20_sites_100_algnmnts_treesearch_mimic.p",
   "larch_alisim_alignment_10_seq_20_sites_100_algnmnts_subtree": "larch_alisim_alignment_10_seq_20_sites_100_algnmnts_subtree.p",
   "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_spr": "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_spr.p",
-  "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_uniform": "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_uniform.p",
-  "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_treesearch_mimic": "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_treesearch_mimic.p",
   "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_subtree": "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_subtree.p",
   "larch_alisim_alignment_10_seq_20_sites_50_algnmnts_spr": "larch_alisim_alignment_10_seq_20_sites_50_algnmnts_spr.p",
-  "larch_alisim_alignment_10_seq_20_sites_50_algnmnts_uniform": "larch_alisim_alignment_10_seq_20_sites_50_algnmnts_uniform.p",
-  "larch_alisim_alignment_10_seq_20_sites_50_algnmnts_treesearch_mimic": "larch_alisim_alignment_10_seq_20_sites_50_algnmnts_treesearch_mimic.p",
   "larch_alisim_alignment_10_seq_20_sites_50_algnmnts_subtree": "larch_alisim_alignment_10_seq_20_sites_50_algnmnts_subtree.p",
   "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_spr": "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_spr.p",
-  "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_uniform": "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_uniform.p",
-  "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_treesearch_mimic": "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_treesearch_mimic.p",
   "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_subtree": "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_subtree.p"
 }

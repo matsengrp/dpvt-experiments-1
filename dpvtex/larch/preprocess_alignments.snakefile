@@ -8,6 +8,7 @@ if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
 from clean_data import clean_alignment
+from check_size_fasta import check_alignment_size
 
 config_path = os.path.join(snakefile_dir, "config.yaml")
 
@@ -55,8 +56,5 @@ checkpoint check_alignment_length:
         touch(input_data+"/{subdir}/checkpoint" + dup_sites_suffix + ".done"),
     params:
         fasta=input_data+"/{subdir}/checkpoint.flag",
-    shell:
-        """
-        python scripts/check_size_fasta.py "{input.algn_length}"
-        "{params.fasta}"
-        """
+    run:
+        check_alignment_size(input.algn_length, params.fasta)

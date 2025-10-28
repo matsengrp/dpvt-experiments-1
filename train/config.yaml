@@ -13,7 +13,7 @@ test_data: [
   "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_subtree"
   ]
 
-device: "cpu"
+device: "gpu"
 timestamp: "TODAY"
 use_cross_datasets: True
 output_dir: "_output"

@@ -1,6 +1,14 @@
 import os
+import sys
 
+# Add scripts directory to Python path for imports
 snakefile_dir = workflow.basedir
+scripts_dir = os.path.join(snakefile_dir, "scripts")
+if scripts_dir not in sys.path:
+    sys.path.insert(0, scripts_dir)
+
+from clean_data import clean_alignment
+
 config_path = os.path.join(snakefile_dir, "config.yaml")
 
 configfile: config_path
@@ -31,10 +39,13 @@ rule clean_data:
         algn_length=input_data+"/{subdir}/cleaned_alignment_length" + dup_sites_suffix + ".txt"
     params:
         remove_site_patterns=remove_site_patterns,
-    shell:
-        """
-        python scripts/clean_data.py "{input.fasta_file}" "{output.input_fasta}" "{output.algn_length}" "{params.remove_site_patterns}"
-        """
+    run:
+        clean_alignment(
+            input.fasta_file,
+            output.input_fasta,
+            output.algn_length,
+            remove_site_patterns=params.remove_site_patterns
+        )
 
 
 checkpoint check_alignment_length:

@@ -10,8 +10,8 @@
 
 # Parameters - Test configuration
 
-num_alignments_list=(100 50)
-num_sequences_list=(15)
+num_alignments_list=(20)
+num_sequences_list=(20)
 alignment_length_list=(20)
 edge_distributions=("constant" "random_subtree")
 no_dup_sites="False" # Whether to remove duplicate site patterns in the alignments
@@ -67,7 +67,7 @@ for num_alignments in "${num_alignments_list[@]}"; do
                         mv $alignment_dir/raw_alignment_$i.fa $alignment_dir/raw_alignment_$i.fasta
 
                         # Clean the alignment and trim to exact target dimensions
-                        python ${script_dir}/clean_data.py $alignment_dir/raw_alignment_$i.fasta $alignment_dir/alignment_$i.fasta $alignment_dir/alignment_stats_$i.txt $target_alignment_length $target_num_sequences
+                        ${script_dir}/clean_alignment.sh $alignment_dir/raw_alignment_$i.fasta $alignment_dir/alignment_$i.fasta $alignment_dir/alignment_stats_$i.txt False $target_alignment_length $target_num_sequences
 
                         # Check if cleaned alignment meets criteria
                         IFS=',' read cleaned_length cleaned_seqs <$alignment_dir/alignment_stats_$i.txt

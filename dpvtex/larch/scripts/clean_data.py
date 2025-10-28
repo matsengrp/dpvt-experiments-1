@@ -163,39 +163,37 @@ def remove_identical_site_patterns(multiple_seq_alignment):
     return MultipleSeqAlignment(new_sequences), len(unique_site_indices)
 
 
-if __name__ == "__main__":
-    import sys
+def clean_alignment(
+    input_filename,
+    output_filename,
+    algn_length_filename,
+    remove_site_patterns=False,
+    target_length=None,
+    target_seqs=None,
+):
+    """
+    Clean an alignment by removing duplicates and optionally trimming to target dimensions.
 
-    # Simple command-line argument parsing
-    if len(sys.argv) < 4:
-        print(
-            "Usage: python clean_data.py <input_file> <output_file> <length_file> [--remove-site-patterns] [target_length] [target_seqs]"
-        )
-        sys.exit(1)
+    Parameters:
+    -----------
+    input_filename : str
+        Path to the input FASTA alignment file
+    output_filename : str
+        Path to write the cleaned alignment
+    algn_length_filename : str
+        Path to write the final alignment dimensions (format: "length,num_seqs")
+    remove_site_patterns : bool, optional
+        Whether to remove duplicate site patterns (default: False)
+    target_length : int, optional
+        Target number of sites (informative sites will be selected)
+    target_seqs : int, optional
+        Target number of sequences
 
-    # Get target dimensions of alignment if used for data generation
-    target_length = None
-    target_seqs = None
-    remove_site_patterns = False  # Default to not removing duplicate site patterns
-    if len(sys.argv) == 6:
-        target_length = int(sys.argv[4])
-        target_seqs = int(sys.argv[5])
-    # optionally remove duplicate site patterns
-    elif len(sys.argv) == 5:
-        remove_site_patterns = sys.argv[4].lower() == "true"
-        if not sys.argv[4].lower() in ["true", "false"]:
-            print(
-                "Error: remove-site-patterns flag must be 'true' or 'false'. If you want to specify target dimensions, use the format: <input_file> <output_file> <length_file> --remove-site-patterns <target_length> <target_seqs>.\n Your input was: ",
-                sys.argv[4].lower(),
-            )
-            sys.exit(1)
-
-    input_filename = sys.argv[1]
-    output_filename = sys.argv[2]
-    algn_length_filename = sys.argv[3]
-
-    # Check for remove-site-patterns flag
-
+    Returns:
+    --------
+    tuple
+        (final_num_seqs, final_num_sites, original_num_seqs, original_num_sites)
+    """
     # Read the original alignment
     alignment = AlignIO.read(input_filename, "fasta")
     original_num_seqs = len(alignment)
@@ -243,3 +241,5 @@ if __name__ == "__main__":
         f.write(str(final_num_sites) + "," + str(final_num_seqs))
 
     print(f"Final alignment: {final_num_seqs} sequences, {final_num_sites} sites")
+
+    return final_num_seqs, final_num_sites, original_num_seqs, original_num_sites

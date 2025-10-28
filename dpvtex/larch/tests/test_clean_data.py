@@ -1,4 +1,4 @@
-from dpvtex.larch.scripts.clean_data import remove_ambiguous_or_uninformative_sites
+from dpvtex.larch.scripts.clean_data import get_informative_site_indices
 
 from Bio.Align import MultipleSeqAlignment
 from Bio.SeqRecord import SeqRecord
@@ -17,6 +17,22 @@ def are_alignments_equal(align1, align2):
             return False
     return True
 
+
+def remove_ambiguous_or_uninformative_sites(alignment):
+    """
+    Remove sites that are not phylogenetically informative.
+    This is a wrapper around get_informative_site_indices for testing.
+    """
+    informative_indices = get_informative_site_indices(alignment)
+
+    # Create a new alignment with only the informative sites
+    new_sequences = []
+    for record in alignment:
+        new_seq = Seq("".join([str(record.seq[i]) for i in informative_indices]))
+        new_record = SeqRecord(new_seq, id=record.id, description="")
+        new_sequences.append(new_record)
+
+    return MultipleSeqAlignment(new_sequences)
 
 
 def test_remove_ambiguous_or_uninformative_sites():

@@ -83,14 +83,26 @@ rule create_reference_sequence_file:
 
         disambiguated_ref_seq = str(algmnt[0,:].seq)
         print(len(disambiguated_ref_seq))
-        # replace any remaining ambiguities in the reference sequence 
+        # replace any remaining ambiguities in the reference sequence
         # with the corresponding entry in the consensus sequence (if unambiguous)
         # or, if the consensus entry is ambiguous, with the (manually found)
         # most commonly occurring disambiguated base at that site
         sites_to_remove = []
         variants = set(disambiguated_ref_seq)
         if variants != set("ACGT"):
-            consensus_ref_seq = AlignInfo.SummaryInfo(algmnt).gap_consensus(ambiguous='N', threshold=0)
+            # Build consensus sequence using new Biopython API
+            consensus_ref_seq = ""
+            for i in range(len(algmnt[0])):
+                column = algmnt[:, i]
+                counts = Counter(str(column))
+                # Remove gap characters from counts
+                counts.pop('-', None)
+                if counts:
+                    # Get most common base, use 'N' if tie or ambiguous
+                    most_common = counts.most_common(1)[0][0]
+                    consensus_ref_seq += most_common if most_common in "ACGT" else "N"
+                else:
+                    consensus_ref_seq += "N"
             for i, N in enumerate(disambiguated_ref_seq):
                 if N not in "ACGT":
                     val = consensus_ref_seq[i] if (consensus_ref_seq[i] in ["A","C","G","T"]) else get_most_common_value(i)

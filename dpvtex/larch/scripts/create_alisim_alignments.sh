@@ -10,8 +10,8 @@
 
 # Parameters - Test configuration
 
-num_alignments_list=(20)
-num_sequences_list=(20)
+num_alignments_list=(50 100)
+num_sequences_list=(15)
 alignment_length_list=(20)
 edge_distributions=("constant" "random_subtree")
 no_dup_sites="False" # Whether to remove duplicate site patterns in the alignments

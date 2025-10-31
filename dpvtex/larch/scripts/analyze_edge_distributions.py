@@ -16,6 +16,35 @@ import argparse
 import glob
 import os
 
+# Configuration constants
+
+# Map internal method names to display names for plot legends
+METHOD_NAME_MAP = {"constant": "SPR", "random_subtree": "random subtree"}
+
+# Map edge distribution methods to their file suffixes
+EDGE_METHOD_SUFFIXES = {
+    "constant": "_spr.p",
+    "random_subtree": "algnmnts_subtree.p",
+    "uniform": "_uniform.p",
+    "treesearch_mimic": "_treesearch_mimic.p",
+    "mixed": "_spr_subtree.p",
+}
+
+# Plot sizing constants
+DEFAULT_PLOT_HEIGHT = 4  # Minimum height for subplots in inches
+HEIGHT_PER_DATASET = 1.5  # Additional height per dataset in inches
+SUBPLOT_SPACING = 0.15  # Vertical spacing between subplots
+
+# Plot axis configuration
+X_AXIS_PADDING = 0.05  # Extra space on right side of x-axis
+MIN_X_VALUE = -0.02  # Start x-axis slightly below zero for visual clarity
+MAX_PROPORTION = 1.0  # Maximum proportion value (100%)
+
+# Font sizes for plot elements
+DEFAULT_TICK_FONTSIZE = 20  # Font size for axis tick labels
+DEFAULT_LABEL_FONTSIZE = 20  # Font size for axis labels
+DEFAULT_LEGEND_FONTSIZE = 20  # Font size for legend text
+
 
 def load_tree_label_data(pickle_file):
     """
@@ -25,11 +54,26 @@ def load_tree_label_data(pickle_file):
         pickle_file: Path to pickle file containing tree-label dictionary
 
     Returns:
-        dict: Dictionary with trees as keys and edge label lists as values
+        dict: Dictionary with trees as keys and edge label lists as values.
+              Returns empty dict if file cannot be loaded.
+
+    Raises:
+        FileNotFoundError: If pickle file does not exist
+        pickle.UnpicklingError: If file cannot be unpickled
     """
-    with open(pickle_file, "rb") as f:
-        data = pickle.load(f)
-    return data
+    try:
+        with open(pickle_file, "rb") as f:
+            data = pickle.load(f)
+        return data
+    except FileNotFoundError:
+        print(f"Error: Pickle file not found: {pickle_file}")
+        raise
+    except pickle.UnpicklingError as e:
+        print(f"Error: Failed to unpickle file {pickle_file}: {e}")
+        raise
+    except Exception as e:
+        print(f"Error: Unexpected error loading {pickle_file}: {e}")
+        raise
 
 
 def analyze_edge_distributions(data_dict, method_name, dataset_name=None):
@@ -174,30 +218,55 @@ def create_comparison_plots(
     create_violin_plots(valid_results, output_dir)
 
 
-def format_dataset_name(dataset_name, result):
-    """Format dataset name based on type (alisim, rotavirus, or flu)"""
+def extract_dataset_label(dataset_name):
+    """
+    Extract a structured label from dataset name for plotting.
+
+    Parses dataset names and extracts metadata:
+    - Alisim: extracts leaves, sites, alignments from filename structure
+    - Rotavirus: extracts and reformats specimen identifiers
+    - Flu: extracts and reformats strain identifiers
+
+    Note: For alisim datasets, returns full metadata labels that are later
+    simplified by simplify_simulated_labels() based on variation across datasets.
+
+    Args:
+        dataset_name: Original dataset filename or identifier
+
+    Returns:
+        str: Extracted label suitable for plotting
+    """
 
     # Scenario (i): alisim datasets
     if "alisim" in dataset_name:
-        # Extract number of leaves and sites from the dataset name
+        # Extract number of leaves, sites, and alignments from the dataset name
         parts = dataset_name.split("_")
         num_leaves = None
         num_sites = None
+        num_algnmnts = None
         data_type = "unknown"
-        if parts[-1] == "algnmnts":
-            if parts[-2] == "500":
-                data_type = "train"
-            elif parts[-2] == "200":
-                data_type = "test"
 
+        # Find algnmnts in any position (could be followed by _spr, _subtree, etc.)
         for i, part in enumerate(parts):
             if part == "seq" and i > 0:
                 num_leaves = parts[i - 1]
             elif part == "sites" and i > 0:
                 num_sites = parts[i - 1]
+            elif part == "algnmnts" and i > 0:
+                num_algnmnts = parts[i - 1]
+                # Check if this is a train/test split
+                if parts[i - 1] == "500":
+                    data_type = "train"
+                elif parts[i - 1] == "200":
+                    data_type = "test"
 
         if num_leaves and data_type != "unknown":
             return f"simulated-{num_leaves}-{data_type}"
+        elif num_leaves and num_sites and num_algnmnts:
+            # Return full label - will be simplified by relabel_perturbation_dfs
+            return f"simulated-{num_leaves}seq-{num_sites}sites-{num_algnmnts}aln"
+        elif num_leaves and num_sites:
+            return f"simulated-{num_leaves}seq-{num_sites}sites"
         elif num_leaves:
             return f"simulated-{num_leaves}"
         return dataset_name
@@ -223,11 +292,298 @@ def format_dataset_name(dataset_name, result):
     return dataset_name
 
 
+def extract_metadata_from_label(label):
+    """
+    Extract metadata fields from a simulated dataset label.
+
+    Args:
+        label: Label string like "simulated-15seq-20sites-100aln"
+
+    Returns:
+        dict: Metadata with 'label' key and optional 'seq', 'sites', 'aln' keys
+    """
+    meta = {"label": label}
+    if "seq-" in label:
+        parts = label.split("-")
+        for part in parts[1:]:  # Skip "simulated"
+            if "seq" in part:
+                meta["seq"] = part.replace("seq", "")
+            elif "sites" in part:
+                meta["sites"] = part.replace("sites", "")
+            elif "aln" in part:
+                meta["aln"] = part.replace("aln", "")
+    return meta
+
+
+def determine_varying_fields(metadata):
+    """
+    Determine which metadata fields vary across datasets.
+
+    Args:
+        metadata: List of metadata dicts with optional 'seq', 'sites', 'aln' keys
+
+    Returns:
+        tuple: (seq_varies, sites_varies, aln_varies) boolean flags
+    """
+    if not metadata:
+        return False, False, False
+
+    seq_values = [m.get("seq") for m in metadata if "seq" in m]
+    sites_values = [m.get("sites") for m in metadata if "sites" in m]
+    aln_values = [m.get("aln") for m in metadata if "aln" in m]
+
+    seq_varies = len(set(seq_values)) > 1 if seq_values else False
+    sites_varies = len(set(sites_values)) > 1 if sites_values else False
+    aln_varies = len(set(aln_values)) > 1 if aln_values else False
+
+    return seq_varies, sites_varies, aln_varies
+
+
+def build_simplified_label(meta, seq_varies, sites_varies, aln_varies, is_alisim):
+    """
+    Build a simplified label including only varying metadata fields.
+
+    Args:
+        meta: Metadata dict with optional 'seq', 'sites', 'aln' keys
+        seq_varies: Whether seq values vary across datasets
+        sites_varies: Whether sites values vary across datasets
+        aln_varies: Whether aln values vary across datasets
+        is_alisim: Whether this is an alisim dataset
+
+    Returns:
+        str: Simplified label
+    """
+    parts = []
+    if seq_varies and "seq" in meta:
+        parts.append(f"{meta['seq']}seq")
+    if sites_varies and "sites" in meta:
+        parts.append(f"{meta['sites']}sites")
+    if aln_varies and "aln" in meta:
+        parts.append(f"{meta['aln']}aln")
+
+    # For alisim datasets, keep "simulated" prefix; otherwise just use varying parts
+    if is_alisim:
+        simplified = "simulated-" + "-".join(parts) if parts else "simulated"
+    else:
+        simplified = "-".join(parts) if parts else "simulated"
+
+    return simplified
+
+
+def simplify_simulated_labels(df):
+    """
+    Simplify simulated dataset labels by removing constant metadata.
+
+    For alisim datasets: if all have "15seq" and "20sites" but different "aln",
+    simplify from "simulated-15seq-20sites-100aln" to "simulated-100aln".
+
+    Args:
+        df: DataFrame with Dataset column and original_dataset column
+
+    Returns:
+        DataFrame with simplified Dataset labels
+    """
+    simulated_mask = df["Dataset"].str.startswith("simulated-")
+    if not simulated_mask.any():
+        return df
+
+    simulated_datasets = df[simulated_mask]["Dataset"].unique()
+
+    # Check if these are alisim datasets by looking at original names
+    is_alisim = df[simulated_mask]["original_dataset"].str.contains("alisim").any()
+
+    # Extract metadata from all simulated dataset labels
+    metadata = [extract_metadata_from_label(label) for label in simulated_datasets]
+
+    # Determine which fields vary across datasets
+    seq_varies, sites_varies, aln_varies = determine_varying_fields(metadata)
+
+    # Build simplified labels including only varying fields
+    label_map = {
+        meta["label"]: build_simplified_label(
+            meta, seq_varies, sites_varies, aln_varies, is_alisim
+        )
+        for meta in metadata
+    }
+
+    # Apply simplification
+    df["Dataset"] = df["Dataset"].replace(label_map)
+    return df
+
+
+def relabel_perturbation_dfs(df):
+    """
+    Relabel method names and dataset labels in the dataframe.
+
+    Args:
+        df: DataFrame with Dataset, Method, and data columns
+
+    Returns:
+        DataFrame with relabeled method names and datasets
+    """
+    # Replace method names for better legend labels
+    df["Method"] = df["Method"].replace(METHOD_NAME_MAP)
+
+    # Simplify simulated dataset labels based on what varies
+    df = simplify_simulated_labels(df)
+
+    return df
+
+
+def separate_by_method_count(df):
+    """
+    Separate datasets by the number of perturbation methods they have.
+
+    Args:
+        df: DataFrame with normalized Dataset and Method columns
+
+    Returns:
+        tuple: (df_multi_method, df_single_method, num_datasets_multi, num_datasets_single)
+    """
+    # Count how many methods each dataset has
+    methods_per_dataset = df.groupby("Dataset")["Method"].nunique()
+
+    # Separate datasets by method count
+    datasets_with_multiple_methods = methods_per_dataset[methods_per_dataset >= 2].index
+    datasets_with_single_method = methods_per_dataset[methods_per_dataset == 1].index
+
+    df_multi_method = df[df["Dataset"].isin(datasets_with_multiple_methods)]
+    df_single_method = df[df["Dataset"].isin(datasets_with_single_method)]
+
+    # Count datasets for each subplot
+    num_datasets_multi = len(datasets_with_multiple_methods)
+    num_datasets_single = len(datasets_with_single_method)
+
+    return df_multi_method, df_single_method, num_datasets_multi, num_datasets_single
+
+
+def calculate_subplot_heights(num_datasets_multi, num_datasets_single):
+    """
+    Calculate appropriate heights for subplots based on number of datasets.
+
+    Args:
+        num_datasets_multi: Number of datasets with multiple methods
+        num_datasets_single: Number of datasets with single method
+
+    Returns:
+        tuple: (height_multi, height_single, total_height)
+    """
+    height_multi = (
+        max(DEFAULT_PLOT_HEIGHT, num_datasets_multi * HEIGHT_PER_DATASET)
+        if num_datasets_multi > 0
+        else 0
+    )
+    height_single = (
+        max(DEFAULT_PLOT_HEIGHT, num_datasets_single * HEIGHT_PER_DATASET)
+        if num_datasets_single > 0
+        else 0
+    )
+    total_height = height_multi + height_single + 1  # Add 1 for spacing
+
+    return height_multi, height_single, total_height
+
+
+def create_dual_subplot_figure(height_multi, height_single):
+    """
+    Create a figure with two subplots with appropriate height ratios.
+
+    Args:
+        height_multi: Height for top subplot (datasets with multiple methods)
+        height_single: Height for bottom subplot (datasets with single method)
+
+    Returns:
+        tuple: (fig, axes) - matplotlib figure and axes array
+    """
+    total_height = height_multi + height_single + 1
+    fig, axes = plt.subplots(
+        2,
+        1,
+        figsize=(15, total_height),
+        gridspec_kw={
+            "height_ratios": (
+                [height_multi, height_single] if height_single > 0 else [1, 0.01]
+            ),
+            "hspace": SUBPLOT_SPACING,
+        },
+    )
+    return fig, axes
+
+
+def configure_top_subplot(
+    ax,
+    df_multi_method,
+    x_column,
+    x_limits,
+    tick_fontsize=DEFAULT_TICK_FONTSIZE,
+    legend_fontsize=DEFAULT_LEGEND_FONTSIZE,
+):
+    """
+    Configure and plot the top subplot (datasets with multiple methods).
+
+    Args:
+        ax: Matplotlib axis object
+        df_multi_method: DataFrame for datasets with multiple methods
+        x_column: Name of the x-axis data column
+        x_limits: Tuple of (x_min, x_max)
+        tick_fontsize: Font size for tick labels (default: DEFAULT_TICK_FONTSIZE)
+        legend_fontsize: Font size for legend (default: DEFAULT_LEGEND_FONTSIZE)
+    """
+    sns.violinplot(
+        data=df_multi_method,
+        x=x_column,
+        y="Dataset",
+        hue="Method",
+        orient="h",
+        ax=ax,
+    )
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.tick_params(axis="y", labelsize=tick_fontsize)
+    ax.tick_params(axis="x", labelbottom=False)  # Hide x-axis tick labels
+    ax.set_xlim(x_limits)
+    ax.legend(
+        bbox_to_anchor=(0.5, 1.25), loc="upper center", fontsize=legend_fontsize, ncol=2
+    )
+
+
+def configure_bottom_subplot(
+    ax,
+    df_single_method,
+    x_column,
+    x_limits,
+    xlabel,
+    tick_fontsize=DEFAULT_TICK_FONTSIZE,
+    label_fontsize=DEFAULT_LABEL_FONTSIZE,
+):
+    """
+    Configure and plot the bottom subplot (datasets with single method).
+
+    Args:
+        ax: Matplotlib axis object
+        df_single_method: DataFrame for datasets with single method
+        x_column: Name of the x-axis data column
+        x_limits: Tuple of (x_min, x_max)
+        xlabel: Label for x-axis
+        tick_fontsize: Font size for tick labels (default: DEFAULT_TICK_FONTSIZE)
+        label_fontsize: Font size for axis labels (default: DEFAULT_LABEL_FONTSIZE)
+    """
+    sns.violinplot(
+        data=df_single_method,
+        x=x_column,
+        y="Dataset",
+        hue="Method",
+        orient="h",
+        ax=ax,
+    )
+    ax.set_xlabel(xlabel, fontsize=label_fontsize, labelpad=10)
+    ax.set_ylabel("")
+    ax.tick_params(axis="both", labelsize=tick_fontsize)
+    ax.set_xlim(x_limits)
+    ax.get_legend().remove()  # Remove legend from bottom plot
+
+
 def create_violin_plots(valid_results, output_dir):
     """Create plots comparing multiple datasets."""
-    # Organize results by dataset and method
-    datasets = sorted(set(r["dataset"] for r in valid_results))
-
     all_data = []
     for result in valid_results:
         # Calculate proportions for each tree instead of raw counts
@@ -237,99 +593,59 @@ def create_violin_plots(valid_results, output_dir):
         for i, count in enumerate(non_mp_counts):
             total_edges = total_edges_counts[i] if i < len(total_edges_counts) else 1
             proportion = count / total_edges if total_edges > 0 else 0
-            # Use formatted name
-            dataset_label = format_dataset_name(result["dataset"], result)
+            dataset_label = extract_dataset_label(result["dataset"])
             all_data.append(
                 {
                     "Dataset": dataset_label,
                     "Method": result["method"],
                     "Proportion_Non_MP_Edges": proportion,
+                    "original_dataset": result["dataset"],  # Keep original for checking
                 }
             )
 
-    if all_data:
-        df = pd.DataFrame(all_data)
+    if not all_data:
+        return
 
-        # Replace method names for better legend labels
-        df["Method"] = df["Method"].replace(
-            {"constant": "SPR", "random_subtree": "random subtree"}
+    df = pd.DataFrame(all_data)
+
+    # Normalize labels and separate by method count
+    df = relabel_perturbation_dfs(df)
+    df_multi_method, df_single_method, num_datasets_multi, num_datasets_single = (
+        separate_by_method_count(df)
+    )
+
+    # Calculate heights using helper
+    height_multi, height_single, total_height = calculate_subplot_heights(
+        num_datasets_multi, num_datasets_single
+    )
+
+    # Create figure using helper
+    fig, axes = create_dual_subplot_figure(height_multi, height_single)
+
+    # Determine common x-axis limits
+    x_min = MIN_X_VALUE
+    x_max = min(MAX_PROPORTION, df["Proportion_Non_MP_Edges"].max() + X_AXIS_PADDING)
+    x_limits = (x_min, x_max)
+
+    # Configure subplots using helpers
+    if num_datasets_multi > 0:
+        configure_top_subplot(
+            axes[0], df_multi_method, "Proportion_Non_MP_Edges", x_limits
         )
+    else:
+        axes[0].axis("off")
 
-        # Separate datasets by whether they have random subtree data
-        datasets_with_subtree = df[df["Method"] == "random subtree"]["Dataset"].unique()
-        df_with_subtree = df[df["Dataset"].isin(datasets_with_subtree)]
-        df_without_subtree = df[~df["Dataset"].isin(datasets_with_subtree)]
-
-        # Count datasets for each subplot
-        num_datasets_with = df_with_subtree["Dataset"].nunique()
-        num_datasets_without = df_without_subtree["Dataset"].nunique()
-
-        # Calculate heights for each subplot
-        height_with = max(4, num_datasets_with * 1.5) if num_datasets_with > 0 else 0
-        height_without = (
-            max(4, num_datasets_without * 1.5) if num_datasets_without > 0 else 0
+    if num_datasets_single > 0:
+        configure_bottom_subplot(
+            axes[1],
+            df_single_method,
+            "Proportion_Non_MP_Edges",
+            x_limits,
+            "Proportion of Non-MP Edges",
         )
-        total_height = height_with + height_without + 1  # Add 1 for spacing
+    else:
+        axes[1].axis("off")
 
-        # Create figure with subplots
-        fig, axes = plt.subplots(
-            2,
-            1,
-            figsize=(15, total_height),
-            gridspec_kw={
-                "height_ratios": (
-                    [height_with, height_without] if height_without > 0 else [1, 0.01]
-                ),
-                "hspace": 0.15,
-            },
-        )
-
-        # Determine common x-axis limits across all data
-        # Since these are proportions, start at 0 and add padding to max
-        x_min = -0.02  # Proportions cannot be negative
-        x_max = min(1.0, df["Proportion_Non_MP_Edges"].max() + 0.05)
-        x_limits = (x_min, x_max)
-
-        # Plot datasets with both methods (top subplot)
-        if num_datasets_with > 0:
-            sns.violinplot(
-                data=df_with_subtree,
-                x="Proportion_Non_MP_Edges",
-                y="Dataset",
-                hue="Method",
-                orient="h",
-                ax=axes[0],
-            )
-            axes[0].set_xlabel("")
-            axes[0].set_ylabel("")
-            axes[0].tick_params(axis="y", labelsize=20)
-            axes[0].tick_params(axis="x", labelbottom=False)  # Hide x-axis tick labels
-            axes[0].set_xlim(x_limits)
-            axes[0].legend(
-                bbox_to_anchor=(0.5, 1.25), loc="upper center", fontsize=20, ncol=2
-            )
-        else:
-            axes[0].axis("off")
-
-        # Plot datasets with only constant method (bottom subplot)
-        if num_datasets_without > 0:
-            sns.violinplot(
-                data=df_without_subtree,
-                x="Proportion_Non_MP_Edges",
-                y="Dataset",
-                hue="Method",
-                orient="h",
-                ax=axes[1],
-            )
-            axes[1].set_xlabel("Proportion of Non-MP Edges", fontsize=20, labelpad=10)
-            axes[1].set_ylabel("")
-            axes[1].tick_params(axis="both", labelsize=20)
-            axes[1].set_xlim(x_limits)
-            axes[1].get_legend().remove()  # Remove legend from bottom plot
-        else:
-            axes[1].axis("off")
-
-    # plt.tight_layout()
     plt.savefig(
         f"{output_dir}/multi_dataset_edge_distribution_comparison.pdf",
         bbox_inches="tight",
@@ -338,8 +654,6 @@ def create_violin_plots(valid_results, output_dir):
     print(
         f"Saved multi-dataset comparison plots to {output_dir}/multi_dataset_edge_distribution_comparison.pdf"
     )
-
-    # return fig
 
 
 def create_longest_path_plot(analysis_results, output_dir="plots"):
@@ -370,7 +684,7 @@ def create_longest_path_plot(analysis_results, output_dir="plots"):
             longest_path, normalized_path, max_depth = compute_longest_nonmp_path(
                 tree, labels
             )
-            dataset_label = format_dataset_name(result["dataset"], result)
+            dataset_label = extract_dataset_label(result["dataset"])
 
             all_data.append(
                 {
@@ -379,6 +693,7 @@ def create_longest_path_plot(analysis_results, output_dir="plots"):
                     "Longest_Path": longest_path,
                     "Normalized_Longest_Path": normalized_path,
                     "Max_Depth": max_depth,
+                    "original_dataset": result["dataset"],  # Keep original for checking
                 }
             )
 
@@ -388,87 +703,51 @@ def create_longest_path_plot(analysis_results, output_dir="plots"):
 
     df = pd.DataFrame(all_data)
 
-    # Replace method names for better legend labels
-    df["Method"] = df["Method"].replace(
-        {"constant": "SPR", "random_subtree": "random subtree"}
+    # Normalize labels and separate by method count
+    df = relabel_perturbation_dfs(df)
+    df_multi_method, df_single_method, num_datasets_multi, num_datasets_single = (
+        separate_by_method_count(df)
     )
 
-    # Separate datasets by whether they have random subtree data
-    datasets_with_subtree = df[df["Method"] == "random subtree"]["Dataset"].unique()
-    df_with_subtree = df[df["Dataset"].isin(datasets_with_subtree)]
-    df_without_subtree = df[~df["Dataset"].isin(datasets_with_subtree)]
-
-    # Count datasets for each subplot
-    num_datasets_with = df_with_subtree["Dataset"].nunique()
-    num_datasets_without = df_without_subtree["Dataset"].nunique()
-
-    # Calculate heights for each subplot
-    height_with = max(4, num_datasets_with * 1.5) if num_datasets_with > 0 else 0
-    height_without = (
-        max(4, num_datasets_without * 1.5) if num_datasets_without > 0 else 0
-    )
-    total_height = height_with + height_without + 1  # Add 1 for spacing
-
-    # Create figure with subplots
-    fig, axes = plt.subplots(
-        2,
-        1,
-        figsize=(15, total_height),
-        gridspec_kw={
-            "height_ratios": (
-                [height_with, height_without] if height_without > 0 else [1, 0.01]
-            ),
-            "hspace": 0.15,
-        },
+    # Calculate heights using helper
+    height_multi, height_single, total_height = calculate_subplot_heights(
+        num_datasets_multi, num_datasets_single
     )
 
-    # Determine common x-axis limits across all data (normalized proportions)
+    # Create figure using helper
+    fig, axes = create_dual_subplot_figure(height_multi, height_single)
+
+    # Determine common x-axis limits (normalized proportions)
     x_min = 0  # Normalized values start at 0
-    x_max = min(1.0, df["Normalized_Longest_Path"].max() + 0.05)
+    x_max = min(MAX_PROPORTION, df["Normalized_Longest_Path"].max() + X_AXIS_PADDING)
     x_limits = (x_min, x_max)
 
-    # Plot datasets with both methods (top subplot)
-    if num_datasets_with > 0:
-        sns.violinplot(
-            data=df_with_subtree,
-            x="Normalized_Longest_Path",
-            y="Dataset",
-            hue="Method",
-            orient="h",
-            ax=axes[0],
-        )
-        axes[0].set_xlabel("")
-        axes[0].set_ylabel("")
-        axes[0].tick_params(axis="y", labelsize=16)
-        axes[0].tick_params(axis="x", labelbottom=False)  # Hide x-axis tick labels
-        axes[0].set_xlim(x_limits)
-        axes[0].legend(
-            bbox_to_anchor=(0.5, 1.25), loc="upper center", fontsize=16, ncol=2
+    # Configure subplots using helpers with smaller font sizes for this plot
+    if num_datasets_multi > 0:
+        configure_top_subplot(
+            axes[0],
+            df_multi_method,
+            "Normalized_Longest_Path",
+            x_limits,
+            tick_fontsize=16,
+            legend_fontsize=16,
         )
     else:
         axes[0].axis("off")
 
-    # Plot datasets with only constant method (bottom subplot)
-    if num_datasets_without > 0:
-        sns.violinplot(
-            data=df_without_subtree,
-            x="Normalized_Longest_Path",
-            y="Dataset",
-            hue="Method",
-            orient="h",
-            ax=axes[1],
+    if num_datasets_single > 0:
+        configure_bottom_subplot(
+            axes[1],
+            df_single_method,
+            "Normalized_Longest_Path",
+            x_limits,
+            "Normalized Longest Path of Non-MP Edges",
+            tick_fontsize=16,
+            label_fontsize=16,
         )
-        axes[1].set_xlabel(
-            "Normalized Longest Path of Non-MP Edges", fontsize=16, labelpad=10
-        )
-        axes[1].set_ylabel("")
-        axes[1].tick_params(axis="both", labelsize=16)
-        axes[1].set_xlim(x_limits)
-        axes[1].get_legend().remove()  # Remove legend from bottom plot
     else:
         axes[1].axis("off")
 
-    # plt.tight_layout()
     plt.savefig(
         f"{output_dir}/longest_nonmp_path_comparison.pdf",
         bbox_inches="tight",
@@ -477,7 +756,6 @@ def create_longest_path_plot(analysis_results, output_dir="plots"):
     print(
         f"Saved longest path comparison plot to {output_dir}/longest_nonmp_path_comparison.pdf"
     )
-    plt.show()
 
 
 def main():
@@ -486,7 +764,7 @@ def main():
     )
     parser.add_argument(
         "--data_dir",
-        default="shared_data",
+        default="data",
         help="Directory containing the larch output pickle files",
     )
     parser.add_argument(
@@ -525,18 +803,7 @@ def main():
     for dataset_name in args.dataset_names:
 
         for method in edge_methods:
-            if method == "mixed":
-                suffix = "_spr_subtree.p"
-            elif method == "constant":
-                suffix = "_spr.p"
-            elif method == "uniform":
-                suffix = "_uniform.p"
-            elif method == "treesearch_mimic":
-                suffix = "_treesearch_mimic.p"
-            elif method == "random_subtree":
-                suffix = "algnmnts_subtree.p"
-            else:
-                suffix = ""
+            suffix = EDGE_METHOD_SUFFIXES.get(method, "")
 
             # Search for files that contain both the dataset_name and suffix as substrings
             all_pickle_files = glob.glob(f"{args.data_dir}/*.p")

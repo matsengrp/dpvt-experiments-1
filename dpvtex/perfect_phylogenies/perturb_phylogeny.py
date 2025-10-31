@@ -194,7 +194,7 @@ def spr_move(tree, node1, node2):
     return new_tree
 
 
-def make_worse_spr(input_tree, num_sprs, efficient = True):
+def make_worse_spr(input_tree, num_sprs, efficient=True):
     """
     Peform a at least num_sprs random SPR move on input tree to create tree
     with higher parsimony score.
@@ -217,7 +217,15 @@ def make_worse_spr(input_tree, num_sprs, efficient = True):
         # we cannot prune children or grandchildren of root
         # also avoid moving leaves, as that doesn't change MP edge to non-MP edge
         node_list = list(
-            [node for node in tree.iter_descendants() if not (node.up.is_root() or node.up in tree.children or node in tree.get_leaves())]
+            [
+                node
+                for node in tree.iter_descendants()
+                if not (
+                    node.up.is_root()
+                    or node.up in tree.children
+                    or node in tree.get_leaves()
+                )
+            ]
         )
         # prune edge above randomly chosen node prune_node
         prune_node = random.choice(node_list)
@@ -233,7 +241,10 @@ def make_worse_spr(input_tree, num_sprs, efficient = True):
             insertion_node = random.choice(allowed_edges)
             perturbed_tree = spr_move(tree, prune_node, insertion_node)
             sankoff_for_missing_sequences(perturbed_tree)
-            if efficient or (not efficient and parsimony_score(perturbed_tree) > parsimony_score(tree)):
+            if efficient or (
+                not efficient
+                and parsimony_score(perturbed_tree) > parsimony_score(tree)
+            ):
                 tree = perturbed_tree
     if not efficient and parsimony_score(tree) <= parsimony_score(input_tree):
         print("No worse tree found")

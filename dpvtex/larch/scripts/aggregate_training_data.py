@@ -45,10 +45,7 @@ def extract_trees_and_labels(data_dir, edge_distribution="constant"):
             }
             expected_suffix = suffix_map.get(edge_distribution, "")
 
-            if (
-                file_name.endswith(".p")
-                and expected_suffix in file_name
-            ):
+            if file_name.endswith(".p") and expected_suffix in file_name:
                 file_path = os.path.join(root, file_name)
                 dataset_name = file_name[:-2]
                 # Remove any edge distribution suffix if it exists

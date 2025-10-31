@@ -23,11 +23,11 @@ from dpvtex.perfect_phylogenies.perturb_phylogeny import (
 
 
 def print_leaf_sequences(phylo):
-    print(f'features: {phylo.features}')
+    print(f"features: {phylo.features}")
     leaf_seqs = [x.sequence for x in phylo.get_leaves()]
     leaf_lens = [len(x) for x in leaf_seqs]
-    print(f'leaf_seqs: {len(leaf_seqs)} {leaf_seqs}')
-    print(f'leaf_lens: {len(leaf_lens)} {leaf_lens}')
+    print(f"leaf_seqs: {len(leaf_seqs)} {leaf_seqs}")
+    print(f"leaf_lens: {len(leaf_lens)} {leaf_lens}")
 
 
 def make_phylogeny_data(n_leaves, n_phylos_per_tree, depth, n_sites=None, spr=False):
@@ -78,7 +78,8 @@ def create_training_data(
     if n_threads > 1:
         process_pool = Pool(n_threads)
         pooled_results = process_pool.starmap(
-            make_phylogeny_data, [(n_leaves, n_phylos_per_tree, depth, n_sites, spr)] * n_trees
+            make_phylogeny_data,
+            [(n_leaves, n_phylos_per_tree, depth, n_sites, spr)] * n_trees,
         )
     else:
         # Skip the performance hit from using multiprocessing with one process.
@@ -94,8 +95,23 @@ def create_training_data(
     return tree_data_dict
 
 
-def get_output_path(output_dir, prefix, n_trees, n_phylos, n_leaves, n_sites, depth, spr, extra=None):
-    values = [str(x) for x in [prefix, n_leaves, "leaves", n_trees, "trees", n_phylos, "phylos", n_sites, "sites"]]
+def get_output_path(
+    output_dir, prefix, n_trees, n_phylos, n_leaves, n_sites, depth, spr, extra=None
+):
+    values = [
+        str(x)
+        for x in [
+            prefix,
+            n_leaves,
+            "leaves",
+            n_trees,
+            "trees",
+            n_phylos,
+            "phylos",
+            n_sites,
+            "sites",
+        ]
+    ]
     path = "_".join(values)
     path = f"{output_dir}/{path}"
     if spr:
@@ -109,13 +125,17 @@ def get_output_path(output_dir, prefix, n_trees, n_phylos, n_leaves, n_sites, de
 
 
 def get_nickname(prefix, n_trees, n_phylos, n_leaves, n_sites, depth, spr):
-    values = [str(x) for x in [prefix, n_leaves, "leaves", n_trees, "trees", n_sites, "sites"]]
+    values = [
+        str(x) for x in [prefix, n_leaves, "leaves", n_trees, "trees", n_sites, "sites"]
+    ]
 
 
 def split_train_test_data(data_dict, test_size=0.2, random_state=42):
     x_data = list(data_dict.keys())
     y_data = list(data_dict.values())
-    x_train, x_test, y_train, y_test = train_test_split(x_data, y_data, test_size=test_size, random_state=random_state)
+    x_train, x_test, y_train, y_test = train_test_split(
+        x_data, y_data, test_size=test_size, random_state=random_state
+    )
     train_dict = dict(zip(x_train, y_train))
     test_dict = dict(zip(x_test, y_test))
     return train_dict, test_dict
@@ -133,35 +153,33 @@ def save_data(data_dict, data_path):
 
 class Parser:
     args_default = {
-      "n_sites": [0],
-      "n_phylos": 1,
-      "depth": 2,
-      "spr": False,
-      "test_size": 0.2,
-      "n_threads": 4,
-
-      "output_dir": "./",
-      "prefix": "perfect",
-      "rebuild": False,
-      "split_data": True,
-      "nicknames": True,
+        "n_sites": [0],
+        "n_phylos": 1,
+        "depth": 2,
+        "spr": False,
+        "test_size": 0.2,
+        "n_threads": 4,
+        "output_dir": "./",
+        "prefix": "perfect",
+        "rebuild": False,
+        "split_data": True,
+        "nicknames": True,
     }
 
     args_help = {
-      "n_trees": "Number of unique trees.",
-      "n_leaves": "Number of leaves in each tree.",
-      "n_sites": "Number of sites in each tree. If none, determined by number of random mutations required to cover all internal nodes.",
-      "n_phylos": "Number of phylo trees per unique tree.",
-      "depth": "Depth of each subtree replacement.",
-      "spr": "SPR moves for creating sub-optimal edges. Otherwise, uses subtree replacement.",
-      "test_size": "Fraction of total trees set aside for test split.",
-      "n_threads": "Number of threads for building datasets.",
-
-      "output_dir": "Output directory for datasets.",
-      "prefix": "Prefix to dataset names.",
-      "rebuild": "Rebuild dataset even if file already exists.",
-      "split_data": "Split datasets into train and test sets.",
-      "nicknames": "Create json file of nicknames.",
+        "n_trees": "Number of unique trees.",
+        "n_leaves": "Number of leaves in each tree.",
+        "n_sites": "Number of sites in each tree. If none, determined by number of random mutations required to cover all internal nodes.",
+        "n_phylos": "Number of phylo trees per unique tree.",
+        "depth": "Depth of each subtree replacement.",
+        "spr": "SPR moves for creating sub-optimal edges. Otherwise, uses subtree replacement.",
+        "test_size": "Fraction of total trees set aside for test split.",
+        "n_threads": "Number of threads for building datasets.",
+        "output_dir": "Output directory for datasets.",
+        "prefix": "Prefix to dataset names.",
+        "rebuild": "Rebuild dataset even if file already exists.",
+        "split_data": "Split datasets into train and test sets.",
+        "nicknames": "Create json file of nicknames.",
     }
 
     def __init__(self, commandline_args):
@@ -174,20 +192,28 @@ class Parser:
         parser = argparse.ArgumentParser(
             description="Create perfect phylogenies with some non-MP edges for the provided number of leaves"
         )
-        parser.add_argument("-t","--n_trees", type=Parser.parse_int_list, required=True)
-        parser.add_argument("-l","--n_leaves", type=Parser.parse_int_list, required=True)
-        parser.add_argument("-s","--n_sites", type=Parser.parse_int_list)
+        parser.add_argument(
+            "-t", "--n_trees", type=Parser.parse_int_list, required=True
+        )
+        parser.add_argument(
+            "-l", "--n_leaves", type=Parser.parse_int_list, required=True
+        )
+        parser.add_argument("-s", "--n_sites", type=Parser.parse_int_list)
         parser.add_argument("--n_phylos", type=int)
         parser.add_argument("--depth", type=int)
         parser.add_argument("--spr", type=Parser.parse_flag, nargs="?", const=True)
         parser.add_argument("--test_size", type=float)
         parser.add_argument("--n_threads", type=int)
 
-        parser.add_argument("-o","--output_dir", type=Parser.parse_existing_dir)
+        parser.add_argument("-o", "--output_dir", type=Parser.parse_existing_dir)
         parser.add_argument("--prefix", type=str)
         parser.add_argument("--rebuild", type=Parser.parse_flag, nargs="?", const=True)
-        parser.add_argument("--split_data", type=Parser.parse_flag, nargs="?", const=True)
-        parser.add_argument("--nicknames", type=Parser.parse_flag, nargs="?", const=True)
+        parser.add_argument(
+            "--split_data", type=Parser.parse_flag, nargs="?", const=True
+        )
+        parser.add_argument(
+            "--nicknames", type=Parser.parse_flag, nargs="?", const=True
+        )
         parser.set_defaults(**self.args_default)
 
         for action in parser._actions:
@@ -228,7 +254,9 @@ class Parser:
             return True
         elif arg in {"f", "false", "n", "no", "0"}:
             return False
-        raise argparse.ArgumentTypeError(f"Invalid boolean arg: '{arg}' (expected true/false)")
+        raise argparse.ArgumentTypeError(
+            f"Invalid boolean arg: '{arg}' (expected true/false)"
+        )
 
 
 def main():
@@ -237,18 +265,18 @@ def main():
     nicknames_path = f"{args['output_dir']}/nicknames.{args['prefix']}.json"
     nicknames_dict = {}
     if os.path.exists(nicknames_path):
-        with open(nicknames_path, 'r') as file:
+        with open(nicknames_path, "r") as file:
             nicknames_dict = json.load(file)
-    nicknames_dict['data_dir'] = os.path.abspath(args["output_dir"])
+    nicknames_dict["data_dir"] = os.path.abspath(args["output_dir"])
 
     data_settings = it.product(
         args["n_trees"],
         args["n_leaves"],
         args["n_sites"],
     )
-    data_settings = [(x,y,z) for (x,y,z) in data_settings]
+    data_settings = [(x, y, z) for (x, y, z) in data_settings]
     print(data_settings)
-    for i,(n_trees,n_leaves,n_sites) in enumerate(data_settings):
+    for i, (n_trees, n_leaves, n_sites) in enumerate(data_settings):
         print(f"# building dataset ({i+1} of {len(data_settings)})")
 
         output_path = get_output_path(
@@ -265,7 +293,9 @@ def main():
         if os.path.exists(output_path):
             print(f"# dataset `{os.path.basename(output_path)}` already exists")
         if not os.path.exists(output_path) or args["rebuild"]:
-            print(f"# building dataset ({i+1} of {len(data_settings)}): `{os.path.basename(output_path)}`")
+            print(
+                f"# building dataset ({i+1} of {len(data_settings)}): `{os.path.basename(output_path)}`"
+            )
             data_dict = create_training_data(
                 n_trees=n_trees,
                 n_phylos_per_tree=args["n_phylos"],
@@ -277,10 +307,10 @@ def main():
             )
             save_data(data_dict, output_path)
 
-            train_output_path,test_output_path = None,None
+            train_output_path, test_output_path = None, None
             if args["split_data"]:
-                train_n_trees = int(float(n_trees) * (1-args["test_size"]))
-                test_n_trees = (n_trees - train_n_trees)
+                train_n_trees = int(float(n_trees) * (1 - args["test_size"]))
+                test_n_trees = n_trees - train_n_trees
 
                 train_output_path = get_output_path(
                     output_dir=args["output_dir"],
@@ -305,10 +335,11 @@ def main():
                     extra="test",
                 )
 
-                print(f"# splitting dataset ({i+1} of {len(data_settings)}): `{os.path.basename(train_output_path)}` `{os.path.basename(test_output_path)}`")
-                train_data,test_data = split_train_test_data(
-                    data_dict=data_dict,
-                    test_size=args["test_size"]
+                print(
+                    f"# splitting dataset ({i+1} of {len(data_settings)}): `{os.path.basename(train_output_path)}` `{os.path.basename(test_output_path)}`"
+                )
+                train_data, test_data = split_train_test_data(
+                    data_dict=data_dict, test_size=args["test_size"]
                 )
                 save_data(train_data, train_output_path)
                 save_data(test_data, test_output_path)
@@ -321,7 +352,7 @@ def main():
                     nickname = replace_ext(path, ".p", "")
                     nicknames_dict[nickname] = path
 
-                with open(nicknames_path, 'w') as file:
+                with open(nicknames_path, "w") as file:
                     json.dump(nicknames_dict, file, indent=4)
                     file.write("\n")
 

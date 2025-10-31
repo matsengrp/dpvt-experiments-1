@@ -16,7 +16,9 @@ def load_nicknames_dict(data_nicknames_path):
     return dataset_dict
 
 
-def data_of_nicknames(data_name, device, data_nicknames_path, data_struct="TraversalDataset"):
+def data_of_nicknames(
+    data_name, device, data_nicknames_path, data_struct="TraversalDataset"
+):
     """
     Takes a dataset nickname string, which is a key in `dataset_dict`, and returns the
     corresponding data as a `TreeDataset` object.
@@ -51,10 +53,8 @@ def train_val_data_of_nicknames(data_name, device, data_nicknames_path):
     sum_of_ones = [sum(label) for label in labels]
 
     # Convert sums to a categorical variable for balancing number of non-MP edges in train/test/val
-    num_categories = 4 # Aim for 4 categories
-    categories = pd.qcut(
-        sum_of_ones, q=num_categories, labels=False, duplicates="drop"
-    )
+    num_categories = 4  # Aim for 4 categories
+    categories = pd.qcut(sum_of_ones, q=num_categories, labels=False, duplicates="drop")
     cat_counter = Counter(categories)
 
     while any(count < 0.2 * len(trees) for count in cat_counter.values()):

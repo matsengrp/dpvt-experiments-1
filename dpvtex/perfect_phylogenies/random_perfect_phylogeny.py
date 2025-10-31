@@ -174,20 +174,22 @@ class RandomPerfectPhylogeny:
             if there_are_nodes_without_subs:
                 n_index = self.node_indices[self.mut_counts.index(0)]
             else:
-                n_index = self.rng.choice(range(0,len(self.mut_counts)))
+                n_index = self.rng.choice(range(0, len(self.mut_counts)))
 
             # create a mutation set
             keep_trying = True
             while keep_trying:
                 mut_set = self.make_random_mutation_set(n_index)
                 mut_set_is_superfluous = self.any_previous_mut_set_superfluous(mut_set)
-                keep_trying = (there_are_nodes_without_subs and mut_set_is_superfluous)
+                keep_trying = there_are_nodes_without_subs and mut_set_is_superfluous
             self.mut_selections.append(mut_set)
             self.increment_mutation_counts(mut_set)
 
             # termination criteria
-            there_are_nodes_without_subs = (0 in self.mut_counts)
-            n_mut_sets_reached = (min_mut_sets and (len(self.mut_selections) >= min_mut_sets))
+            there_are_nodes_without_subs = 0 in self.mut_counts
+            n_mut_sets_reached = min_mut_sets and (
+                len(self.mut_selections) >= min_mut_sets
+            )
             if (not there_are_nodes_without_subs) and (not min_mut_sets):
                 break
             if (not there_are_nodes_without_subs) and n_mut_sets_reached:

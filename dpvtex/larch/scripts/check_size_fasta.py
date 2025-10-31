@@ -28,10 +28,12 @@ def check_alignment_size(algn_length_file, output_flag_file, min_sites=5, min_se
         [msa_length, msa_size] = f.readline().split(",")
 
     if int(msa_length) >= min_sites and int(msa_size) >= min_seqs:
-        with open(output_flag_file, 'w') as flag:
+        with open(output_flag_file, "w") as flag:
             flag.write("NOT_EMPTY")
         return True
     else:
         data_name = algn_length_file.split("/")[-2]
-        print(f"Alignment {data_name} contains less than {min_seqs} sequences or less than {min_sites} sites after removing uninformative sites. Skip this dataset.")
+        print(
+            f"Alignment {data_name} contains less than {min_seqs} sequences or less than {min_sites} sites after removing uninformative sites. Skip this dataset."
+        )
         return False

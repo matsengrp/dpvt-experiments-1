@@ -6,8 +6,16 @@ from sklearn.model_selection import train_test_split
 from collections import Counter
 
 
-# Function to read a .p file and return the length of the dictionary it contains
 def get_dict(file_path):
+    """Load a dictionary from a pickle file.
+
+    Args:
+        file_path: Path to the .p pickle file to load
+
+    Returns:
+        dict: The dictionary stored in the pickle file, or None if the file
+            does not contain a dictionary
+    """
     with open(file_path, "rb") as file:
         data = pickle.load(file)
         if isinstance(data, dict):

@@ -93,12 +93,30 @@ def get_model_str(model_name, train_data_name, test_data_name=None, param_id=Non
 
 
 def prepend_dir_to_path(path, output_dir=None):
+    """Prepend an output directory to a path.
+
+    Args:
+        path: The base path
+        output_dir: Optional directory to prepend to the path
+
+    Returns:
+        str: Combined path with output_dir prepended, or original path if output_dir is None
+    """
     if output_dir is not None:
         path = str(Path(output_dir) / Path(path))
     return path
 
 
 def append_dir_to_path(path, sub_dir=None):
+    """Append a subdirectory to a path.
+
+    Args:
+        path: The base path
+        sub_dir: Optional subdirectory to append to the path
+
+    Returns:
+        str: Combined path with sub_dir appended, or original path if sub_dir is None
+    """
     if sub_dir is not None:
         path = str(Path(path) / Path(sub_dir))
     return path
@@ -812,10 +830,15 @@ def concatenate_csvs(
     input_csv_paths,
     output_csv_path,
 ):
-    """
-    Concatenates multiple CSV files into one CSV file.
-    """
+    """Concatenate multiple CSV files into a single CSV file.
 
+    Args:
+        input_csv_paths: List of paths to input CSV files to concatenate
+        output_csv_path: Path where the concatenated CSV file will be saved
+
+    Returns:
+        None: Writes concatenated data to output_csv_path
+    """
     dfs = []
     for csv_path in input_csv_paths:
         df = pd.read_csv(csv_path)

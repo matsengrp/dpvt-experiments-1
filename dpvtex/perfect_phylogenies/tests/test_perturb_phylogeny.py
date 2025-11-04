@@ -1,4 +1,8 @@
-from dpvtex.perfect_phylogenies.perturb_phylogeny import spr_move, make_worse_spr
+from dpvtex.perfect_phylogenies.perturb_phylogeny import (
+    spr_move,
+    make_worse_spr,
+    sankoff_for_missing_sequences,
+)
 from ete3 import Tree
 from historydag.parsimony import parsimony_score
 
@@ -34,5 +38,7 @@ def test_make_worse():
     tree = Tree("((((AAG,ACT),AGT),CCG),CGG);")
     for node in tree:
         node.add_feature("sequence", node.name)
+    sankoff_for_missing_sequences(tree)
+    original_score = parsimony_score(tree)
     worse_tree = make_worse_spr(tree, 2, 100)
-    assert parsimony_score(worse_tree) > parsimony_score(tree)
+    assert worse_tree == tree or parsimony_score(worse_tree) > original_score

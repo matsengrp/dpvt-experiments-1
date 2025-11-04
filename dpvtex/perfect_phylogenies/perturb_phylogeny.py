@@ -99,6 +99,12 @@ def make_random_tree(tip_subtrees):
     random_tree=True.
     """
     leaf_count = len(tip_subtrees)
+
+    # Handle edge case: if there's only one tip, just return it
+    if leaf_count == 1:
+        tip_subtrees[0].add_feature("random_tree", False)
+        return tip_subtrees[0]
+
     tree = Tree()
     populate(tree, leaf_count, model="uniform")
     for old_leaf, new_leaf in zip(tree.get_leaves(), tip_subtrees):
@@ -228,6 +234,9 @@ def make_worse_spr(input_tree, num_sprs, efficient=True):
             ]
         )
         # prune edge above randomly chosen node prune_node
+        if len(node_list) == 0:
+            # No valid nodes to prune, skip this iteration
+            continue
         prune_node = random.choice(node_list)
         # pick random edge to insert -- cannot be in pruned subtree
         allowed_edges = [

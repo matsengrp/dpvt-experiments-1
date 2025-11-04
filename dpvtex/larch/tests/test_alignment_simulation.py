@@ -4,10 +4,12 @@ import subprocess
 import tempfile
 import shutil
 import pytest
+import re
 from Bio import AlignIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
+from dpvtex.larch.scripts.clean_data import clean_alignment
 
 
 def run_command(command):
@@ -28,8 +30,8 @@ def get_scripts_dir():
 
 class TestCleanData:
     @pytest.fixture
-    def test_environment(self):
-        """Set up test environment with test files"""
+    def alignment_test_files(self):
+        """Set up test alignment files in a temporary directory"""
         scripts_dir = get_scripts_dir()
         clean_data_script = os.path.join(scripts_dir, "clean_data.py")
 
@@ -62,23 +64,26 @@ class TestCleanData:
                 "tmp_dir": tmp_dir,
             }
 
-    def test_basic_cleaning(self, test_environment):
+    def test_basic_cleaning(self, alignment_test_files):
         """Test that the script removes duplicates and uninformative sites"""
-        env = test_environment
+        files = alignment_test_files
 
-        # Run without specifying target dimensions
-        cmd = f"python {env['script']} {env['test_fasta']} {env['output_fasta']} {env['stats_file']}"
-        returncode, stdout, stderr = run_command(cmd)
-
-        # Check command success
-        assert returncode == 0, f"Command failed with: {stderr}"
+        # Call clean_alignment function directly
+        final_num_seqs, final_num_sites, original_num_seqs, original_num_sites = clean_alignment(
+            files['test_fasta'],
+            files['output_fasta'],
+            files['stats_file'],
+            remove_site_patterns=False,
+            target_length=None,
+            target_seqs=None,
+        )
 
         # Check files exist
-        assert os.path.exists(env["output_fasta"]), "Output FASTA not created"
-        assert os.path.exists(env["stats_file"]), "Stats file not created"
+        assert os.path.exists(files["output_fasta"]), "Output FASTA not created"
+        assert os.path.exists(files["stats_file"]), "Stats file not created"
 
         # Read the cleaned alignment
-        cleaned_alignment = AlignIO.read(env["output_fasta"], "fasta")
+        cleaned_alignment = AlignIO.read(files["output_fasta"], "fasta")
 
         # Verify duplicate sequences are removed
         assert (
@@ -86,7 +91,7 @@ class TestCleanData:
         ), f"Expected 3 sequences, got {len(cleaned_alignment)}"
 
         # Read the stats file
-        with open(env["stats_file"], "r") as f:
+        with open(files["stats_file"], "r") as f:
             length_str, seqs_str = f.read().strip().split(",")
             cleaned_length = int(length_str)
             cleaned_seqs = int(seqs_str)
@@ -95,23 +100,26 @@ class TestCleanData:
         assert cleaned_length == cleaned_alignment.get_alignment_length()
         assert cleaned_seqs == len(cleaned_alignment)
 
-    def test_target_dimensions(self, test_environment):
+    def test_target_dimensions(self, alignment_test_files):
         """Test that the script trims to specified target dimensions"""
-        env = test_environment
+        files = alignment_test_files
 
         # Target dimensions
         target_length = 4
         target_seqs = 2
 
-        # Run with target dimensions
-        cmd = f"python {env['script']} {env['test_fasta']} {env['output_fasta']} {env['stats_file']} {target_length} {target_seqs}"
-        returncode, stdout, stderr = run_command(cmd)
-
-        # Check command success
-        assert returncode == 0, f"Command failed with: {stderr}"
+        # Call clean_alignment function directly with target dimensions
+        final_num_seqs, final_num_sites, original_num_seqs, original_num_sites = clean_alignment(
+            files['test_fasta'],
+            files['output_fasta'],
+            files['stats_file'],
+            remove_site_patterns=False,
+            target_length=target_length,
+            target_seqs=target_seqs,
+        )
 
         # Read the cleaned alignment
-        cleaned_alignment = AlignIO.read(env["output_fasta"], "fasta")
+        cleaned_alignment = AlignIO.read(files["output_fasta"], "fasta")
 
         # Verify dimensions match targets
         assert (
@@ -122,7 +130,7 @@ class TestCleanData:
         ), f"Sequence count {len(cleaned_alignment)} exceeds target {target_seqs}"
 
         # Read the stats file
-        with open(env["stats_file"], "r") as f:
+        with open(files["stats_file"], "r") as f:
             length_str, seqs_str = f.read().strip().split(",")
             cleaned_length = int(length_str)
             cleaned_seqs = int(seqs_str)
@@ -135,8 +143,8 @@ class TestCleanData:
 @pytest.mark.slow  # Mark this test as slow so it can be skipped with -m "not slow"
 class TestCreateAlignments:
     @pytest.fixture
-    def test_environment(self):
-        """Create a temporary test environment with all necessary files and directories"""
+    def simulation_test_paths(self):
+        """Set up temporary paths for alignment simulation testing"""
         scripts_dir = get_scripts_dir()
         project_root = os.path.dirname(os.path.dirname(scripts_dir))
 
@@ -155,17 +163,22 @@ class TestCreateAlignments:
             temp_clean_data_path = os.path.join(temp_scripts_dir, "clean_data.py")
             shutil.copy2(clean_data_path, temp_clean_data_path)
 
-            # Create a simplified version of generate_configs.py
+            # Copy clean_alignment.sh to temp scripts dir
+            clean_alignment_sh_path = os.path.join(scripts_dir, "clean_alignment.sh")
+            temp_clean_alignment_sh_path = os.path.join(temp_scripts_dir, "clean_alignment.sh")
+            shutil.copy2(clean_alignment_sh_path, temp_clean_alignment_sh_path)
+
+            # Create a simplified version of generate_sim_configs.py
             temp_generate_configs_path = os.path.join(
-                temp_scripts_dir, "generate_configs.py"
+                temp_scripts_dir, "generate_sim_configs.py"
             )
             with open(temp_generate_configs_path, "w") as f:
                 f.write(
                     """#!/usr/bin/env python3
-# A simplified version of generate_configs.py for testing
+# A simplified version of generate_sim_configs.py for testing
 import sys
 # Just print the arguments for testing
-print(f"generate_configs called with: {sys.argv}")
+print(f"generate_sim_configs called with: {sys.argv}")
 """
                 )
 
@@ -182,13 +195,24 @@ print(f"generate_configs called with: {sys.argv}")
             ):
                 content = f_in.read()
 
-                # Modify parameters for a quick test
-                content = content.replace("num_alignments=500", "num_alignments=1")
-                content = content.replace(
-                    "num_sequences_list=(10 20 30 50)", "num_sequences_list=(5)"
+                # Modify parameters for a quick test using regex
+                # Replace num_alignments_list array with a single value
+                content = re.sub(
+                    r'num_alignments_list=\([^)]+\)',
+                    'num_alignments_list=(1)',
+                    content
                 )
-                content = content.replace(
-                    "alignment_length_list=(100)", "alignment_length_list=(20)"
+                # Replace num_sequences_list array with a single value
+                content = re.sub(
+                    r'num_sequences_list=\([^)]+\)',
+                    'num_sequences_list=(5)',
+                    content
+                )
+                # Keep alignment_length_list at 20 (ensure it stays at 20)
+                content = re.sub(
+                    r'alignment_length_list=\([^)]+\)',
+                    'alignment_length_list=(20)',
+                    content
                 )
 
                 # Set script_dir to the temp scripts dir
@@ -197,10 +221,11 @@ print(f"generate_configs called with: {sys.argv}")
                     f'script_dir="{temp_scripts_dir}"',
                 )
 
-                # Simplify the base_directory assignment to point directly to the temp dir
-                content = content.replace(
-                    'base_directory="$(cd "${script_dir}/../../data/simulated_alignments" && pwd)/clean_alignment_',
-                    f'base_directory="{temp_data_dir}/clean_alignment_',
+                # Replace simulated_alignments_dir to point to temp dir
+                content = re.sub(
+                    r'simulated_alignments_dir="\$\{script_dir\}/\.\./\.\./\.\./data/simulated_alignments"',
+                    f'simulated_alignments_dir="{temp_data_dir}"',
+                    content
                 )
 
                 f_out.write(content)
@@ -215,12 +240,12 @@ print(f"generate_configs called with: {sys.argv}")
                 "create_script": temp_create_script,
             }
 
-    def test_alignment_generation(self, test_environment):
+    def test_alignment_generation(self, simulation_test_paths):
         """Test that the script generates alignments with the correct dimensions"""
-        env = test_environment
+        paths = simulation_test_paths
 
         # Run the test script
-        cmd = f"bash {env['create_script']}"
+        cmd = f"bash {paths['create_script']}"
         returncode, stdout, stderr = run_command(cmd)
 
         # Print output for debugging
@@ -232,7 +257,7 @@ print(f"generate_configs called with: {sys.argv}")
 
         # Check if the output directory was created
         output_base = os.path.join(
-            env["data_dir"], "clean_alignment_5_seq_20_sites_1_algnmnts"
+            paths["data_dir"], "alisim_alignment_5_seq_20_sites_1_algnmnts"
         )
         assert os.path.exists(
             output_base

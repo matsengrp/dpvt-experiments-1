@@ -3,10 +3,10 @@ from ete3 import Tree
 
 from dpvtex.larch.scripts.extract_data_from_hdag import (
     extract_hdag_clade_child_clades,
-    root_and_outgroup_leaf,
     get_MP_trees_from_hdag,
     assign_edge_labels,
 )
+from dpvtex.larch.scripts.tree_perturbation import root_and_outgroup_leaf
 
 
 # dictionary for assigning node sequences

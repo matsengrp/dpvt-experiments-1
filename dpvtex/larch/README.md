@@ -2,8 +2,14 @@
 
 In this README we describe how to use larch-usher to infer Maximum Parsimony
 trees from input alignments and then perturb them to create training sets for
-dpvt. We currently delete sites with ambiguous characters or gaps from the
-alignment.
+dpvt.
+
+The pipeline consists of three phases:
+1. **Phase 1: Preprocessing** - Clean alignments by removing low-quality sequences and generate quality statistics
+2. **Phase 2: Dataset Preparation** - Filter alignments by quality metrics and split into train/test sets
+3. **Phase 3: Training Data Generation** - Run larch-usher and extract training data
+
+For detailed documentation, see [WORKFLOW_GUIDE.md](WORKFLOW_GUIDE.md).
 
 ## Install
 
@@ -16,14 +22,19 @@ Note that this will require creating a conda environment, so make sure that once
 you are done installing `larch`, you activate `dpvt-experiments` again to run
 the code in this repo.
 
-## Construct historydag with larch-usher and extract trees
+## Data generation pipeline
 
-This code allows to input an alignment in fasta format and returns a pickled
-file containing a dictionary with trees as keys and lists of *0*s and *1*s as
-values, which assign each edge in the corresponding tree (in preorder) value 0
-if the edge is present in one of the MP trees found by larch-usher and otherwise
-returns 1. To run this code, you can either follow the all-in-one description,
-which uses Snakemake, or you can follow separate steps.
+The pipeline takes empirical or simulated alignments as input and generates pickled files containing dictionaries with trees as keys and lists of *0*s and *1*s as values, which assign each edge in the corresponding tree (in preorder) value 0 if the edge is present in one of the MP trees found by larch-usher and otherwise returns 1.
+
+The workflow is split into three phases with manual checkpoints between them to review quality and filtering results.
+With these manual checkpoints we can easily assess the suitability of empirical datasets for `dpvt` training and testing.
+In the first step, sequences with too many gaps or ambiguous characters are removed, and in the second phase all sites with gaps and ambiguous characters are removed.
+The manual checkpoints after these phases are designed for a manual check to decide whether enough data is left after these steps to generate `dpvt` training data.
+The third and final phase consists of actually generating dpvt training data by generating maximum parsimony trees with `larch` and perturbing them to introduce non-MP edges.
+
+> If alignments are simulated without gaps or ambiguous characters, the first two steps of the pipeline can be skipped.
+
+
 
 ### Simulating alignments
 
@@ -44,59 +55,77 @@ dataset and edge distribution, which are needed for creating dpvt training data
 (see in _All-in-one_) in the directory `configs/`. Note that the python script
 `scripts/generate_sim_configs.py` is used to generate configs.
 
-### Data generation pipeline
+### Running the three-phase workflow
 
-We provide a snakemake workflow that takes as input alignments and outputs data
-in the format required by `dpvt` representing trees and labels on their edges,
-identifying edges as MP and non-MP edges.
+The workflow uses separate snakefiles for each phase, with manual checkpoints in between.
 
-To provide the input and setting as to how to generate this data, the following
-information needs to be provided in the snakemake config `config.yaml`:
+#### Configuration
 
-- `input_data`: directory containing for each alignment a directory with the
-    name of the alignment and a fasta file with the same name as its directory,
-    e.g.: `alignment_1/alignment_1.fasta` _Note that we assume DNA sequences.
-    Columns containing gaps or ambiguous characters in the input alignment get
-    deleted in our pipeline._ The scripts `scripts/create_alisim_alignments.sh`
-    creates data in exactly this format.
-- `larch_build`: path to the `build` directory created when building `larch`
-    (see instructions in `larch` repo)
-- `output_data`: path to directory in which output, which is a pickled file
-    containing trees and corresponding edge vectors containing MP edge labels,
-    should be saved
-- `dataset_name`: name for the dataset that will be used for the output files
-    containing the data. The output files are named
-    `{dataset_name}_{edge_distribution}.p`, where `{edge_distribution}`
-    identifies the method that is used to introduce non-MP edges in the maximum
-    parsimony trees returned by `larch` (see Details in `Edge Distributions`
-    below)
-- `edge_distribution`: Method used to introduce non-MP edges, see details in the
-  `Edge Distributions` section below
-- `num_cores`: number of cores used for running larch-usher and tree extraction,
-    should match `num_cores` that is provided for snakemake run (see below)
-- `remove_duplicate_site_patterns`: If set to True, duplicate site patterns are
-  removed when computing dpvt datasets
+Create a config file for Phases 1 & 2 (e.g., `configs/{my_dataset}_prepare.yaml`). See `configs/simulated_15seq_20sites_100algnmnts_prepare.yaml` for an example using simulated alignments.
+The config file needs to contain the following parameters:
 
-To execute the pipeline, run the following in the `larch/` directory of this
-repo:
+**Phase 1 & 2 config parameters:**
+- `dataset_name`: name for the dataset
+- `input_data`: directory containing alignment subdirectories. Each alignment should be in its own directory with a `.fasta` or `.nex` file (e.g., `alignment_1/alignment_1.fasta`)
+- `max_ambiguous_site_frac_per_seq`: Maximum fraction of gaps/ambiguous characters allowed per sequence (default: 0.2). Sequences exceeding this threshold are removed.
+- `remove_duplicate_site_patterns`: Whether to remove duplicate alignment columns (default: false)
+- `output_datasets`: Base directory to save filtered datasets (will create new subdirectory in specified location)
+- `min_frac_sites_retained`: Minimum fraction of sites an alignment must retain after preprocessing to be included in remaining analysis (default: 0.8)
+- `create_train_test_split`: Whether to split filtered alignments into train/test sets (default: true)
+- `test_fraction`: Fraction of alignments for test set (default: 0.2)
+
+**Phase 3 config parameters** (separate configs for train/test):
+- `input_data`: path to prepared dataset from Phase 2 (e.g., `"../../data/{my_dataset}_train_0.8"`)
+- `output_data` or `larch_output`: output directory for training data
+- `dataset_name`: name used for output files (e.g., `"{my_dataset}_train_0.8"`)
+- `larch_build`: path to the `build` directory from building `larch`
+- `edge_distribution`: Method for introducing non-MP edges (see Edge Distributions section)
+- `num_cores`: number of cores for larch-usher and tree extraction
+
+#### Phase 1: Preprocessing
 
 ```bash
-snakemake --cores <number of cores>
+cd dpvtex/larch
+snakemake --snakefile preprocess_alignments.snakefile \
+  --configfile configs/{my_dataset}.yaml \
+  --cores 4
 ```
 
-If you have a special config file that you want to use, you can specify it with
-`--configfile <configfile_path>`. If you simulated alignments as described
-above, configs of the appropriate format are saved in the `configs/` directory
-and can be used straight away to execute the pipeline for generating dpvt data.
-You can then run the pipeline on all configs with:
+**Output**: Cleaned alignments and `alignment_size_stats.csv` with quality metrics
+
+**Manual Checkpoint**: Review statistics to decide `min_frac_sites_retained` threshold
+
+#### Phase 2: Dataset Preparation
 
 ```bash
-./run_on_simulated_alignments.sh
+snakemake --snakefile prepare_datasets.snakefile \
+  --configfile configs/{my_dataset}.yaml \
+  --cores 1
 ```
 
-The output of this snakemake run is a pickled file containing dictionaries with
-ete3 trees as keys and lists as values, which indicate whether edges in the tree
-are in a MP tree (*0*) or not (*1*), according to a preorder traversal.
+**Output**: Filtered datasets with train/test splits (symlinks to preprocessed data)
+
+**Manual Checkpoint**: Review manifest files to verify filtering results
+
+#### Phase 3: Training Data Generation
+
+Create simple configs for train and test sets (see `configs/simulated_15seq_20sites_100algnmnts_train.yaml` and `configs/simulated_15seq_20sites_100algnmnts_test.yaml` for examples).
+
+Run for training set:
+```bash
+snakemake --snakefile generate_dpvt_input.snakefile \
+  --configfile configs/{my_dataset}_train.yaml \
+  --cores 8
+```
+
+Run for test set:
+```bash
+snakemake --snakefile generate_dpvt_input.snakefile \
+  --configfile configs/{my_dataset}_test.yaml \
+  --cores 8
+```
+
+**Output**: Pickled files with ete3 trees as keys and edge label lists as values (0 = MP edge, 1 = non-MP edge)
 
 ### Edge Distributions
 

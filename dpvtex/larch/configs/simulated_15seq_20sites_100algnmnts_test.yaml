@@ -1,0 +1,17 @@
+# Phase 3 Config: Test Set for simulated 15-sequence alignments
+# This config points to the test split created by Phase 2
+
+# Input: Test split from Phase 2 (must match Phase 2 output naming)
+input_data: "../../../data/simulated_15seq_20sites_test_0.8"
+
+# Output directory for training data
+output_data: "../../../data"
+
+# Dataset name for output files
+dataset_name: "simulated_15seq_20sites_test_0.8"
+
+# Larch settings (should match unified config)
+larch_build: "../../../larch/build"
+edge_distribution: "constant"
+num_cores: 8
+remove_duplicate_site_patterns: false

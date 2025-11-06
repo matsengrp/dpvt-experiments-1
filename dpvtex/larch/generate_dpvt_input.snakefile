@@ -6,19 +6,12 @@ from dpvtex.larch.scripts.aggregate_training_data import aggregate_data
 from dpvtex.larch.scripts.pipeline_logger import get_logger
 
 snakefile_dir = workflow.basedir
-default_config_path = os.path.join(snakefile_dir, "config.yaml")
 
-args = sys.argv
-
-try:
-    config_path = os.path.join(snakefile_dir, args[args.index("--configfile") + 1])
-except:
-    config_path = default_config_path
-
-configfile: config_path
+# Config file can be specified via --configfile on command line
+# If not specified, falls back to config.yaml in the snakefile directory
 
 input_data=os.path.realpath(config["input_data"])
-output_data=config["output_data"]
+output_data=config.get("output_data", config.get("larch_output"))  # Support both names
 larch_build=config["larch_build"]
 dataset_name=config["dataset_name"]
 edge_distribution=config.get("edge_distribution", "constant")

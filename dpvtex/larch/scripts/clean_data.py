@@ -55,7 +55,7 @@ def calculate_sequence_quality(sequence):
     }
 
 
-def filter_low_quality_sequences(alignment, max_ambiguous_fraction=0.2):
+def filter_low_quality_sequences(alignment, max_ambiguous_site_frac_per_seq=0.2):
     """
     Remove sequences with too many gaps or ambiguous characters.
 
@@ -63,8 +63,8 @@ def filter_low_quality_sequences(alignment, max_ambiguous_fraction=0.2):
     -----------
     alignment : MultipleSeqAlignment
         The original alignment
-    max_ambiguous_fraction : float
-        Maximum allowed combined fraction of gaps and ambiguous bases (default: 0.2, i.e., 20%)
+    max_ambiguous_site_frac_per_seq : float
+        Maximum allowed combined fraction of gaps and ambiguous bases per sequence (default: 0.2, i.e., 20%)
         This includes gap characters (-, .) and ambiguous IUPAC codes (N, ?, R, Y, etc.)
 
     Returns:
@@ -85,7 +85,7 @@ def filter_low_quality_sequences(alignment, max_ambiguous_fraction=0.2):
         # Combined fraction of gaps and ambiguous bases
         combined_fraction = quality['gap_fraction'] + quality['ambiguous_fraction']
 
-        if combined_fraction > max_ambiguous_fraction:
+        if combined_fraction > max_ambiguous_site_frac_per_seq:
             removed_sequences.append({
                 'id': record.id,
                 'reason': 'low_quality',
@@ -359,7 +359,7 @@ def clean_alignment(
     target_length=None,
     target_seqs=None,
     size_stats_csv=None,
-    max_ambiguous_fraction=None,
+    max_ambiguous_site_frac_per_seq=None,
 ):
     """
     Clean an alignment by removing low-quality sequences, duplicates, and uninformative sites.
@@ -380,7 +380,7 @@ def clean_alignment(
         Target number of sequences
     size_stats_csv : str, optional
         Path to CSV file where alignment size statistics will be appended
-    max_ambiguous_fraction : float, optional
+    max_ambiguous_site_frac_per_seq : float, optional
         Maximum allowed combined fraction of gaps and ambiguous bases per sequence (default: None, no filtering)
         Example: 0.5 means sequences with >50% gaps+ambiguous bases will be removed
 
@@ -401,9 +401,9 @@ def clean_alignment(
     original_num_sites = alignment.get_alignment_length()
 
     # Filter low-quality sequences if threshold is provided
-    if max_ambiguous_fraction is not None:
+    if max_ambiguous_site_frac_per_seq is not None:
         alignment, num_kept, num_removed, removed_seqs = filter_low_quality_sequences(
-            alignment, max_ambiguous_fraction
+            alignment, max_ambiguous_site_frac_per_seq
         )
 
     # Remove uninformative sites and duplicate sequences

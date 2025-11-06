@@ -13,13 +13,12 @@ from clean_data import clean_alignment
 from check_size_fasta import check_alignment_size
 from check_sequence_lengths import scan_directory
 
-config_path = os.path.join(snakefile_dir, "config.yaml")
-
-configfile: config_path
+# Config file can be specified via --configfile on command line
+# If not specified, falls back to config.yaml in the snakefile directory
 
 input_data=os.path.realpath(config["input_data"])
 remove_site_patterns = config.get("remove_duplicate_site_patterns", False)
-max_ambiguous_fraction = config.get("max_ambiguous_fraction", None)
+max_ambiguous_site_frac_per_seq = config.get("max_ambiguous_site_frac_per_seq", None)
 
 
 def get_subdirs(data_dir):
@@ -122,7 +121,7 @@ rule clean_data:
         size_stats_csv=input_data+"/{subdir}/size_stats" + dup_sites_suffix + ".csv"
     params:
         remove_site_patterns=remove_site_patterns,
-        max_ambiguous_fraction=max_ambiguous_fraction
+        max_ambiguous_site_frac_per_seq=max_ambiguous_site_frac_per_seq
     run:
         clean_alignment(
             input.alignment_file,
@@ -130,7 +129,7 @@ rule clean_data:
             algn_length_filename=None,
             remove_site_patterns=params.remove_site_patterns,
             size_stats_csv=output.size_stats_csv,
-            max_ambiguous_fraction=params.max_ambiguous_fraction
+            max_ambiguous_site_frac_per_seq=params.max_ambiguous_site_frac_per_seq
         )
 
 

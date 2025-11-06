@@ -82,6 +82,12 @@ The config file needs to contain the following parameters:
 - `edge_distribution`: Method for introducing non-MP edges (see Edge Distributions section)
 - `num_cores`: number of cores for larch-usher and tree extraction
 
+You can generate a config with default values as specified above by running the following:
+```bash
+cd dpvtex/larch
+python scripts/generate_configs.py PATH/TO/INPUT_DATA DATASET_NAME
+```
+
 #### Phase 1: Preprocessing
 
 ```bash

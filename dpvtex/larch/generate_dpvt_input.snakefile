@@ -58,14 +58,45 @@ if remove_site_patterns in [True, "True", "true"]:
 
 
 def get_subdirs(data_dir):
-    subdirs_with_flag = []
+    """
+    Get subdirectories with input fasta files, excluding those with unequal sequence lengths.
+
+    Checks for the presence of either input.fasta or input_no_dup_sites.fasta to determine
+    if preprocessing has completed for a subdirectory.
+
+    Alignments with unequal sequence lengths cannot be processed, so they are automatically
+    filtered out if the exclusion list exists.
+    """
+    subdirs_with_input = []
     for entry in os.scandir(data_dir):
-        if entry.is_dir():
+        if entry.is_dir() and ".snakemake" not in entry.path:
             subdir_path = entry.path
-            flag_file_path = os.path.join(subdir_path, 'checkpoint.flag')
-            if os.path.isfile(flag_file_path):
-                subdirs_with_flag.append(entry.name)
-    return subdirs_with_flag
+            # Check for either input.fasta or input_no_dup_sites.fasta
+            input_fasta = os.path.join(subdir_path, 'input.fasta')
+            input_fasta_no_dup = os.path.join(subdir_path, 'input_no_dup_sites.fasta')
+            if os.path.isfile(input_fasta) or os.path.isfile(input_fasta_no_dup):
+                subdirs_with_input.append(entry.name)
+
+    # Path to the exclusion list
+    exclusion_file = os.path.join(data_dir, "unequal_length_alignments.txt")
+
+    # If the exclusion file doesn't exist yet, return all subdirs
+    if not os.path.exists(exclusion_file):
+        return subdirs_with_input
+
+    # Read the list of directories to exclude
+    excluded_dirs = set()
+    with open(exclusion_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            # Skip comments and empty lines
+            if line and not line.startswith('#'):
+                excluded_dirs.add(line)
+
+    # Filter out excluded directories
+    filtered_subdirs = [d for d in subdirs_with_input if d not in excluded_dirs]
+
+    return filtered_subdirs
 
 
 rule all:
@@ -133,8 +164,8 @@ rule extract_dpvt_data:
 
 rule aggregate_training_data:
     input:
-        expand(input_data+"/{subdir}/{subdir}" + dup_sites_suffix +pickle_suffix, subdir=get_subdirs(input_data)),
-        length_files=expand(input_data+"/{subdir}/cleaned_alignment_length" + dup_sites_suffix + ".txt", subdir=get_subdirs(input_data)),
+        expand(input_data+"/{subdir}/{subdir}" + dup_sites_suffix + pickle_suffix, subdir=get_subdirs(input_data)),
+        size_stats=expand(input_data+"/{subdir}/size_stats" + dup_sites_suffix + ".csv", subdir=get_subdirs(input_data)),
     output:
         data_props=input_data+"/data_properties_"+dataset_name+csv_suffix,
         dpvt_data=output_data+"/larch_"+dataset_name+pickle_suffix,

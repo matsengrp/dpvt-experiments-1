@@ -6,6 +6,7 @@ import signal
 import multiprocessing
 import sys
 from ete3 import Tree
+from pipeline_logger import get_logger
 
 from dpvtex.larch.scripts.tree_perturbation import (
     increase_tree_parsimony,
@@ -357,7 +358,11 @@ def extract_data_from_hdag(
         subtree_target_non_mp_proportion (float): Target non-MP edge proportion for
             subtree replacement (default: 1/6)
     """
-    print("Start reading DAG")
+    alignment_name = os.path.basename(os.path.dirname(dag_file))
+    logger.log_section("EXTRACTION", f"Starting tree extraction for {alignment_name}")
+    logger.log("EXTRACTION", f"Edge distribution method: {edge_distribution}")
+
+    logger.log("EXTRACTION", "Reading DAG from file")
     if dag_file[-2:] == ".p":
         with open(dag_file, "rb") as f:
             dag = pickle.load(f)
@@ -368,14 +373,15 @@ def extract_data_from_hdag(
     else:
         print("Error: First input file should be pickled hDAG or protobuf.")
         sys.exit(1)
+
+    logger.log("EXTRACTION", "DAG loaded successfully")
+
     # trim to only MP topologies + convert to sequence_dag
-    print("Done reading DAG")
-    print("Start trimming DAG")
+    logger.log("EXTRACTION", "Trimming DAG to optimal weight topologies")
     dag.trim_optimal_weight()
-    print("Done trimming DAG")
-    print("Start converting DAG to sequence_dag")
+
+    logger.log("EXTRACTION", "Converting DAG to sequence_dag")
     dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
-    print("Done converting DAG to sequence_dag")
     dag.unlabel()
 
     logger.log("EXTRACTION", "Counting DAG topologies (max 10s timeout)")
@@ -395,5 +401,10 @@ def extract_data_from_hdag(
         subtree_max_attempts=subtree_max_attempts,
         subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
     )
+
+    logger.log("EXTRACTION", f"Generated {len(tree_label_dict)} trees with edge labels")
+
     with open(dpvt_data_file, "wb") as f:
         pickle.dump(tree_label_dict, f)
+
+    logger.log("EXTRACTION", f"Tree data saved to: {dpvt_data_file}")

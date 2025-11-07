@@ -16,6 +16,7 @@ larch_command=config.get("larch_command", "larch")  # Default to "larch" command
 dataset_name=config["dataset_name"]
 edge_distribution=config.get("edge_distribution", "constant")
 remove_site_patterns = config.get("remove_duplicate_site_patterns", False)
+balance_by_median_num_MP_trees = config.get("balance_by_median_num_MP_trees", True)  # Default to True - balance trees per alignment
 
 # Tree extraction parameters
 max_trees = config.get("max_trees", 200)  # Max trees to extract per alignment
@@ -127,8 +128,17 @@ rule run_larch:
         log=input_data+"/{subdir}/log" + dup_sites_suffix
     shell:
         """
-        echo "All input files are present, processing..."
-        # Run larch command (can be larch, larch-phylo, or a full path)
+        set -e
+        # Enable alias expansion in non-interactive shell
+        shopt -s expand_aliases
+        # Load only alias definitions from bashrc (avoiding interactive-only configurations)
+        if [ -f ~/.bash_aliases ]; then
+            source ~/.bash_aliases
+        elif [ -f ~/.bashrc ]; then
+            # Extract only alias definitions to avoid interactive shell issues
+            source <(grep "^alias" ~/.bashrc)
+        fi
+        # Run larch
         {larch_command} -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
         """
 
@@ -163,5 +173,5 @@ rule aggregate_training_data:
         data_props=input_data+"/data_properties_"+dataset_name+csv_suffix,
         dpvt_data=output_data+"/larch_"+dataset_name+pickle_suffix,
     run:
-        aggregate_data(data_dir = input_data, data_props_file = output.data_props, dpvt_train_data = output.dpvt_data, edge_distribution=edge_distribution, dpvt_test_data = None)
+        aggregate_data(data_dir = input_data, data_props_file = output.data_props, dpvt_train_data = output.dpvt_data, edge_distribution=edge_distribution, dpvt_test_data = None, balance_by_median_num_MP_trees=balance_by_median_num_MP_trees)
 

@@ -12,6 +12,7 @@ if scripts_dir not in sys.path:
 from clean_data import clean_alignment
 from check_size_fasta import check_alignment_size
 from check_sequence_lengths import scan_directory
+from pipeline_logger import get_logger
 
 # Config file can be specified via --configfile on command line
 # If not specified, falls back to config.yaml in the snakefile directory
@@ -123,13 +124,15 @@ rule clean_data:
         remove_site_patterns=remove_site_patterns,
         max_ambiguous_site_frac_per_seq=max_ambiguous_site_frac_per_seq
     run:
+        logger = get_logger(input_data)
         clean_alignment(
             input.alignment_file,
             output.input_fasta,
             algn_length_filename=None,
             remove_site_patterns=params.remove_site_patterns,
             size_stats_csv=output.size_stats_csv,
-            max_ambiguous_site_frac_per_seq=params.max_ambiguous_site_frac_per_seq
+            max_ambiguous_site_frac_per_seq=params.max_ambiguous_site_frac_per_seq,
+            logger=logger
         )
 
 

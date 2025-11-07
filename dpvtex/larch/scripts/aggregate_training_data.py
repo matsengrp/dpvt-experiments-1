@@ -325,25 +325,19 @@ def pickle_and_save_data(
 # =============================================================================
 
 
-def _add_alignment_lengths_to_properties(data_props, data_dir, suffix):
-    """Add alignment length information from cleaned_alignment_length files to data properties.
-
-    Args:
-        data_props: Dictionary of dataset properties to update
-        data_dir: Directory containing alignment subdirectories
-        suffix: Suffix for the alignment length file (e.g., "_no_dup_sites" or "")
-    """
-    alignment_length_filename = f"cleaned_alignment_length{suffix}.txt"
-
-    for root, dirs, files in os.walk(data_dir, followlinks=True):
-        if alignment_length_filename in files:
+def _add_alignment_lengths_to_properties(
+    data_props, data_dir, size_stats_filename, suffix
+):
+    """Add alignment length information from size_stats CSV files to data properties."""
+    for root, dirs, files in os.walk(data_dir):
+        if size_stats_filename in files:
             dataset_name = os.path.basename(root)
+            if suffix:
+                dataset_name += suffix
             if dataset_name in data_props:
-                length_file_path = os.path.join(root, alignment_length_filename)
-                with open(length_file_path, "r") as f:
-                    # Format is "length,num_seqs" - we want the length (first value)
-                    content = f.read().strip()
-                    alignment_length = int(content.split(",")[0])
+                size_stats_path = os.path.join(root, size_stats_filename)
+                size_df = pd.read_csv(size_stats_path)
+                alignment_length = int(size_df["cleaned_num_sites"].iloc[0])
                 data_props[dataset_name].append(alignment_length)
 
 
@@ -356,8 +350,11 @@ def save_data_properties(data_props, data_props_file, data_dir):
         data_dir (str): Directory containing subdirs with .p pickle files.
     """
     suffix = "_no_dup_sites" if "_no_dup_sites" in data_props_file else ""
+    size_stats_filename = f"size_stats{suffix}.csv"
 
-    _add_alignment_lengths_to_properties(data_props, data_dir, suffix)
+    _add_alignment_lengths_to_properties(
+        data_props, data_dir, size_stats_filename, suffix
+    )
 
     data_props_df = pd.DataFrame.from_dict(
         data_props,

@@ -5,6 +5,7 @@ from Bio.Seq import Seq
 from collections import Counter
 import csv
 import os
+from pipeline_logger import get_logger
 
 
 def calculate_sequence_quality(sequence):
@@ -360,6 +361,7 @@ def clean_alignment(
     target_seqs=None,
     size_stats_csv=None,
     max_ambiguous_site_frac_per_seq=None,
+    logger=None,
 ):
     """
     Clean an alignment by removing low-quality sequences, duplicates, and uninformative sites.
@@ -383,12 +385,17 @@ def clean_alignment(
     max_ambiguous_site_frac_per_seq : float, optional
         Maximum allowed combined fraction of gaps and ambiguous bases per sequence (default: None, no filtering)
         Example: 0.5 means sequences with >50% gaps+ambiguous bases will be removed
+    logger : PipelineLogger
+        Logger for tracking operations
 
     Returns:
     --------
     tuple
         (final_num_seqs, final_num_sites, original_num_seqs, original_num_sites)
     """
+    alignment_name = os.path.basename(os.path.dirname(input_filename))
+    logger.log_section("CLEANING", f"Starting alignment cleaning for {alignment_name}")
+
     # Determine input format based on file extension
     if input_filename.endswith(('.nex', '.nexus')):
         input_format = 'nexus'
@@ -400,24 +407,32 @@ def clean_alignment(
     original_num_seqs = len(alignment)
     original_num_sites = alignment.get_alignment_length()
 
+    logger.log("CLEANING", f"Original alignment: {original_num_seqs} sequences, {original_num_sites} sites")
+
     # Filter low-quality sequences if threshold is provided
     if max_ambiguous_site_frac_per_seq is not None:
         alignment, num_kept, num_removed, removed_seqs = filter_low_quality_sequences(
             alignment, max_ambiguous_site_frac_per_seq
         )
+        logger.log("CLEANING", f"Low-quality sequence filtering (threshold={max_ambiguous_site_frac_per_seq}): removed {num_removed} sequences, kept {num_kept}")
 
     # Remove uninformative sites and duplicate sequences
-    clean_alignment, num_unique_seqs = remove_uninformative_sites(alignment)
+    clean_alignment, num_informative_sites = remove_uninformative_sites(alignment)
+    logger.log("CLEANING", f"Removed uninformative sites: {num_informative_sites} informative sites retained")
+
     clean_alignment, num_unique_seqs = remove_duplicate_sequences(clean_alignment)
+    logger.log("CLEANING", f"Removed duplicate sequences: {num_unique_seqs} unique sequences retained")
 
     # Remove duplicate site patterns if requested
     if remove_site_patterns:
         clean_alignment, num_unique_sites = remove_identical_site_patterns(
             clean_alignment
         )
+        logger.log("CLEANING", f"Removed duplicate site patterns: {num_unique_sites} unique site patterns retained")
 
     # If we need to trim to target dimensions
     if target_length is not None and target_seqs is not None:
+        original_target_seqs = target_seqs
         # First trim down to target number of sequences
         if num_unique_seqs < target_seqs:
             target_seqs = num_unique_seqs
@@ -431,11 +446,15 @@ def clean_alignment(
             clean_alignment, num_unique_seqs = remove_duplicate_sequences(
                 clean_alignment
             )
+        logger.log("CLEANING", f"Trimmed to target dimensions: {target_seqs} sequences (target was {original_target_seqs}), {target_length} sites")
 
     final_num_sites = clean_alignment.get_alignment_length()
     final_num_seqs = len(clean_alignment)
 
     AlignIO.write(clean_alignment, output_filename, "fasta")
+
+    logger.log("CLEANING", f"Final alignment: {final_num_seqs} sequences, {final_num_sites} sites")
+    logger.log("CLEANING", f"Cleaned alignment written to: {output_filename}")
 
     if algn_length_filename is not None:
         with open(algn_length_filename, "w") as f:

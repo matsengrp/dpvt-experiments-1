@@ -12,7 +12,7 @@ snakefile_dir = workflow.basedir
 
 input_data=os.path.realpath(config["input_data"])
 output_data=config.get("output_data", config.get("larch_output"))  # Support both names
-larch_build=config["larch_build"]
+larch_command=config.get("larch_command", "larch")  # Default to "larch" command
 dataset_name=config["dataset_name"]
 edge_distribution=config.get("edge_distribution", "constant")
 remove_site_patterns = config.get("remove_duplicate_site_patterns", False)
@@ -128,8 +128,8 @@ rule run_larch:
     shell:
         """
         echo "All input files are present, processing..."
-        # Run larch-usher from bin directory
-        {larch_build}/larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
+        # Run larch command (can be larch, larch-phylo, or a full path)
+        {larch_command} -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
         """
 
 

@@ -47,55 +47,50 @@ test_fraction: {test_fraction}
 # ============================================================================
 # Phase 3: Training Data Generation Settings
 # ============================================================================
-larch_build: "../../../larch/build"
+larch_command: "larch"                   # Command to run larch (can be "larch", "larch-phylo", or a full path)
 larch_output: "../../shared_data"
 edge_distribution: "constant"            # Options: constant, uniform, treesearch_mimic, random_subtree
 num_cores: 8
 """
 
 
-def generate_train_config(dataset_name, min_frac_sites_retained=0.8):
-    """Generate Phase 3 train config."""
-    return f"""# Phase 3 Config: Training Set for {dataset_name}
-# This config points to the train split created by Phase 2
+def generate_phase3_config(dataset_name, split_type, min_frac_sites_retained=0.8):
+    """Generate Phase 3 config for train or test split.
 
-# Input: Train split from Phase 2 (must match Phase 2 output naming)
-input_data: "../../shared_data/{dataset_name}_train_{min_frac_sites_retained}"
+    Args:
+        dataset_name: Name of the dataset
+        split_type: Either "train" or "test"
+        min_frac_sites_retained: Minimum fraction of sites retained (default: 0.8)
+    """
+    split_name = "Training" if split_type == "train" else "Test"
+    return f"""# Phase 3 Config: {split_name} Set for {dataset_name}
+# This config points to the {split_type} split created by Phase 2
+
+# Input: {split_name} split from Phase 2 (must match Phase 2 output naming)
+input_data: "../../shared_data/{dataset_name}_{split_type}_{min_frac_sites_retained}"
 
 # Output directory for training data
 output_data: "../../shared_data"
 
 # Dataset name for output files
-dataset_name: "{dataset_name}_train_{min_frac_sites_retained}"
+dataset_name: "{dataset_name}_{split_type}_{min_frac_sites_retained}"
 
 # Larch settings (should match unified config)
-larch_build: "../../../larch/build"
+larch_command: "larch"
 edge_distribution: "constant"
 num_cores: 8
 remove_duplicate_site_patterns: false
 """
+
+
+def generate_train_config(dataset_name, min_frac_sites_retained=0.8):
+    """Generate Phase 3 train config."""
+    return generate_phase3_config(dataset_name, "train", min_frac_sites_retained)
 
 
 def generate_test_config(dataset_name, min_frac_sites_retained=0.8):
     """Generate Phase 3 test config."""
-    return f"""# Phase 3 Config: Test Set for {dataset_name}
-# This config points to the test split created by Phase 2
-
-# Input: Test split from Phase 2 (must match Phase 2 output naming)
-input_data: "../../shared_data/{dataset_name}_test_{min_frac_sites_retained}"
-
-# Output directory for training data
-output_data: "../../shared_data"
-
-# Dataset name for output files
-dataset_name: "{dataset_name}_test_{min_frac_sites_retained}"
-
-# Larch settings (should match unified config)
-larch_build: "../../../larch/build"
-edge_distribution: "constant"
-num_cores: 8
-remove_duplicate_site_patterns: false
-"""
+    return generate_phase3_config(dataset_name, "test", min_frac_sites_retained)
 
 
 def main():

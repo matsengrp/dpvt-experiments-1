@@ -11,7 +11,7 @@ output_data: "../../../data"
 dataset_name: "simulated_15seq_20sites_train_0.8"
 
 # Larch settings (should match unified config)
-larch_build: "../../../larch/build"
+larch_command: "larch"
 edge_distribution: "constant"
 num_cores: 8
 remove_duplicate_site_patterns: false

@@ -16,11 +16,49 @@ For detailed documentation, see [WORKFLOW_GUIDE.md](WORKFLOW_GUIDE.md).
 To run this code, you will need to install and activate the pixi
 `dpvt-experiments` environment as explained [here](../../README.md).
 
-Additionally, we use [larch](https://github.com/matsengrp/larch), which first
-needs to be built. Follow the link to get instructions on how to build larch.
-Note that this will require creating a conda environment, so make sure that once
-you are done installing `larch`, you activate `dpvt-experiments` again to run
-the code in this repo.
+Additionally, we use [larch](https://github.com/matsengrp/larch) for inferring maximum parsimony trees. There are two ways to install larch:
+
+### Option 1: Install via conda (recommended)
+
+The easiest way to install larch is through conda:
+
+```bash
+conda install -c matsengrp larch-phylo
+```
+
+This installs the `larch-phylo` executable. To use it with this pipeline (which defaults to calling `larch`), add an alias to your `~/.bashrc`:
+
+```bash
+alias larch='larch-phylo'
+```
+
+Then reload your bashrc:
+
+```bash
+source ~/.bashrc
+```
+
+Alternatively, you can skip the alias and instead set `larch_command: "larch-phylo"` in your config files.
+
+### Option 2: Build from source
+
+You can also build larch from source by following the instructions at the [larch repository](https://github.com/matsengrp/larch). Note that this will require creating a conda environment, so make sure that once you are done installing `larch`, you activate `dpvt-experiments` again to run the code in this repo.
+
+After building larch from source, set up an alias to make the `larch-usher` executable accessible as `larch`. Add the following line to your `~/.bashrc` file:
+
+```bash
+alias larch='/path/to/larch/build/bin/larch-usher'
+```
+
+Replace `/path/to/larch/build/bin/larch-usher` with the actual path to your larch-usher binary. After adding this line, reload your bashrc:
+
+```bash
+source ~/.bashrc
+```
+
+### Configuration note
+
+The pipeline defaults to using the command `larch` to run larch (specified by the `larch_command` parameter in config files). This works out-of-the-box if you set up the alias as described above. If you prefer not to use an alias, you can override this default by setting `larch_command: "larch-phylo"` or `larch_command: "/path/to/larch/build/bin/larch-usher"` in your config files.
 
 ## Data generation pipeline
 
@@ -78,7 +116,7 @@ The config file needs to contain the following parameters:
 - `input_data`: path to prepared dataset from Phase 2 (e.g., `"../../data/{my_dataset}_train_0.8"`)
 - `output_data` or `larch_output`: output directory for training data
 - `dataset_name`: name used for output files (e.g., `"{my_dataset}_train_0.8"`)
-- `larch_build`: path to the `build` directory from building `larch`
+- `larch_command`: command to run larch (default: `"larch"`). Can also be set to `"larch-phylo"` or a full path like `"/path/to/larch/build/bin/larch-usher"`
 - `edge_distribution`: Method for introducing non-MP edges (see Edge Distributions section)
 - `num_cores`: number of cores for larch-usher and tree extraction
 

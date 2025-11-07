@@ -28,7 +28,7 @@ test_fraction: 0.2
 # ============================================================================
 # Phase 3: Training Data Generation Settings
 # ============================================================================
-larch_build: "../../../larch/build"
+larch_command: "larch"
 larch_output: "../../../data"
 edge_distribution: "constant"            # Options: constant, uniform, treesearch_mimic, random_subtree
 num_cores: 8

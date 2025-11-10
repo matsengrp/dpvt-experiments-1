@@ -3,10 +3,20 @@
 Generate config files for the three-phase DPVT pipeline.
 
 Usage:
-    python scripts/generate_configs.py <input_data_path> <dataset_name> [output_dir]
+    python scripts/generate_configs.py <input_data_path> <config_prefix> [output_dir]
+
+Arguments:
+    input_data_path: Path to the input alignment directory
+    config_prefix: Prefix for the generated config filenames (e.g., "simulated_15seq_20sites_100algnmnts")
+    output_dir: Directory where config files will be created (default: "configs")
 
 Example:
     python scripts/generate_configs.py ../../../data/simulated_alignments/alisim_alignment_15_seq_20_sites_100_algnmnts simulated_15seq_20sites_100algnmnts configs/
+
+    This will generate:
+        - configs/simulated_15seq_20sites_100algnmnts_prepare.yaml
+        - configs/simulated_15seq_20sites_100algnmnts_train.yaml
+        - configs/simulated_15seq_20sites_100algnmnts_test.yaml
 """
 
 import os
@@ -37,7 +47,7 @@ remove_duplicate_site_patterns: false    # Whether to deduplicate columns
 # ============================================================================
 # Phase 2: Dataset Preparation Settings (alignment-level filtering)
 # ============================================================================
-output_datasets: "../../shared_data"
+output_datasets: "../../data"
 min_frac_sites_retained: {min_frac_sites_retained}             # Exclude alignments that lost >{int((1-min_frac_sites_retained)*100)}% of sites
 
 # Train/test splitting
@@ -48,7 +58,7 @@ test_fraction: {test_fraction}
 # Phase 3: Training Data Generation Settings
 # ============================================================================
 larch_command: "larch"                   # Command to run larch (can be "larch", "larch-phylo", or a full path)
-larch_output: "../../shared_data"
+larch_output: "../../data"
 edge_distribution: "constant"            # Options: constant, uniform, treesearch_mimic, random_subtree
 num_cores: 8
 """
@@ -67,10 +77,10 @@ def generate_phase3_config(dataset_name, split_type, min_frac_sites_retained=0.8
 # This config points to the {split_type} split created by Phase 2
 
 # Input: {split_name} split from Phase 2 (must match Phase 2 output naming)
-input_data: "../../shared_data/{dataset_name}_{split_type}_{min_frac_sites_retained}"
+input_data: "../../data/{dataset_name}_{split_type}_{min_frac_sites_retained}"
 
 # Output directory for training data
-output_data: "../../shared_data"
+output_data: "../../data"
 
 # Dataset name for output files
 dataset_name: "{dataset_name}_{split_type}_{min_frac_sites_retained}"

@@ -6,7 +6,7 @@ import signal
 import multiprocessing
 import sys
 from ete3 import Tree
-from pipeline_logger import get_logger
+from dpvtex.larch.scripts.pipeline_logger import get_logger
 
 from dpvtex.larch.scripts.tree_perturbation import (
     increase_tree_parsimony,

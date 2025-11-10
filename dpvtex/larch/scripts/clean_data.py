@@ -5,7 +5,7 @@ from Bio.Seq import Seq
 from collections import Counter
 import csv
 import os
-from pipeline_logger import get_logger
+from dpvtex.larch.scripts.pipeline_logger import get_logger
 
 
 def calculate_sequence_quality(sequence):
@@ -392,8 +392,11 @@ def clean_alignment(
     --------
     tuple
         (final_num_seqs, final_num_sites, original_num_seqs, original_num_sites)
+        Returns (0, 0, 0, 0) if cleaning fails
     """
+    import traceback
     alignment_name = os.path.basename(os.path.dirname(input_filename))
+
     logger.log_section("CLEANING", f"Starting alignment cleaning for {alignment_name}")
 
     # Determine input format based on file extension
@@ -402,10 +405,39 @@ def clean_alignment(
     else:
         input_format = 'fasta'
 
-    # Read the original alignment
-    alignment = AlignIO.read(input_filename, input_format)
-    original_num_seqs = len(alignment)
-    original_num_sites = alignment.get_alignment_length()
+    # Read the original alignment - this is where unequal length errors occur
+    try:
+        alignment = AlignIO.read(input_filename, input_format)
+        original_num_seqs = len(alignment)
+        original_num_sites = alignment.get_alignment_length()
+    except Exception as e:
+        # Failed to read alignment (likely unequal sequence lengths)
+        error_msg = f"Failed to read alignment {alignment_name}: {str(e)}"
+        print(f"\nERROR: {error_msg}")
+        logger.log("CLEANING", error_msg, level="ERROR")
+        logger.log("CLEANING", f"Traceback:\n{traceback.format_exc()}", level="ERROR")
+
+        # Create failure marker files
+        with open(output_filename, 'w') as f:
+            f.write(f"# FAILED: {error_msg}\n")
+
+        if size_stats_csv is not None:
+            file_exists = os.path.exists(size_stats_csv)
+            with open(size_stats_csv, "a", newline="") as csvfile:
+                writer = csv.writer(csvfile)
+                if not file_exists:
+                    writer.writerow([
+                        "alignment_name",
+                        "original_num_seqs",
+                        "original_num_sites",
+                        "cleaned_num_seqs",
+                        "cleaned_num_sites",
+                        "seq_ratio",
+                        "site_ratio",
+                    ])
+                writer.writerow([alignment_name, 0, 0, 0, 0, 0.0, 0.0])
+
+        return 0, 0, 0, 0
 
     logger.log("CLEANING", f"Original alignment: {original_num_seqs} sequences, {original_num_sites} sites")
 

@@ -329,7 +329,7 @@ def _add_alignment_lengths_to_properties(
     data_props, data_dir, size_stats_filename, suffix
 ):
     """Add alignment length information from size_stats CSV files to data properties."""
-    for root, dirs, files in os.walk(data_dir):
+    for root, dirs, files in os.walk(data_dir, followlinks=True):
         if size_stats_filename in files:
             dataset_name = os.path.basename(root)
             if suffix:

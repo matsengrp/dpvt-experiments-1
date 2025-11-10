@@ -49,14 +49,14 @@ max_ambiguous_site_frac_per_seq: 0.2     # Remove sequences with >20% gaps/ambig
 remove_duplicate_site_patterns: false
 
 # Phase 2 settings - Alignment quality filtering
-output_datasets: "../../shared_data"
+output_datasets: "../../data"
 min_frac_sites_retained: 0.8             # Exclude alignments that lost >20% of sites
 create_train_test_split: true
 test_fraction: 0.2
 
 # Phase 3 settings (reference only)
 larch_build: "../../../larch/build"
-larch_output: "../../shared_data"
+larch_output: "../../data"
 edge_distribution: "constant"
 num_cores: 8
 ```

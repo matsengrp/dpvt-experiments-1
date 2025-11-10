@@ -22,36 +22,30 @@ remove_site_patterns = config.get("remove_duplicate_site_patterns", False)
 max_ambiguous_site_frac_per_seq = config.get("max_ambiguous_site_frac_per_seq", None)
 
 
-def get_subdirs(data_dir):
+def get_all_subdirs(data_dir):
     """
-    Get subdirectories excluding those with unequal sequence lengths.
-
-    Alignments with unequal sequence lengths cannot be processed, so they are automatically
-    filtered out if the exclusion list exists.
+    Get all subdirectories that contain alignment files.
+    Excludes .snakemake and directories without any alignment files.
     """
-    all_subdirs = [
-        f.path.split("/")[-1] for f in os.scandir(data_dir) if f.is_dir() and ".snakemake" not in f.path
-    ]
+    subdirs = []
+    for f in os.scandir(data_dir):
+        if not f.is_dir() or ".snakemake" in f.path:
+            continue
 
-    # Path to the exclusion list
-    exclusion_file = os.path.join(data_dir, "unequal_length_alignments.txt")
+        subdir_name = f.path.split("/")[-1]
+        subdir_path = os.path.join(data_dir, subdir_name)
 
-    # If the exclusion file doesn't exist yet, return all subdirs
-    if not os.path.exists(exclusion_file):
-        return all_subdirs
+        # Check if directory contains any alignment file
+        has_alignment = any([
+            os.path.exists(os.path.join(subdir_path, "alignment.nex")),
+            os.path.exists(os.path.join(subdir_path, f"{subdir_name}.nex")),
+            os.path.exists(os.path.join(subdir_path, f"{subdir_name}.fasta"))
+        ])
 
-    # Read the list of directories to exclude
-    excluded_dirs = set()
-    with open(exclusion_file, 'r') as f:
-        for line in f:
-            line = line.strip()
-            # Skip comments and empty lines
-            if line and not line.startswith('#'):
-                excluded_dirs.add(line)
+        if has_alignment:
+            subdirs.append(subdir_name)
+    return subdirs
 
-    # Filter out excluded directories
-    filtered_subdirs = [d for d in all_subdirs if d not in excluded_dirs]
-    return filtered_subdirs
 
 def get_input_alignment(wildcards):
     """
@@ -78,11 +72,21 @@ def get_input_alignment(wildcards):
     # If none found, return the expected fasta path (will trigger error)
     return os.path.join(base_path, f"{subdir}.fasta")
 
+# Get all subdirectories at DAG build time
+ALL_SUBDIRS = get_all_subdirs(input_data)
+
 dup_sites_suffix = ""
 if remove_site_patterns in [True, "True", "true"]:
     dup_sites_suffix = "_no_dup_sites"
 
-# First rule: check for unequal lengths before processing
+rule all:
+    input:
+        input_data+"/unequal_length_check.done",
+        input_data+"/alignment_size_stats" + dup_sites_suffix + ".csv",
+        # input_fasta=input_data+"/{subdir}/input" + dup_sites_suffix + ".fasta"
+
+# First rule: check for unequal lengths and report them
+# This doesn't block processing - it just creates a report
 rule check_unequal_lengths:
     output:
         done=input_data+"/unequal_length_check.done",
@@ -103,20 +107,16 @@ rule check_unequal_lengths:
         print(f"  Problematic alignments: {len(results['problematic'])}")
         print(f"  Uniform alignments: {len(results['uniform'])}")
         print(f"  Errors: {len(results['errors'])}")
+        if results['problematic']:
+            print(f"\nWARNING: The following alignments have unequal sequence lengths and will fail:")
+            for subdir in results['problematic']:
+                print(f"  - {subdir}")
         print(f"{'='*60}\n")
-
-
-rule all:
-    input:
-        input_data+"/unequal_length_check.done",
-        expand(input_data+"/{subdir}/input" + dup_sites_suffix + ".fasta", subdir=get_subdirs(input_data)),
-        input_data+"/alignment_size_stats" + dup_sites_suffix + ".csv"
 
 
 rule clean_data:
     input:
-        alignment_file=get_input_alignment,
-        check_done=input_data+"/unequal_length_check.done"
+        alignment_file=get_input_alignment
     output:
         input_fasta=input_data+"/{subdir}/input" + dup_sites_suffix + ".fasta",
         size_stats_csv=input_data+"/{subdir}/size_stats" + dup_sites_suffix + ".csv"
@@ -136,16 +136,39 @@ rule clean_data:
         )
 
 
+def get_existing_stats_files(wildcards):
+    """
+    Find all size_stats CSV files that exist after clean_data attempts.
+    This is called after clean_data rules have been attempted.
+    """
+    all_csvs = []
+    for subdir in ALL_SUBDIRS:
+        csv_path = os.path.join(input_data, subdir, f"size_stats{dup_sites_suffix}.csv")
+        if os.path.exists(csv_path):
+            all_csvs.append(csv_path)
+    return all_csvs
+
+
 rule aggregate_alignment_stats:
     input:
         check_done=input_data+"/unequal_length_check.done",
-        individual_csvs=expand(input_data+"/{subdir}/size_stats" + dup_sites_suffix + ".csv", subdir=get_subdirs(input_data))
+        # Try to create all stats files, but allow some to fail
+        stats_files=expand(input_data+"/{subdir}/size_stats" + dup_sites_suffix + ".csv", subdir=ALL_SUBDIRS)
     output:
         combined_csv=input_data+"/alignment_size_stats" + dup_sites_suffix + ".csv"
     run:
+        # Find all existing size_stats CSV files (some may have failed)
+        all_csvs = []
+        for csv_path in input.stats_files:
+            if os.path.exists(csv_path):
+                all_csvs.append(csv_path)
+
+        if len(all_csvs) == 0:
+            raise ValueError("No size_stats.csv files found. All alignments may have failed.")
+
         # Read all individual CSV files
         dfs = []
-        for csv_file in input.individual_csvs:
+        for csv_file in all_csvs:
             df = pd.read_csv(csv_file)
             dfs.append(df)
 
@@ -155,5 +178,8 @@ rule aggregate_alignment_stats:
         # Write to output file
         combined_df.to_csv(output.combined_csv, index=False)
 
+        failed_count = len(ALL_SUBDIRS) - len(all_csvs)
         print(f"\nAggregated stats from {len(dfs)} alignments")
+        if failed_count > 0:
+            print(f"  WARNING: {failed_count} alignments failed and were skipped")
         print(f"Output saved to: {output.combined_csv}\n")

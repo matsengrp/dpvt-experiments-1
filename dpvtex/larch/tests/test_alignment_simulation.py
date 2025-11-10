@@ -10,6 +10,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from dpvtex.larch.scripts.clean_data import clean_alignment
+from dpvtex.larch.scripts.pipeline_logger import PipelineLogger
 
 
 def run_command(command):
@@ -68,6 +69,10 @@ class TestCleanData:
         """Test that the script removes duplicates and uninformative sites"""
         files = alignment_test_files
 
+        # Create a temporary logger
+        log_file = os.path.join(files["tmp_dir"], "pipeline.log")
+        logger = PipelineLogger(log_file, "test_basic_cleaning")
+
         # Call clean_alignment function directly
         final_num_seqs, final_num_sites, original_num_seqs, original_num_sites = (
             clean_alignment(
@@ -77,6 +82,7 @@ class TestCleanData:
                 remove_site_patterns=False,
                 target_length=None,
                 target_seqs=None,
+                logger=logger,
             )
         )
 
@@ -106,6 +112,10 @@ class TestCleanData:
         """Test that the script trims to specified target dimensions"""
         files = alignment_test_files
 
+        # Create a temporary logger
+        log_file = os.path.join(files["tmp_dir"], "pipeline.log")
+        logger = PipelineLogger(log_file, "test_target_dimensions")
+
         # Target dimensions
         target_length = 4
         target_seqs = 2
@@ -119,6 +129,7 @@ class TestCleanData:
                 remove_site_patterns=False,
                 target_length=target_length,
                 target_seqs=target_seqs,
+                logger=logger,
             )
         )
 

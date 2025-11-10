@@ -96,7 +96,7 @@ def get_subdirs(data_dir):
 rule all:
     input:
         input_data+"/data_properties_"+dataset_name+csv_suffix,
-        output_data+"/larch_"+dataset_name+pickle_suffix,
+        output_data+"/"+dataset_name+pickle_suffix,
 
 
 rule preprocessing:
@@ -171,7 +171,7 @@ rule aggregate_training_data:
         size_stats=expand(input_data+"/{subdir}/size_stats" + dup_sites_suffix + ".csv", subdir=get_subdirs(input_data)),
     output:
         data_props=input_data+"/data_properties_"+dataset_name+csv_suffix,
-        dpvt_data=output_data+"/larch_"+dataset_name+pickle_suffix,
+        dpvt_data=output_data+"/"+dataset_name+pickle_suffix,
     run:
         aggregate_data(data_dir = input_data, data_props_file = output.data_props, dpvt_train_data = output.dpvt_data, edge_distribution=edge_distribution, dpvt_test_data = None, balance_by_median_num_MP_trees=balance_by_median_num_MP_trees)
 

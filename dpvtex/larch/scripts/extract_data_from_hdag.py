@@ -362,17 +362,39 @@ def extract_data_from_hdag(
     logger.log_section("EXTRACTION", f"Starting tree extraction for {alignment_name}")
     logger.log("EXTRACTION", f"Edge distribution method: {edge_distribution}")
 
+    # Check if the file is empty (happens when larch times out or fails)
+    if os.path.getsize(dag_file) == 0:
+        logger.log("EXTRACTION", f"Skipping {alignment_name}: Empty DAG file (likely larch timeout/failure)")
+        print(f"WARNING: Skipping {alignment_name}: Empty DAG file", file=sys.stderr)
+        # Create empty output files to allow pipeline to continue
+        with open(dpvt_data_file, "wb") as f:
+            pickle.dump({}, f)
+        with open(num_children_file, "w") as f:
+            f.write("")
+        return
+
     logger.log("EXTRACTION", "Reading DAG from file")
-    if dag_file[-2:] == ".p":
-        with open(dag_file, "rb") as f:
-            dag = pickle.load(f)
-    elif dag_file[-3:] == ".pb":
-        dag = hdag.mutation_annotated_dag.load_MAD_protobuf_file(
-            dag_file, compact_genomes=True
-        )
-    else:
-        print("Error: First input file should be pickled hDAG or protobuf.")
-        sys.exit(1)
+    try:
+        if dag_file[-2:] == ".p":
+            with open(dag_file, "rb") as f:
+                dag = pickle.load(f)
+        elif dag_file[-3:] == ".pb":
+            dag = hdag.mutation_annotated_dag.load_MAD_protobuf_file(
+                dag_file, compact_genomes=True
+            )
+        else:
+            print("Error: First input file should be pickled hDAG or protobuf.")
+            sys.exit(1)
+    except (ValueError, Exception) as e:
+        # Handle corrupted or invalid DAG files
+        logger.log("EXTRACTION", f"Error loading DAG for {alignment_name}: {str(e)}")
+        print(f"WARNING: Skipping {alignment_name}: Invalid/corrupted DAG file", file=sys.stderr)
+        # Create empty output files to allow pipeline to continue
+        with open(dpvt_data_file, "wb") as f:
+            pickle.dump({}, f)
+        with open(num_children_file, "w") as f:
+            f.write("")
+        return
 
     logger.log("EXTRACTION", "DAG loaded successfully")
 

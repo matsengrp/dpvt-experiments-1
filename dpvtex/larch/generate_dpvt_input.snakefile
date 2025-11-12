@@ -17,6 +17,7 @@ dataset_name=config["dataset_name"]
 edge_distribution=config.get("edge_distribution", "constant")
 remove_site_patterns = config.get("remove_duplicate_site_patterns", False)
 balance_by_median_num_MP_trees = config.get("balance_by_median_num_MP_trees", True)  # Default to True - balance trees per alignment
+larch_timeout = config.get("larch_timeout", 1800)  # Default timeout: 1800 seconds (30 minutes)
 
 # Tree extraction parameters
 max_trees = config.get("max_trees", 200)  # Max trees to extract per alignment
@@ -53,13 +54,14 @@ if remove_site_patterns in [True, "True", "true"]:
 
 def get_subdirs(data_dir):
     """
-    Get subdirectories with input fasta files, excluding those with unequal sequence lengths.
+    Get subdirectories with input fasta files, excluding those with unequal sequence lengths
+    and those that timed out during larch processing.
 
     Checks for the presence of either input.fasta or input_no_dup_sites.fasta to determine
     if preprocessing has completed for a subdirectory.
 
-    Alignments with unequal sequence lengths cannot be processed, so they are automatically
-    filtered out if the exclusion list exists.
+    Alignments with unequal sequence lengths or larch timeouts cannot be processed,
+    so they are automatically filtered out if the exclusion lists exist.
     """
     subdirs_with_input = []
     for entry in os.scandir(data_dir):
@@ -71,21 +73,28 @@ def get_subdirs(data_dir):
             if os.path.isfile(input_fasta) or os.path.isfile(input_fasta_no_dup):
                 subdirs_with_input.append(entry.name)
 
-    # Path to the exclusion list
-    exclusion_file = os.path.join(data_dir, "unequal_length_alignments.txt")
-
-    # If the exclusion file doesn't exist yet, return all subdirs
-    if not os.path.exists(exclusion_file):
-        return subdirs_with_input
-
-    # Read the list of directories to exclude
+    # Collect excluded directories from multiple sources
     excluded_dirs = set()
-    with open(exclusion_file, 'r') as f:
-        for line in f:
-            line = line.strip()
-            # Skip comments and empty lines
-            if line and not line.startswith('#'):
-                excluded_dirs.add(line)
+
+    # Path to the unequal length exclusion list
+    exclusion_file = os.path.join(data_dir, "unequal_length_alignments.txt")
+    if os.path.exists(exclusion_file):
+        with open(exclusion_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                # Skip comments and empty lines
+                if line and not line.startswith('#'):
+                    excluded_dirs.add(line)
+
+    # Path to the timeout exclusion list
+    timeout_file = os.path.join(data_dir, "larch_timeout_alignments.txt")
+    if os.path.exists(timeout_file):
+        with open(timeout_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                # Skip comments and empty lines
+                if line and not line.startswith('#'):
+                    excluded_dirs.add(line)
 
     # Filter out excluded directories
     filtered_subdirs = [d for d in subdirs_with_input if d not in excluded_dirs]
@@ -112,7 +121,8 @@ rule preprocessing:
     shell:
         """
         cd {snakefile_dir}/setup_larch_inputs
-        snakemake --snakefile convert_fasta_to_larch_input.snakefile -d {params.input_dir} --cores 1 --config dup_sites_suffix="{params.dup_sites_suffix}"
+        snakemake --snakefile convert_fasta_to_larch_input.snakefile -d {params.input_dir} --cores 1 --config dup_sites_suffix="{params.dup_sites_suffix}" --rerun-incomplete --unlock
+        snakemake --snakefile convert_fasta_to_larch_input.snakefile -d {params.input_dir} --cores 1 --config dup_sites_suffix="{params.dup_sites_suffix}" --rerun-incomplete
         cd {snakefile_dir}
         """
 
@@ -125,22 +135,62 @@ rule run_larch:
     output:
         pb=input_data+"/{subdir}/larch-output" + dup_sites_suffix + ".pb"
     params:
-        log=input_data+"/{subdir}/log" + dup_sites_suffix
-    shell:
-        """
+        log=input_data+"/{subdir}/log" + dup_sites_suffix,
+        timeout=larch_timeout,
+        timeout_file=input_data+"/larch_timeout_alignments.txt",
+        subdir="{subdir}"
+    run:
+        import subprocess
+        import sys
+        from dpvtex.larch.scripts.pipeline_logger import get_logger
+
+        logger = get_logger(input_data)
+
+        # Build the shell command
+        shell_cmd = f"""
         set -e
-        # Enable alias expansion in non-interactive shell
-        shopt -s expand_aliases
-        # Load only alias definitions from bashrc (avoiding interactive-only configurations)
-        if [ -f ~/.bash_aliases ]; then
-            source ~/.bash_aliases
-        elif [ -f ~/.bashrc ]; then
-            # Extract only alias definitions to avoid interactive shell issues
-            source <(grep "^alias" ~/.bashrc)
-        fi
-        # Run larch
-        {larch_command} -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
+        # Run larch with timeout
+        timeout {params.timeout} {larch_command} -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
         """
+
+        try:
+            result = subprocess.run(
+                shell_cmd,
+                shell=True,
+                executable='/bin/bash',
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode == 124:  # timeout command returns 124 on timeout
+                # Log the timeout
+                logger.log("LARCH_TIMEOUT", f"Larch timed out after {params.timeout} seconds for alignment: {params.subdir}")
+                print(f"WARNING: Larch timed out for {params.subdir}. Excluding from pipeline.", file=sys.stderr)
+
+                # Append to timeout file so it's excluded from downstream processing
+                with open(params.timeout_file, 'a') as f:
+                    f.write(f"{params.subdir}\n")
+
+                # Create an empty output file so the rule succeeds (but downstream will skip it)
+                with open(output.pb, 'w') as f:
+                    f.write("")  # Empty file as marker
+
+            elif result.returncode != 0:
+                # Other error - log it
+                logger.log("LARCH_ERROR", f"Larch failed with return code {result.returncode} for alignment: {params.subdir}")
+                logger.log("LARCH_ERROR", f"STDERR: {result.stderr}")
+                print(f"WARNING: Larch failed for {params.subdir}. Excluding from pipeline.", file=sys.stderr)
+
+                # Create empty output to allow pipeline to continue
+                with open(output.pb, 'w') as f:
+                    f.write("")
+        except Exception as e:
+            # Log unexpected errors but don't crash
+            logger.log("LARCH_ERROR", f"Unexpected error for {params.subdir}: {str(e)}")
+            print(f"WARNING: Unexpected error for {params.subdir}: {str(e)}", file=sys.stderr)
+            # Create empty output to allow pipeline to continue
+            with open(output.pb, 'w') as f:
+                f.write("")
 
 
 rule extract_dpvt_data:

@@ -83,7 +83,7 @@ rule all:
     input:
         input_data+"/unequal_length_check.done",
         input_data+"/alignment_size_stats" + dup_sites_suffix + ".csv",
-        # input_fasta=input_data+"/{subdir}/input" + dup_sites_suffix + ".fasta"
+        input_fasta=expand(input_data+"/{subdir}/input" + dup_sites_suffix + ".fasta", subdir=ALL_SUBDIRS),
 
 # First rule: check for unequal lengths and report them
 # This doesn't block processing - it just creates a report

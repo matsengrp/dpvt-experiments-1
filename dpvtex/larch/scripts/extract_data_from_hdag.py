@@ -364,7 +364,10 @@ def extract_data_from_hdag(
 
     # Check if the file is empty (happens when larch times out or fails)
     if os.path.getsize(dag_file) == 0:
-        logger.log("EXTRACTION", f"Skipping {alignment_name}: Empty DAG file (likely larch timeout/failure)")
+        logger.log(
+            "EXTRACTION",
+            f"Skipping {alignment_name}: Empty DAG file (likely larch timeout/failure)",
+        )
         print(f"WARNING: Skipping {alignment_name}: Empty DAG file", file=sys.stderr)
         # Create empty output files to allow pipeline to continue
         with open(dpvt_data_file, "wb") as f:
@@ -388,7 +391,10 @@ def extract_data_from_hdag(
     except (ValueError, Exception) as e:
         # Handle corrupted or invalid DAG files
         logger.log("EXTRACTION", f"Error loading DAG for {alignment_name}: {str(e)}")
-        print(f"WARNING: Skipping {alignment_name}: Invalid/corrupted DAG file", file=sys.stderr)
+        print(
+            f"WARNING: Skipping {alignment_name}: Invalid/corrupted DAG file",
+            file=sys.stderr,
+        )
         # Create empty output files to allow pipeline to continue
         with open(dpvt_data_file, "wb") as f:
             pickle.dump({}, f)

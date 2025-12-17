@@ -115,7 +115,7 @@ def test_get_MP_trees_from_hdag():
     # flag unlabel=True
     dag = create_test_hdag()
     [tree1, tree2] = create_test_trees()
-    trees_from_dag = get_MP_trees_from_hdag(dag, 3, unlabel=True)
+    trees_from_dag = get_MP_trees_from_hdag(dag, max_trees=3, unlabel=True)
     if len(trees_from_dag) != 2:
         raise ValueError("DAG contains more than 2 trees")
     assert (

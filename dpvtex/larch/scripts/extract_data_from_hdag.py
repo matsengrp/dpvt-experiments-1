@@ -22,29 +22,32 @@ from dpvtex.larch.scripts.tree_perturbation import (
 )
 
 
-def get_MP_trees_from_hdag(dag, num_trees, unlabel=True):
+def get_MP_trees_from_hdag(dag, max_trees, unlabel=True):
     """
-    Samples num_trees uniformly from input historydag dag without replacement
+    Samples up to max_trees uniformly from input historydag dag without replacement.
+
     Args:
-        dag: compact genome historydag without ambiguous sequences num_trees:
-        int - number of trees to sample unlabel: if true, we unlabel the DAG and
-        then only sample each topology
+        dag: compact genome historydag without ambiguous sequences
+        max_trees: Maximum number of trees to sample. Actual count returned may be
+            less if the DAG contains fewer topologies than requested.
+        unlabel: if true, we unlabel the DAG and then only sample each topology
             once. This needs to be used with care if the input dag has ambiguous
             sequences.
+
     Returns:
-        list of ete trees
+        list of ete trees (may contain fewer than max_trees if DAG has fewer topologies)
     """
     if unlabel:
         dag = dag.unlabel()
     dag.uniform_distribution_annotate()
     # Only call memory_safe_count_topologies once
     dag_num_topologies = memory_safe_count_topologies(dag)
-    num_samples = min(num_trees, dag_num_topologies)
-    if num_samples != num_trees:
+    num_samples = min(max_trees, dag_num_topologies)
+    if num_samples != max_trees:
         print(
             "Not enough trees in DAG to sample",
-            num_trees,
-            "trees. Sample",
+            max_trees,
+            "trees. Sampling",
             num_samples,
             "trees instead.",
         )
@@ -186,7 +189,7 @@ def assign_edge_labels(modified_tree, tree, dag_clades):
 def get_non_dag_edges(
     dag,
     num_children_file,
-    num_trees=0,
+    max_trees=0,
     edge_distribution="constant",
     max_spr_moves=100,
     max_perturbation_attempts=100,
@@ -194,14 +197,14 @@ def get_non_dag_edges(
     target_non_mp_proportion=1 / 6,
 ):
     """
-    Perturbs trees in tree_list to create num_trees perturbed trees containing
-    edges that are not present in the given dag.
+    Perturbs trees to create perturbed trees containing edges not present in the given dag.
 
     Args:
         dag: sequence_dag representing the history DAG
         num_children_file: File path to write number of children per node in each tree
-        num_trees: Number of trees to return. If 0, returns as many trees as
-            there are MP trees in the DAG
+        max_trees: Maximum number of trees to return. Actual count may be less if
+            the DAG contains fewer topologies. If 0, returns as many trees as
+            there are MP trees in the DAG (capped by available topologies).
         edge_distribution: Strategy for introducing non-MP edges:
             - "constant": perform num_leaves/spr_move_divisor (max max_spr_moves) SPR moves
             - "uniform": draw number of SPR moves from [0, min(num_leaves, max_spr_moves)]
@@ -221,7 +224,7 @@ def get_non_dag_edges(
     """
     # Extract MP trees and clades from hDAG
     print("Start extracting MP trees from hDAG")
-    mp_trees = get_MP_trees_from_hdag(dag, num_trees, unlabel=True)
+    mp_trees = get_MP_trees_from_hdag(dag, max_trees, unlabel=True)
     print(f"Extracted {len(mp_trees)} trees from hDAG")
 
     print("Start extracting clades from hDAG")
@@ -257,8 +260,8 @@ def get_non_dag_edges(
 
             tree_to_label_dict[modified_tree] = edge_labels
 
-    if len(tree_to_label_dict) < num_trees:
-        print(f"Produced {len(tree_to_label_dict)} trees instead of {num_trees}")
+    if len(tree_to_label_dict) < max_trees:
+        print(f"Produced {len(tree_to_label_dict)} trees (requested max: {max_trees})")
 
     return tree_to_label_dict
 

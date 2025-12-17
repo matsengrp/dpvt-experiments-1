@@ -7,11 +7,8 @@ from dpvtex.larch.scripts.tree_perturbation import (
     increase_tree_parsimony,
     sankoff_for_missing_sequences,
     perturb_tree,
-<<<<<<< HEAD
     spr_move,
     make_worse_spr,
-=======
->>>>>>> 423d3be (refactoring)
 )
 
 
@@ -229,7 +226,6 @@ def test_increase_tree_parsimony_edge_cases():
         assert "Depth must be at least 1" in str(e)
 
 
-<<<<<<< HEAD
 def test_spr_move():
     """Test SPR (Subtree Pruning and Regrafting) move."""
     tree1 = Tree("((((1,2),3),4),5);")
@@ -282,8 +278,6 @@ def test_make_worse_spr():
         assert parsimony_score(worse_tree_strict) > original_score
 
 
-=======
->>>>>>> 423d3be (refactoring)
 if __name__ == "__main__":
     # Run tests manually if needed
     test_increase_tree_parsimony_basic()
@@ -296,4 +290,6 @@ if __name__ == "__main__":
     test_increase_tree_parsimony_with_longer_sequences()
     test_increase_tree_parsimony_with_8_leaves()
     test_increase_tree_parsimony_edge_cases()
+    test_spr_move()
+    test_make_worse_spr()
     print("All tests passed!")

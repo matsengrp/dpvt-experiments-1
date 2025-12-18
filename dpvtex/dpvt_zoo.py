@@ -54,18 +54,18 @@ def get_trained_model_str(model_name, train_data_name, param_id):
         str: A formatted string representing the trained model path.
     """
     model = f"{model_name}-{train_data_name}"
-    if param_id != None:
+    if param_id is not None:
         model = f"{model_name}-{train_data_name}-{param_id}"
-    if train_data_name == None:
+    if train_data_name is None:
         model = f"{model_name}"
     return model
 
 
 def get_tested_model_str(model_name, train_data_name, test_data_name, param_id):
     model = f"{model_name}-{train_data_name}-ON-{test_data_name}"
-    if param_id != None:
+    if param_id is not None:
         model = f"{model_name}-{train_data_name}-ON-{test_data_name}-{param_id}"
-    elif train_data_name == None:
+    elif train_data_name is None:
         # No training data implies no param_id
         model = f"{model_name}-ON-{test_data_name}"
     return model

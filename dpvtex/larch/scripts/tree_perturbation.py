@@ -654,15 +654,15 @@ def perturb_tree_with_spr(tree, edge_distribution, tree_index, total_trees, max_
     return perturbed_tree
 
 
-def perturb_tree_with_subtree_replacement(tree, original_tree, dag_clades, max_perturbation_attempts, target_non_mp_proportion):
+def perturb_tree_with_subtree_replacement(tree, original_tree, dag_clades, subtree_max_attempts, subtree_target_non_mp_proportion):
     """Perturb a tree by replacing random subtrees until target proportion of non-MP edges.
 
     Args:
         tree: ete3 Tree to perturb
         original_tree: Original unperturbed tree for edge label comparison
         dag_clades: Clades extracted from the hDAG
-        max_perturbation_attempts: Maximum number of perturbation attempts
-        target_non_mp_proportion: Target proportion of non-MP edges
+        subtree_max_attempts: Maximum number of subtree replacement attempts
+        subtree_target_non_mp_proportion: Target proportion of non-MP edges
 
     Returns:
         tuple: (perturbed_tree, edge_labels)
@@ -674,7 +674,7 @@ def perturb_tree_with_subtree_replacement(tree, original_tree, dag_clades, max_p
     depth = int(tree_d // 2)
     modified_tree = tree.copy()
 
-    for attempt in range(max_perturbation_attempts):
+    for attempt in range(subtree_max_attempts):
         perturbed = increase_tree_parsimony(modified_tree, depth)
         if perturbed is not None:
             modified_tree = perturbed
@@ -682,7 +682,7 @@ def perturb_tree_with_subtree_replacement(tree, original_tree, dag_clades, max_p
         edge_labels = assign_edge_labels(modified_tree, original_tree, dag_clades)
         non_mp_proportion = sum(edge_labels) / len(edge_labels)
 
-        if non_mp_proportion >= target_non_mp_proportion:
+        if non_mp_proportion >= subtree_target_non_mp_proportion:
             # Target achieved: ~1/6 of edges are non-MP
             # (len(edge_labels) ≈ 2 * internal edges, so we're aiming for ~1/3 non-MP internal edges)
             break

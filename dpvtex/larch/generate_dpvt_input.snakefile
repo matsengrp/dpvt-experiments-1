@@ -23,6 +23,13 @@ dataset_name=config["dataset_name"]
 edge_distribution=config.get("edge_distribution", "constant")
 remove_site_patterns = config.get("remove_duplicate_site_patterns", False)
 
+# Tree extraction parameters
+max_trees = config.get("max_trees", 200)  # Max trees to extract per alignment
+max_spr_moves = config.get("max_spr_moves", 100)  # Max SPR moves per tree
+spr_move_divisor = config.get("spr_move_divisor", 10)  # Divisor for constant SPR distribution
+subtree_max_attempts = config.get("subtree_max_attempts", 100)  # Max attempts for subtree replacement
+subtree_target_non_mp_proportion = config.get("subtree_target_non_mp_proportion", 1/6)  # Target non-MP edge proportion
+
 
 # Define suffixes based on edge_distribution
 if edge_distribution == "constant":
@@ -108,7 +115,19 @@ rule extract_dpvt_data:
         data=input_data+"/{subdir}/{subdir}" + dup_sites_suffix + pickle_suffix,
         num_children_file=input_data+"/{subdir}/num_children_dag_trees" + dup_sites_suffix + csv_suffix
     run:
-        extract_data_from_hdag(input.pb, output.data, output.num_children_file, edge_distribution)
+        logger = get_logger(input_data)
+        extract_data_from_hdag(
+            input.pb,
+            output.data,
+            output.num_children_file,
+            edge_distribution=edge_distribution,
+            logger=logger,
+            max_trees=max_trees,
+            max_spr_moves=max_spr_moves,
+            spr_move_divisor=spr_move_divisor,
+            subtree_max_attempts=subtree_max_attempts,
+            subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
+        )
 
 
 rule aggregate_training_data:

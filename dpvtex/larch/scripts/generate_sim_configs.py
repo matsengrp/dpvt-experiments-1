@@ -9,6 +9,11 @@ def generate_sim_config_files(
     num_algnmnts,
     edge_distribution="constant",
     remove_duplicate_site_patterns=False,
+    max_trees=200,
+    max_spr_moves=100,
+    spr_move_divisor=10,
+    subtree_max_attempts=100,
+    subtree_target_non_mp_proportion=1/6,
 ):
     """
     Generate config files for running the larch pipeline to generate
@@ -45,6 +50,12 @@ def generate_sim_config_files(
         "num_cores": 2,
         "edge_distribution": edge_distribution,
         "remove_duplicate_site_patterns": remove_duplicate_site_patterns,
+        # Tree extraction parameters
+        "max_trees": max_trees,
+        "max_spr_moves": max_spr_moves,
+        "spr_move_divisor": spr_move_divisor,
+        "subtree_max_attempts": subtree_max_attempts,
+        "subtree_target_non_mp_proportion": subtree_target_non_mp_proportion,
     }
 
     # Create filename for the config
@@ -89,6 +100,37 @@ def main():
         default="False",
         help="Remove duplicate site patterns from alignments (default: False)",
     )
+    # Tree extraction parameters
+    parser.add_argument(
+        "--max_trees",
+        type=int,
+        default=200,
+        help="Maximum trees to extract per alignment (default: 200)",
+    )
+    parser.add_argument(
+        "--max_spr_moves",
+        type=int,
+        default=100,
+        help="Maximum SPR moves per tree (default: 100)",
+    )
+    parser.add_argument(
+        "--spr_move_divisor",
+        type=int,
+        default=10,
+        help="Divisor for constant SPR distribution (default: 10)",
+    )
+    parser.add_argument(
+        "--subtree_max_attempts",
+        type=int,
+        default=100,
+        help="Maximum attempts for subtree replacement (default: 100)",
+    )
+    parser.add_argument(
+        "--subtree_target_non_mp_proportion",
+        type=float,
+        default=1/6,
+        help="Target non-MP edge proportion for subtree replacement (default: 1/6)",
+    )
     args = parser.parse_args()
     generate_sim_config_files(
         args.num_sequences,
@@ -96,6 +138,11 @@ def main():
         args.num_algnmnts,
         args.edge_distribution,
         args.remove_duplicate_site_patterns,
+        args.max_trees,
+        args.max_spr_moves,
+        args.spr_move_divisor,
+        args.subtree_max_attempts,
+        args.subtree_target_non_mp_proportion,
     )
 
 

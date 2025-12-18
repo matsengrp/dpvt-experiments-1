@@ -192,9 +192,9 @@ def get_non_dag_edges(
     max_trees=0,
     edge_distribution="constant",
     max_spr_moves=100,
-    max_perturbation_attempts=100,
+    subtree_max_attempts=100,
     spr_move_divisor=4,
-    target_non_mp_proportion=1 / 6,
+    subtree_target_non_mp_proportion=1 / 6,
 ):
     """
     Perturbs trees to create perturbed trees containing edges not present in the given dag.
@@ -214,9 +214,9 @@ def get_non_dag_edges(
               * 1/4 trees with uniform SPR moves
             - "random_subtree": replace random subtree of depth d/2
         max_spr_moves: Maximum number of SPR moves to perform (default: 100)
-        max_perturbation_attempts: Maximum attempts for random_subtree perturbation (default: 100)
+        subtree_max_attempts: Maximum attempts for random_subtree perturbation (default: 100)
         spr_move_divisor: Divisor for constant edge distribution (default: 4)
-        target_non_mp_proportion: Target proportion of non-MP edges for random_subtree (default: 1/6)
+        subtree_target_non_mp_proportion: Target proportion of non-MP edges for random_subtree (default: 1/6)
 
     Returns:
         dict: Dictionary with ete3 trees as keys and edge label lists as values,
@@ -249,12 +249,21 @@ def get_non_dag_edges(
             # Perturb tree based on edge distribution strategy
             if edge_distribution == "random_subtree":
                 modified_tree, edge_labels = perturb_tree_with_subtree_replacement(
-                    tree, tree, dag_clades, max_perturbation_attempts, target_non_mp_proportion
+                    tree,
+                    tree,
+                    dag_clades,
+                    subtree_max_attempts,
+                    subtree_target_non_mp_proportion,
                 )
             else:
                 # Use SPR-based perturbation
                 modified_tree = perturb_tree_with_spr(
-                    tree, edge_distribution, index, len(mp_trees), max_spr_moves, spr_move_divisor
+                    tree,
+                    edge_distribution,
+                    index,
+                    len(mp_trees),
+                    max_spr_moves,
+                    spr_move_divisor,
                 )
                 edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
 
@@ -308,16 +317,33 @@ def memory_safe_count_topologies(dag, max_time=10):
 
 
 def extract_data_from_hdag(
-    dag_file, dpvt_data_file, num_children_file, edge_distribution="constant"
+    dag_file,
+    dpvt_data_file,
+    num_children_file,
+    edge_distribution="constant",
+    logger=None,
+    max_trees=200,
+    max_spr_moves=100,
+    spr_move_divisor=10,
+    subtree_max_attempts=100,
+    subtree_target_non_mp_proportion=1 / 6,
 ):
     """
     Extracts dpvt data from a history DAG and saves it to a file.
+
     Args:
         dag_file (str): Path to the history DAG file.
         dpvt_data_file (str): Path to save the DPVT data.
         num_children_file (str): Path to save the number of children data.
         edge_distribution (str): Method for introducing non-MP edges. Options:
             "constant", "uniform", "treesearch_mimic", "random_subtree"
+        logger (PipelineLogger): Logger for tracking operations
+        max_trees (int): Maximum number of trees to extract from DAG (default: 200)
+        max_spr_moves (int): Maximum SPR moves per tree (default: 100)
+        spr_move_divisor (int): Divisor for constant SPR distribution (default: 10)
+        subtree_max_attempts (int): Max attempts for subtree replacement (default: 100)
+        subtree_target_non_mp_proportion (float): Target non-MP edge proportion for
+            subtree replacement (default: 1/6)
     """
     print("Start reading DAG")
     if dag_file[-2:] == ".p":
@@ -339,13 +365,23 @@ def extract_data_from_hdag(
     dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
     print("Done converting DAG to sequence_dag")
     dag.unlabel()
-    print("Start counting DAG topologies")
-    num_topologies = min(memory_safe_count_topologies(dag), 200)
-    print("Number of topologies in DAG:", num_topologies)
-    print("Done counting DAG topologies")
+
+    logger.log("EXTRACTION", "Counting DAG topologies (max 10s timeout)")
+    num_topologies = min(memory_safe_count_topologies(dag), max_trees)
+    logger.log(
+        "EXTRACTION",
+        f"Number of topologies in DAG: {num_topologies} (capped at {max_trees})",
+    )
 
     tree_label_dict = get_non_dag_edges(
-        dag, num_children_file, num_topologies, edge_distribution
+        dag,
+        num_children_file,
+        max_trees=num_topologies,
+        edge_distribution=edge_distribution,
+        max_spr_moves=max_spr_moves,
+        spr_move_divisor=spr_move_divisor,
+        subtree_max_attempts=subtree_max_attempts,
+        subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
     )
     with open(dpvt_data_file, "wb") as f:
         pickle.dump(tree_label_dict, f)

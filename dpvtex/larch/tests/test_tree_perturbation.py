@@ -224,6 +224,58 @@ def test_increase_tree_parsimony_edge_cases():
         assert "Depth must be at least 1" in str(e)
 
 
+def test_spr_move():
+    """Test SPR (Subtree Pruning and Regrafting) move."""
+    tree1 = Tree("((((1,2),3),4),5);")
+    tree2 = Tree("((((1,2),4),3),5);")
+    tree3 = Tree("(((1,2),(3,4)),5);")
+    node1 = tree1.search_nodes(name="1")[0].up
+    node2 = tree1.search_nodes(name="4")[0]
+    new_tree2 = spr_move(tree1, node1, node2)
+
+    node1 = tree1.search_nodes(name="4")[0]
+    node2 = tree1.search_nodes(name="3")[0]
+    new_tree3 = spr_move(tree1, node2, node1)
+
+    # impossible SPR move on sister edges
+    node1 = tree3.search_nodes(name="3")[0]
+    node2 = tree3.search_nodes(name="4")[0]
+    try:
+        new_tree4 = spr_move(tree3, node1, node2)
+    except:
+        new_tree4 = None
+
+    assert (
+        new_tree2.robinson_foulds(tree2)[0] == 0
+        and new_tree3.robinson_foulds(tree3)[0] == 0
+        and new_tree4 is None
+    )
+
+
+def test_make_worse_spr():
+    """Test that make_worse_spr produces a tree with higher parsimony score.
+
+    The function is stochastic and may return None if no worse tree is found
+    (when efficient=False). We test that when a tree is returned, it has
+    equal or higher parsimony score than the original.
+    """
+    tree = Tree("((((AAG,ACT),AGT),CCG),CGG);")
+    for node in tree:
+        node.add_feature("sequence", node.name)
+    sankoff_for_missing_sequences(tree)
+    original_score = parsimony_score(tree)
+
+    # With efficient=True (default), the function always returns a tree
+    worse_tree = make_worse_spr(tree, max_sprs=2, efficient=True)
+    assert worse_tree is not None, "With efficient=True, should always return a tree"
+    assert parsimony_score(worse_tree) >= original_score
+
+    # With efficient=False, may return None if no worse tree found
+    worse_tree_strict = make_worse_spr(tree, max_sprs=2, efficient=False)
+    if worse_tree_strict is not None:
+        assert parsimony_score(worse_tree_strict) > original_score
+
+
 if __name__ == "__main__":
     # Run tests manually if needed
     test_increase_tree_parsimony_basic()

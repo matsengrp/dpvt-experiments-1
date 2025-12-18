@@ -478,9 +478,9 @@ def spr_move(tree, node1, node2):
     return new_tree
 
 
-def make_worse_spr(input_tree, num_sprs, efficient=True):
+def make_worse_spr(input_tree, max_sprs, efficient=True):
     """
-    Peform a at least num_sprs random SPR move on input tree to create tree
+    Peform at least max_sprs random SPR moves on input tree to create tree
     with higher parsimony score.
     If the keyword efficient is set to True, the function will not check
     parsimony score of the new tree. This is faster, but the resulting tree
@@ -488,7 +488,7 @@ def make_worse_spr(input_tree, num_sprs, efficient=True):
     Arguments:
         tree: ete3.Tree
             Input tree to be perturbed
-        num_sprs: int
+        max_sprs: int
             Number of SPR moves to perform
         efficient: bool
             If True, perform moves without checking parsimony
@@ -496,7 +496,7 @@ def make_worse_spr(input_tree, num_sprs, efficient=True):
     tree = copy.deepcopy(input_tree)
     sankoff_for_missing_sequences(tree)
     any(node.add_feature("random_tree", False) for node in tree.traverse())
-    for i in range(num_sprs):
+    for i in range(max_sprs):
         random.seed()
         # we cannot prune children or grandchildren of root
         # also avoid moving leaves, as that doesn't change MP edge to non-MP edge

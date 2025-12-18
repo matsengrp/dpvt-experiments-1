@@ -79,7 +79,169 @@ def extract_trees_and_labels(data_dir, edge_distribution="constant"):
 
                     all_trees_dict.update(this_alignment_dict)
 
-    # split data into training/validation and testing set. We split 80/20
+
+def _count_trees_per_alignment(pickle_files):
+    """Count the number of trees in each alignment pickle file.
+
+    Returns:
+        Dict mapping dataset_name to tree count
+    """
+    alignment_tree_counts = {}
+    for file_path, dataset_name in pickle_files:
+        this_alignment_dict = _get_dict(file_path)
+        # Skip None or empty dictionaries (from larch timeouts/failures)
+        if this_alignment_dict is not None and len(this_alignment_dict) > 0:
+            alignment_tree_counts[dataset_name] = len(this_alignment_dict)
+    return alignment_tree_counts
+
+
+def _compute_data_properties(alignment_dict):
+    """Compute properties for a single alignment's tree dictionary.
+
+    Returns:
+        List of [num_trees, num_leaves, num_MP_edges, num_non_MP_edges]
+    """
+    num_trees = len(alignment_dict)
+    num_leaves = len(list(alignment_dict.keys())[0])
+    num_MP_edges = sum(
+        edge_labels.count(0) - (len(edge_labels)) / 2
+        for edge_labels in alignment_dict.values()
+    )
+    num_non_MP_edges = sum(
+        edge_labels.count(1) for edge_labels in alignment_dict.values()
+    )
+    return [num_trees, num_leaves, num_MP_edges, num_non_MP_edges]
+
+
+def _load_and_balance_trees(
+    pickle_files, median_trees, balance_by_median_num_MP_trees, logger
+):
+    """Load trees from pickle files and apply balancing if enabled.
+
+    Returns:
+        Tuple of (all_trees_dict, data_props, subsampled_alignments, trees_removed)
+    """
+    all_trees_dict = {}
+    data_props = {}
+    subsampled_alignments = []
+    trees_removed = 0
+
+    for file_path, dataset_name in pickle_files:
+        this_alignment_dict = _get_dict(file_path)
+        # Skip None or empty dictionaries (from larch timeouts/failures)
+        if this_alignment_dict is None or len(this_alignment_dict) == 0:
+            continue
+
+        original_count = len(this_alignment_dict)
+
+        # Apply balancing if enabled
+        if balance_by_median_num_MP_trees and original_count > median_trees:
+            target_count = ceil(median_trees)
+            sampled_items = random.sample(
+                list(this_alignment_dict.items()), target_count
+            )
+            this_alignment_dict = dict(sampled_items)
+
+            trees_removed += original_count - target_count
+            subsampled_alignments.append(
+                {
+                    "alignment": dataset_name,
+                    "original": original_count,
+                    "sampled": target_count,
+                    "removed": original_count - target_count,
+                }
+            )
+
+            logger.log(
+                "AGGREGATION",
+                f"  {dataset_name}: {original_count} → {target_count} trees (removed {original_count - target_count})",
+            )
+
+        # Compute data properties (using final tree count after balancing)
+        data_props[dataset_name] = _compute_data_properties(this_alignment_dict)
+
+        # Add to final dictionary
+        all_trees_dict.update(this_alignment_dict)
+
+    return all_trees_dict, data_props, subsampled_alignments, trees_removed
+
+
+def _log_balancing_summary(
+    logger, subsampled_alignments, trees_removed, total_trees_after
+):
+    """Log the summary of balancing operations."""
+    logger.log_section("AGGREGATION", "Balancing Summary")
+    logger.log("AGGREGATION", f"Alignments subsampled: {len(subsampled_alignments)}")
+    logger.log("AGGREGATION", f"Total trees removed: {trees_removed}")
+    logger.log("AGGREGATION", f"Total trees after balancing: {total_trees_after}")
+
+    logger.log("AGGREGATION", "\nSubsampled alignments:")
+    for info in subsampled_alignments:
+        logger.log(
+            "AGGREGATION",
+            f"  {info['alignment']}: {info['original']} → {info['sampled']} trees",
+        )
+
+
+def extract_trees_and_labels(
+    data_dir,
+    edge_distribution="constant",
+    balance_by_median_num_MP_trees=True,
+    logger=None,
+):
+    """Extracts trees and labels from .p files in the given directory.
+
+    Args:
+        data_dir (str): Directory containing .p files.
+        edge_distribution (str): Type of edge distribution ("constant", "uniform", "treesearch_mimic", "random_subtree")
+        balance_by_median_num_MP_trees (bool): If True, subsample alignments with more than median trees to balance dataset.
+        logger (PipelineLogger): Logger for tracking operations.
+
+    Returns:
+        tuple: A tuple containing:
+            - trees (list): List of trees.
+            - labels (list): List of labels.
+            - all_trees_dict (dict): Dictionary containing all trees.
+            - data_props (dict): Dictionary containing properties of datasets.
+    """
+    # Collect all pickle files
+    expected_suffix = _get_expected_suffix(edge_distribution)
+    pickle_files = _collect_pickle_files(data_dir, expected_suffix)
+
+    logger.log("AGGREGATION", f"Found {len(pickle_files)} pickle files to process")
+    logger.log_section("AGGREGATION", "Pass 1: Counting trees per alignment")
+
+    # PASS 1: Count trees per alignment
+    alignment_tree_counts = _count_trees_per_alignment(pickle_files)
+    median_trees = median(alignment_tree_counts.values())
+    total_trees_before = sum(alignment_tree_counts.values())
+
+    logger.log("AGGREGATION", f"Total alignments: {len(alignment_tree_counts)}")
+    logger.log("AGGREGATION", f"Median trees per alignment: {median_trees}")
+    logger.log("AGGREGATION", f"Total trees before balancing: {total_trees_before}")
+    if balance_by_median_num_MP_trees:
+        logger.log(
+            "AGGREGATION",
+            "Balancing enabled - will subsample alignments with > median trees",
+        )
+    else:
+        logger.log("AGGREGATION", "Balancing disabled - using all trees")
+
+    # PASS 2: Load and aggregate trees (with optional balancing)
+    logger.log_section("AGGREGATION", "Pass 2: Loading and aggregating trees")
+
+    all_trees_dict, data_props, subsampled_alignments, trees_removed = (
+        _load_and_balance_trees(
+            pickle_files, median_trees, balance_by_median_num_MP_trees, logger
+        )
+    )
+
+    # Log balancing summary
+    if balance_by_median_num_MP_trees:
+        _log_balancing_summary(
+            logger, subsampled_alignments, trees_removed, len(all_trees_dict)
+        )
+
     trees = list(all_trees_dict.keys())
     labels = list(all_trees_dict.values())
     return trees, labels, all_trees_dict, data_props

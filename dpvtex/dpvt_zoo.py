@@ -18,15 +18,22 @@ import numpy as np
 
 from lightning.pytorch.callbacks import Callback
 from torch.utils.tensorboard import SummaryWriter
-
-torch.set_num_threads(1)
 from pytorch_lightning import seed_everything
 
-# seed_everything(42, workers=True)
-torch.set_default_dtype(torch.float64)  # Set default to float64 for higher precision
+
+def configure_torch(num_threads=1, dtype=torch.float64):
+    """Configure torch settings. Call this before training/testing."""
+    torch.set_num_threads(num_threads)
+    torch.set_default_dtype(dtype)
 
 
-todays_date = datetime.now().strftime("%Y-%m-%d")
+def get_timestamp():
+    """Get current date as timestamp string."""
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+# Apply default configuration on import for backwards compatibility
+configure_torch()
 
 
 def build_model(model_name):
@@ -364,7 +371,7 @@ def optimize_hyperparameters(
     device,
     profiling=False,
     n_trials=100,
-    timestamp=str(todays_date),
+    timestamp=None,
     param_id=None,
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
@@ -373,6 +380,8 @@ def optimize_hyperparameters(
     Creates a model in class `model_name` and optimizes its hyperparameters on data `data_name`.
     The best hyperparameters are saved to `best_model_hparams_filepath`.
     """
+    if timestamp is None:
+        timestamp = get_timestamp()
     dir_dict, path_dict = build_paths_dict(
         model_name=model_name,
         train_data_name=data_name,
@@ -411,7 +420,7 @@ def train_model(
     device,
     hyperparameter_path,
     profiling=False,
-    timestamp=str(todays_date),
+    timestamp=None,
     param_id=None,
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
@@ -420,6 +429,8 @@ def train_model(
     """
     Creates a model in class `model_name` and trains it on data `data_name`.
     """
+    if timestamp is None:
+        timestamp = get_timestamp()
     dir_dict, path_dict = build_paths_dict(
         model_name=model_name,
         train_data_name=data_name,
@@ -468,7 +479,7 @@ def continue_train_model(
     feature_length=32,
     dim_mlp_layers=32,
     train_checkpoint=None,
-    timestamp=str(todays_date),
+    timestamp=None,
     param_id=None,
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
@@ -478,6 +489,8 @@ def continue_train_model(
     Loads a model in class `model_name` that was previously trained on `data_name`, and
     continue training it.
     """
+    if timestamp is None:
+        timestamp = get_timestamp()
     dir_dict, path_dict = build_paths_dict(
         model_name=model_name,
         train_data_name=data_name,
@@ -535,7 +548,7 @@ def test_model(
     device,
     hyperparameter_path,
     accum_grad_batches=1,
-    timestamp=str(todays_date),
+    timestamp=None,
     param_id=None,
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
@@ -546,6 +559,8 @@ def test_model(
     it from checkpoint `trained_model_ckpt` and tests it on `test_data_name` dataset
     and saves trained model to checkpoint `test_checkpoint`.
     """
+    if timestamp is None:
+        timestamp = get_timestamp()
     dir_dict, path_dict = build_paths_dict(
         model_name=trained_model_name,
         train_data_name=train_data_name,
@@ -592,7 +607,7 @@ def test_baseline_model(
     model_name,
     test_data_name,
     result_path,
-    timestamp=str(todays_date),
+    timestamp=None,
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
     **wrap_kwargs,
@@ -612,6 +627,8 @@ def test_baseline_model(
     Returns:
         Test results
     """
+    if timestamp is None:
+        timestamp = get_timestamp()
     # Build model based on name
     model = build_model(model_name)
     device = "cpu"  # Always use CPU for baseline models

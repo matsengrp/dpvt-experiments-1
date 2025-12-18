@@ -227,10 +227,13 @@ def populate(
 
 
 def tree_depth(node):
-    """
-    Returns the depth of the tree with the given node as the root. This depth is
-    the number of nodes along the longest path from the given node to a leaf
-    node.
+    """Calculate the depth of a tree from the given node.
+
+    Args:
+        node: ete3 tree node to use as the root.
+
+    Returns:
+        int: Number of nodes along the longest path from node to a leaf.
     """
     if node.is_leaf():
         return 1
@@ -241,7 +244,15 @@ def tree_depth(node):
 
 
 def _edge_distance(node1, node2):
-    """Returns the number of edges between the nodes."""
+    """Calculate the number of edges between two nodes in a tree.
+
+    Args:
+        node1: First ete3 tree node.
+        node2: Second ete3 tree node.
+
+    Returns:
+        int: Number of edges on the path between node1 and node2.
+    """
     return _get_distance(node1, node2, topology_only=True) + 1
 
 
@@ -273,10 +284,14 @@ def sankoff_for_missing_sequences(tree):
 
 
 def root_and_outgroup_leaf(tree, leaf):
-    """
-    Re-root tree by setting given leaf as root with its only child being the
-    previous root. Args:
-        tree: ete3 tree leaf: leaf in given tree
+    """Re-root tree by setting given leaf as root.
+
+    The leaf becomes the root node, with its only child being the previous root.
+    The leaf's name and sequence are copied to the new root.
+
+    Args:
+        tree: ete3 tree to re-root.
+        leaf: Leaf node in the tree to use as the new root.
     """
     tree.set_outgroup(leaf)
     leaf.detach()
@@ -572,7 +587,9 @@ def calculate_spr_count_constant(num_leaves, max_spr_moves, spr_move_divisor):
     return min(num_leaves // spr_move_divisor, max_spr_moves)
 
 
-def calculate_spr_count_treesearch_mimic(num_leaves, tree_index, total_trees, max_spr_moves):
+def calculate_spr_count_treesearch_mimic(
+    num_leaves, tree_index, total_trees, max_spr_moves
+):
     """Calculate number of SPR moves for treesearch_mimic distribution strategy.
 
     For the first half of trees, uses min(num_leaves, max_spr_moves) SPR moves.
@@ -593,7 +610,14 @@ def calculate_spr_count_treesearch_mimic(num_leaves, tree_index, total_trees, ma
         return calculate_spr_count_uniform(num_leaves, max_spr_moves)
 
 
-def determine_spr_count(edge_distribution, num_leaves, tree_index, total_trees, max_spr_moves, spr_move_divisor):
+def determine_spr_count(
+    edge_distribution,
+    num_leaves,
+    tree_index,
+    total_trees,
+    max_spr_moves,
+    spr_move_divisor,
+):
     """Determine the number of SPR moves based on edge distribution strategy.
 
     Args:
@@ -619,7 +643,9 @@ def determine_spr_count(edge_distribution, num_leaves, tree_index, total_trees, 
         raise ValueError(f"Unknown edge distribution: {edge_distribution}")
 
 
-def perturb_tree_with_spr(tree, edge_distribution, tree_index, total_trees, max_spr_moves, spr_move_divisor):
+def perturb_tree_with_spr(
+    tree, edge_distribution, tree_index, total_trees, max_spr_moves, spr_move_divisor
+):
     """Perturb a tree using SPR moves to introduce non-MP edges.
 
     Args:
@@ -635,7 +661,12 @@ def perturb_tree_with_spr(tree, edge_distribution, tree_index, total_trees, max_
     """
     num_leaves = len(tree.get_leaves())
     num_spr_moves = determine_spr_count(
-        edge_distribution, num_leaves, tree_index, total_trees, max_spr_moves, spr_move_divisor
+        edge_distribution,
+        num_leaves,
+        tree_index,
+        total_trees,
+        max_spr_moves,
+        spr_move_divisor,
     )
 
     print(f"Number of SPR moves: {num_spr_moves}")
@@ -654,7 +685,13 @@ def perturb_tree_with_spr(tree, edge_distribution, tree_index, total_trees, max_
     return perturbed_tree
 
 
-def perturb_tree_with_subtree_replacement(tree, original_tree, dag_clades, subtree_max_attempts, subtree_target_non_mp_proportion):
+def perturb_tree_with_subtree_replacement(
+    tree,
+    original_tree,
+    dag_clades,
+    subtree_max_attempts,
+    subtree_target_non_mp_proportion,
+):
     """Perturb a tree by replacing random subtrees until target proportion of non-MP edges.
 
     Args:

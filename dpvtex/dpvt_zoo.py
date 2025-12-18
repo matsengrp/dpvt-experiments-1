@@ -69,6 +69,17 @@ def get_trained_model_str(model_name, train_data_name, param_id):
 
 
 def get_tested_model_str(model_name, train_data_name, test_data_name, param_id):
+    """Generate a string identifier for a tested model.
+
+    Args:
+        model_name: Name of the model.
+        train_data_name: Name of the training data, or None for untrained models.
+        test_data_name: Name of the test data.
+        param_id: Identifier for the parameters used in training, or None.
+
+    Returns:
+        str: A formatted string like "ModelName-TrainData-ON-TestData[-ParamID]".
+    """
     model = f"{model_name}-{train_data_name}-ON-{test_data_name}"
     if param_id is not None:
         model = f"{model_name}-{train_data_name}-ON-{test_data_name}-{param_id}"

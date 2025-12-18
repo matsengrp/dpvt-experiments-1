@@ -13,13 +13,25 @@ def generate_sim_config_files(
     max_spr_moves=100,
     spr_move_divisor=10,
     subtree_max_attempts=100,
-    subtree_target_non_mp_proportion=1/6,
+    subtree_target_non_mp_proportion=1 / 6,
 ):
-    """
-    Generate config files for running the larch pipeline to generate
-    training and testing data for dpvt.
-    These are config files for data simulated by alisim using the
-    script create_alisim_alignments.sh in `dpvtex/larch/scripts`
+    """Generate config JSON files for running the larch pipeline.
+
+    Creates configuration files for generating DPVT training/testing data from
+    alignments simulated by alisim (via create_alisim_alignments.sh).
+
+    Args:
+        num_sequences: Number of sequences in each alignment.
+        num_sites: Number of sites per alignment.
+        num_algnmnts: Number of alignments in the dataset.
+        edge_distribution: Method for introducing non-MP edges. Options:
+            "constant", "uniform", "treesearch_mimic", "random_subtree".
+        remove_duplicate_site_patterns: If True, remove duplicate site patterns.
+        max_trees: Maximum trees to extract per alignment.
+        max_spr_moves: Maximum SPR moves per tree.
+        spr_move_divisor: Divisor for constant SPR distribution.
+        subtree_max_attempts: Max attempts for subtree replacement.
+        subtree_target_non_mp_proportion: Target non-MP edge proportion.
     """
     # Get the directory of the current script
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -128,7 +140,7 @@ def main():
     parser.add_argument(
         "--subtree_target_non_mp_proportion",
         type=float,
-        default=1/6,
+        default=1 / 6,
         help="Target non-MP edge proportion for subtree replacement (default: 1/6)",
     )
     args = parser.parse_args()

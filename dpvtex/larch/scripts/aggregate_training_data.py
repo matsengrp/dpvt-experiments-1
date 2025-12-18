@@ -24,67 +24,14 @@ def get_dict(file_path):
             return None
 
 
-def extract_trees_and_labels(data_dir, edge_distribution="constant"):
-    """
-    Extracts trees and labels from .p files in the given directory.
-    Args:
-        data_dir (str): Directory containing .p files.
-        edge_distribution (str): Type of edge distribution ("constant", "uniform", "treesearch_mimic", "random_subtree")
-    Returns:
-        tuple: A tuple containing:
-            - trees (list): List of trees.
-            - labels (list): List of labels.
-            - all_trees_dict (dict): Dictionary containing all trees.
-            - data_props (dict): Dictionary containing properties of datasets.
-    """
-    all_trees_dict = {}  # store all trees in one dict
-    data_props = {}  # save properties of datasets in a dict
-
-    # Traverse all subdirectories and process .p files
-    for root, dirs, files in os.walk(data_dir):
-        for file_name in files:
-            file_path = os.path.join(root, file_name)
-            # Map edge_distribution to expected file suffix
-            suffix_map = {
-                "constant": "_spr",
-                "uniform": "_uniform",
-                "treesearch_mimic": "_treesearch_mimic",
-                "random_subtree": "_subtree",
-            }
-            expected_suffix = suffix_map.get(edge_distribution, "")
-
-            if file_name.endswith(".p") and expected_suffix in file_name:
-                file_path = os.path.join(root, file_name)
-                dataset_name = file_name[:-2]
-                # Remove any edge distribution suffix if it exists
-                for suffix in ["_spr", "_uniform", "_treesearch_mimic", "_subtree"]:
-                    if suffix in dataset_name:
-                        dataset_name = dataset_name.split(suffix)[0]
-                        break
-                this_alignment_dict = get_dict(file_path)
-                if this_alignment_dict is not None:
-                    data_props[dataset_name] = [len(this_alignment_dict)]  # num_trees
-                    data_props[dataset_name].append(
-                        len(list(this_alignment_dict.keys())[0])
-                    )  # num_leaves
-                    data_props[dataset_name].append(
-                        sum(
-                            lst.count(0) - (len(lst)) / 2
-                            for lst in this_alignment_dict.values()
-                        )
-                    )  # num MP edges (excluding pendant edges and root edge)
-                    data_props[dataset_name].append(
-                        sum(lst.count(1) for lst in this_alignment_dict.values())
-                    )  # num non-MP edges
-
-                    all_trees_dict.update(this_alignment_dict)
-
-
 def _count_trees_per_alignment(pickle_files):
     """Count the number of trees in each alignment pickle file.
 
+    Args:
+        pickle_files: List of (file_path, dataset_name) tuples.
+
     Returns:
-        Dict mapping dataset_name to tree count
+        dict: Mapping of dataset_name to tree count.
     """
     alignment_tree_counts = {}
     for file_path, dataset_name in pickle_files:
@@ -98,8 +45,11 @@ def _count_trees_per_alignment(pickle_files):
 def _compute_data_properties(alignment_dict):
     """Compute properties for a single alignment's tree dictionary.
 
+    Args:
+        alignment_dict: Dictionary mapping trees to edge label lists.
+
     Returns:
-        List of [num_trees, num_leaves, num_MP_edges, num_non_MP_edges]
+        list: [num_trees, num_leaves, num_MP_edges, num_non_MP_edges]
     """
     num_trees = len(alignment_dict)
     num_leaves = len(list(alignment_dict.keys())[0])
@@ -118,8 +68,17 @@ def _load_and_balance_trees(
 ):
     """Load trees from pickle files and apply balancing if enabled.
 
+    Alignments with more than the median number of trees are subsampled
+    to the median count when balancing is enabled.
+
+    Args:
+        pickle_files: List of (file_path, dataset_name) tuples.
+        median_trees: Median tree count across all alignments.
+        balance_by_median_num_MP_trees: Whether to apply balancing.
+        logger: PipelineLogger for progress tracking.
+
     Returns:
-        Tuple of (all_trees_dict, data_props, subsampled_alignments, trees_removed)
+        tuple: (all_trees_dict, data_props, subsampled_alignments, trees_removed)
     """
     all_trees_dict = {}
     data_props = {}
@@ -169,7 +128,14 @@ def _load_and_balance_trees(
 def _log_balancing_summary(
     logger, subsampled_alignments, trees_removed, total_trees_after
 ):
-    """Log the summary of balancing operations."""
+    """Log the summary of balancing operations.
+
+    Args:
+        logger: PipelineLogger instance for output.
+        subsampled_alignments: List of dicts with subsampling info.
+        trees_removed: Total number of trees removed by balancing.
+        total_trees_after: Total tree count after balancing.
+    """
     logger.log_section("AGGREGATION", "Balancing Summary")
     logger.log("AGGREGATION", f"Alignments subsampled: {len(subsampled_alignments)}")
     logger.log("AGGREGATION", f"Total trees removed: {trees_removed}")
@@ -260,7 +226,7 @@ def pickle_and_save_data(
         trees (list): List of trees.
         labels (list): List of labels.
     """
-    if dpvt_test_data == None:
+    if dpvt_test_data is None:
         with open(dpvt_train_data, "wb") as f:
             pickle.dump(all_trees_dict, f)
     else:
@@ -287,11 +253,9 @@ def pickle_and_save_data(
             print(
                 "The dataset is not large enough to split in training and testing data. Increase number of trees extracted from hDAG or even better the number of alignments used."
             )
-            # Optionally, re-raise the error or handle it further
             sys.exit(
                 "Dataset too small, will not generate training/testing data split."
             )
-            raise
 
         train_dict = {i: j for (i, j) in zip(train_trees, train_labels)}
         test_dict = {i: j for (i, j) in zip(test_trees, test_labels)}

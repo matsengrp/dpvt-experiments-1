@@ -583,7 +583,17 @@ def configure_bottom_subplot(
 
 
 def create_violin_plots(valid_results, output_dir):
-    """Create plots comparing multiple datasets."""
+    """Create violin plots comparing edge distributions across multiple datasets.
+
+    Creates a two-panel figure: the top panel shows datasets with multiple perturbation
+    methods, the bottom panel shows datasets with a single method. Each violin plot
+    displays the distribution of non-MP edge proportions.
+
+    Args:
+        valid_results: List of analysis result dicts containing 'non_mp_edge_counts',
+            'total_edges_per_tree', 'dataset', and 'method' keys.
+        output_dir: Directory path where the PDF plot will be saved.
+    """
     all_data = []
     for result in valid_results:
         # Calculate proportions for each tree instead of raw counts

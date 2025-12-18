@@ -7,6 +7,8 @@ from dpvtex.larch.scripts.tree_perturbation import (
     increase_tree_parsimony,
     sankoff_for_missing_sequences,
     perturb_tree,
+    spr_move,
+    make_worse_spr,
 )
 
 

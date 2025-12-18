@@ -276,8 +276,20 @@ def get_non_dag_edges(
 
 
 def memory_safe_count_topologies(dag, max_time=10):
-    """Count topologies with a timeout, using SIGKILL if needed."""
+    """Count topologies in a DAG with timeout protection.
 
+    Runs topology counting in a separate process with a timeout to prevent
+    memory exhaustion on large DAGs. Uses SIGKILL to forcefully terminate
+    if the count doesn't complete in time.
+
+    Args:
+        dag: A historydag object to count topologies in.
+        max_time: Maximum seconds to wait before killing the count (default: 10).
+
+    Returns:
+        int or float: Number of topologies, or float('inf') if count timed out
+            or encountered an error.
+    """
     # Create a queue for communication between processes
     result_queue = multiprocessing.Queue()
 

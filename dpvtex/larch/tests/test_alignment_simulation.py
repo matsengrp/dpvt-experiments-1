@@ -69,13 +69,15 @@ class TestCleanData:
         files = alignment_test_files
 
         # Call clean_alignment function directly
-        final_num_seqs, final_num_sites, original_num_seqs, original_num_sites = clean_alignment(
-            files['test_fasta'],
-            files['output_fasta'],
-            files['stats_file'],
-            remove_site_patterns=False,
-            target_length=None,
-            target_seqs=None,
+        final_num_seqs, final_num_sites, original_num_seqs, original_num_sites = (
+            clean_alignment(
+                files["test_fasta"],
+                files["output_fasta"],
+                files["stats_file"],
+                remove_site_patterns=False,
+                target_length=None,
+                target_seqs=None,
+            )
         )
 
         # Check files exist
@@ -109,13 +111,15 @@ class TestCleanData:
         target_seqs = 2
 
         # Call clean_alignment function directly with target dimensions
-        final_num_seqs, final_num_sites, original_num_seqs, original_num_sites = clean_alignment(
-            files['test_fasta'],
-            files['output_fasta'],
-            files['stats_file'],
-            remove_site_patterns=False,
-            target_length=target_length,
-            target_seqs=target_seqs,
+        final_num_seqs, final_num_sites, original_num_seqs, original_num_sites = (
+            clean_alignment(
+                files["test_fasta"],
+                files["output_fasta"],
+                files["stats_file"],
+                remove_site_patterns=False,
+                target_length=target_length,
+                target_seqs=target_seqs,
+            )
         )
 
         # Read the cleaned alignment
@@ -165,7 +169,9 @@ class TestCreateAlignments:
 
             # Copy clean_alignment.sh to temp scripts dir
             clean_alignment_sh_path = os.path.join(scripts_dir, "clean_alignment.sh")
-            temp_clean_alignment_sh_path = os.path.join(temp_scripts_dir, "clean_alignment.sh")
+            temp_clean_alignment_sh_path = os.path.join(
+                temp_scripts_dir, "clean_alignment.sh"
+            )
             shutil.copy2(clean_alignment_sh_path, temp_clean_alignment_sh_path)
 
             # Create a simplified version of generate_sim_configs.py
@@ -198,21 +204,17 @@ print(f"generate_sim_configs called with: {sys.argv}")
                 # Modify parameters for a quick test using regex
                 # Replace num_alignments_list array with a single value
                 content = re.sub(
-                    r'num_alignments_list=\([^)]+\)',
-                    'num_alignments_list=(1)',
-                    content
+                    r"num_alignments_list=\([^)]+\)", "num_alignments_list=(1)", content
                 )
                 # Replace num_sequences_list array with a single value
                 content = re.sub(
-                    r'num_sequences_list=\([^)]+\)',
-                    'num_sequences_list=(5)',
-                    content
+                    r"num_sequences_list=\([^)]+\)", "num_sequences_list=(5)", content
                 )
                 # Keep alignment_length_list at 20 (ensure it stays at 20)
                 content = re.sub(
-                    r'alignment_length_list=\([^)]+\)',
-                    'alignment_length_list=(20)',
-                    content
+                    r"alignment_length_list=\([^)]+\)",
+                    "alignment_length_list=(20)",
+                    content,
                 )
 
                 # Set script_dir to the temp scripts dir
@@ -225,7 +227,7 @@ print(f"generate_sim_configs called with: {sys.argv}")
                 content = re.sub(
                     r'simulated_alignments_dir="\$\{script_dir\}/\.\./\.\./\.\./data/simulated_alignments"',
                     f'simulated_alignments_dir="{temp_data_dir}"',
-                    content
+                    content,
                 )
 
                 f_out.write(content)

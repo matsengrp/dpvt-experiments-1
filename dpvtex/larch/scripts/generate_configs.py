@@ -61,6 +61,13 @@ larch_command: "larch"                   # Command to run larch (can be "larch",
 larch_output: "../../data"
 edge_distribution: "constant"            # Options: constant, uniform, treesearch_mimic, random_subtree
 num_cores: 8
+
+# Tree extraction parameters (optional - defaults shown)
+# max_trees: 200                         # Max trees to extract per alignment
+# max_spr_moves: 100                     # Max SPR moves per tree
+# spr_move_divisor: 10                   # Divisor for constant SPR distribution
+# subtree_max_attempts: 100              # Max attempts for subtree replacement
+# subtree_target_non_mp_proportion: 0.167  # Target non-MP edge proportion (~1/6)
 """
 
 
@@ -90,6 +97,13 @@ larch_command: "larch"
 edge_distribution: "constant"
 num_cores: 8
 remove_duplicate_site_patterns: false
+
+# Tree extraction parameters (optional - defaults shown)
+# max_trees: 200                         # Max trees to extract per alignment
+# max_spr_moves: 100                     # Max SPR moves per tree
+# spr_move_divisor: 10                   # Divisor for constant SPR distribution
+# subtree_max_attempts: 100              # Max attempts for subtree replacement
+# subtree_target_non_mp_proportion: 0.167  # Target non-MP edge proportion (~1/6)
 """
 
 

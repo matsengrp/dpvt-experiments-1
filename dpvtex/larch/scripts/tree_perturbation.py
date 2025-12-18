@@ -227,7 +227,6 @@ def populate(
 
 
 def tree_depth(node):
-<<<<<<< HEAD
     """Calculate the depth of a tree from the given node.
 
     Args:
@@ -235,12 +234,6 @@ def tree_depth(node):
 
     Returns:
         int: Number of nodes along the longest path from node to a leaf.
-=======
-    """
-    Returns the depth of the tree with the given node as the root. This depth is
-    the number of nodes along the longest path from the given node to a leaf
-    node.
->>>>>>> 423d3be (refactoring)
     """
     if node.is_leaf():
         return 1
@@ -251,7 +244,6 @@ def tree_depth(node):
 
 
 def _edge_distance(node1, node2):
-<<<<<<< HEAD
     """Calculate the number of edges between two nodes in a tree.
 
     Args:
@@ -261,9 +253,6 @@ def _edge_distance(node1, node2):
     Returns:
         int: Number of edges on the path between node1 and node2.
     """
-=======
-    """Returns the number of edges between the nodes."""
->>>>>>> 423d3be (refactoring)
     return _get_distance(node1, node2, topology_only=True) + 1
 
 
@@ -295,7 +284,6 @@ def sankoff_for_missing_sequences(tree):
 
 
 def root_and_outgroup_leaf(tree, leaf):
-<<<<<<< HEAD
     """Re-root tree by setting given leaf as root.
 
     The leaf becomes the root node, with its only child being the previous root.
@@ -304,12 +292,6 @@ def root_and_outgroup_leaf(tree, leaf):
     Args:
         tree: ete3 tree to re-root.
         leaf: Leaf node in the tree to use as the new root.
-=======
-    """
-    Re-root tree by setting given leaf as root with its only child being the
-    previous root. Args:
-        tree: ete3 tree leaf: leaf in given tree
->>>>>>> 423d3be (refactoring)
     """
     tree.set_outgroup(leaf)
     leaf.detach()
@@ -511,15 +493,9 @@ def spr_move(tree, node1, node2):
     return new_tree
 
 
-<<<<<<< HEAD
 def make_worse_spr(input_tree, max_sprs, efficient=True):
     """
     Peform at least max_sprs random SPR moves on input tree to create tree
-=======
-def make_worse_spr(input_tree, num_sprs, efficient=True):
-    """
-    Peform a at least num_sprs random SPR move on input tree to create tree
->>>>>>> 423d3be (refactoring)
     with higher parsimony score.
     If the keyword efficient is set to True, the function will not check
     parsimony score of the new tree. This is faster, but the resulting tree
@@ -527,11 +503,7 @@ def make_worse_spr(input_tree, num_sprs, efficient=True):
     Arguments:
         tree: ete3.Tree
             Input tree to be perturbed
-<<<<<<< HEAD
         max_sprs: int
-=======
-        num_sprs: int
->>>>>>> 423d3be (refactoring)
             Number of SPR moves to perform
         efficient: bool
             If True, perform moves without checking parsimony
@@ -539,11 +511,7 @@ def make_worse_spr(input_tree, num_sprs, efficient=True):
     tree = copy.deepcopy(input_tree)
     sankoff_for_missing_sequences(tree)
     any(node.add_feature("random_tree", False) for node in tree.traverse())
-<<<<<<< HEAD
     for i in range(max_sprs):
-=======
-    for i in range(num_sprs):
->>>>>>> 423d3be (refactoring)
         random.seed()
         # we cannot prune children or grandchildren of root
         # also avoid moving leaves, as that doesn't change MP edge to non-MP edge
@@ -619,13 +587,9 @@ def calculate_spr_count_constant(num_leaves, max_spr_moves, spr_move_divisor):
     return min(num_leaves // spr_move_divisor, max_spr_moves)
 
 
-<<<<<<< HEAD
 def calculate_spr_count_treesearch_mimic(
     num_leaves, tree_index, total_trees, max_spr_moves
 ):
-=======
-def calculate_spr_count_treesearch_mimic(num_leaves, tree_index, total_trees, max_spr_moves):
->>>>>>> 423d3be (refactoring)
     """Calculate number of SPR moves for treesearch_mimic distribution strategy.
 
     For the first half of trees, uses min(num_leaves, max_spr_moves) SPR moves.
@@ -646,7 +610,6 @@ def calculate_spr_count_treesearch_mimic(num_leaves, tree_index, total_trees, ma
         return calculate_spr_count_uniform(num_leaves, max_spr_moves)
 
 
-<<<<<<< HEAD
 def determine_spr_count(
     edge_distribution,
     num_leaves,
@@ -655,9 +618,6 @@ def determine_spr_count(
     max_spr_moves,
     spr_move_divisor,
 ):
-=======
-def determine_spr_count(edge_distribution, num_leaves, tree_index, total_trees, max_spr_moves, spr_move_divisor):
->>>>>>> 423d3be (refactoring)
     """Determine the number of SPR moves based on edge distribution strategy.
 
     Args:
@@ -683,13 +643,9 @@ def determine_spr_count(edge_distribution, num_leaves, tree_index, total_trees, 
         raise ValueError(f"Unknown edge distribution: {edge_distribution}")
 
 
-<<<<<<< HEAD
 def perturb_tree_with_spr(
     tree, edge_distribution, tree_index, total_trees, max_spr_moves, spr_move_divisor
 ):
-=======
-def perturb_tree_with_spr(tree, edge_distribution, tree_index, total_trees, max_spr_moves, spr_move_divisor):
->>>>>>> 423d3be (refactoring)
     """Perturb a tree using SPR moves to introduce non-MP edges.
 
     Args:
@@ -705,16 +661,12 @@ def perturb_tree_with_spr(tree, edge_distribution, tree_index, total_trees, max_
     """
     num_leaves = len(tree.get_leaves())
     num_spr_moves = determine_spr_count(
-<<<<<<< HEAD
         edge_distribution,
         num_leaves,
         tree_index,
         total_trees,
         max_spr_moves,
         spr_move_divisor,
-=======
-        edge_distribution, num_leaves, tree_index, total_trees, max_spr_moves, spr_move_divisor
->>>>>>> 423d3be (refactoring)
     )
 
     print(f"Number of SPR moves: {num_spr_moves}")
@@ -733,7 +685,6 @@ def perturb_tree_with_spr(tree, edge_distribution, tree_index, total_trees, max_
     return perturbed_tree
 
 
-<<<<<<< HEAD
 def perturb_tree_with_subtree_replacement(
     tree,
     original_tree,
@@ -741,22 +692,14 @@ def perturb_tree_with_subtree_replacement(
     subtree_max_attempts,
     subtree_target_non_mp_proportion,
 ):
-=======
-def perturb_tree_with_subtree_replacement(tree, original_tree, dag_clades, max_perturbation_attempts, target_non_mp_proportion):
->>>>>>> 423d3be (refactoring)
     """Perturb a tree by replacing random subtrees until target proportion of non-MP edges.
 
     Args:
         tree: ete3 Tree to perturb
         original_tree: Original unperturbed tree for edge label comparison
         dag_clades: Clades extracted from the hDAG
-<<<<<<< HEAD
         subtree_max_attempts: Maximum number of subtree replacement attempts
         subtree_target_non_mp_proportion: Target proportion of non-MP edges
-=======
-        max_perturbation_attempts: Maximum number of perturbation attempts
-        target_non_mp_proportion: Target proportion of non-MP edges
->>>>>>> 423d3be (refactoring)
 
     Returns:
         tuple: (perturbed_tree, edge_labels)
@@ -768,11 +711,7 @@ def perturb_tree_with_subtree_replacement(tree, original_tree, dag_clades, max_p
     depth = int(tree_d // 2)
     modified_tree = tree.copy()
 
-<<<<<<< HEAD
     for attempt in range(subtree_max_attempts):
-=======
-    for attempt in range(max_perturbation_attempts):
->>>>>>> 423d3be (refactoring)
         perturbed = increase_tree_parsimony(modified_tree, depth)
         if perturbed is not None:
             modified_tree = perturbed
@@ -780,11 +719,7 @@ def perturb_tree_with_subtree_replacement(tree, original_tree, dag_clades, max_p
         edge_labels = assign_edge_labels(modified_tree, original_tree, dag_clades)
         non_mp_proportion = sum(edge_labels) / len(edge_labels)
 
-<<<<<<< HEAD
         if non_mp_proportion >= subtree_target_non_mp_proportion:
-=======
-        if non_mp_proportion >= target_non_mp_proportion:
->>>>>>> 423d3be (refactoring)
             # Target achieved: ~1/6 of edges are non-MP
             # (len(edge_labels) ≈ 2 * internal edges, so we're aiming for ~1/3 non-MP internal edges)
             break

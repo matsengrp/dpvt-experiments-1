@@ -17,11 +17,11 @@ edge_distributions=("constant" "random_subtree")
 no_dup_sites="False" # Whether to remove duplicate site patterns in the alignments
 
 # Tree extraction parameters
-max_trees=200                        # Max trees to extract per alignment
-max_spr_moves=100                    # Max SPR moves per tree
-spr_move_divisor=10                  # Divisor for constant SPR distribution
-subtree_max_attempts=100             # Max attempts for subtree replacement
-subtree_target_non_mp_proportion=0.167  # Target non-MP edge proportion (~1/6)
+max_trees=200                          # Max trees to extract per alignment
+max_spr_moves=100                      # Max SPR moves per tree
+spr_move_divisor=10                    # Divisor for constant SPR distribution
+subtree_max_attempts=100               # Max attempts for subtree replacement
+subtree_target_non_mp_proportion=0.167 # Target non-MP edge proportion (~1/6)
 
 max_attempts=20
 # How much larger to make the initial alignment to account for cleaning

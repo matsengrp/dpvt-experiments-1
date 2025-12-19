@@ -2,11 +2,20 @@ import os
 import pickle
 import pandas as pd
 import sys
+import random
+from math import ceil
+from statistics import median
 from sklearn.model_selection import train_test_split
 from collections import Counter
+from dpvtex.larch.scripts.pipeline_logger import get_logger
 
 
-def get_dict(file_path):
+# =============================================================================
+# Utility functions
+# =============================================================================
+
+
+def _get_dict(file_path):
     """Load a dictionary from a pickle file.
 
     Args:
@@ -24,14 +33,48 @@ def get_dict(file_path):
             return None
 
 
+# =============================================================================
+# extract_trees_and_labels and its helpers
+# =============================================================================
+
+
+def _get_expected_suffix(edge_distribution):
+    """Map edge distribution type to expected file suffix."""
+    suffix_map = {
+        "constant": "_spr",
+        "uniform": "_uniform",
+        "treesearch_mimic": "_treesearch_mimic",
+        "random_subtree": "_subtree",
+    }
+    return suffix_map.get(edge_distribution, "")
+
+
+def _collect_pickle_files(data_dir, expected_suffix):
+    """Collect all pickle files matching the edge distribution suffix.
+
+    Returns:
+        List of (file_path, dataset_name) tuples
+    """
+    pickle_files = []
+    for root, dirs, files in os.walk(data_dir, followlinks=True):
+        for file_name in files:
+            if file_name.endswith(".p") and expected_suffix in file_name:
+                file_path = os.path.join(root, file_name)
+                dataset_name = file_name[:-2]
+                # Remove any edge distribution suffix if it exists
+                for suffix in ["_spr", "_uniform", "_treesearch_mimic", "_subtree"]:
+                    if suffix in dataset_name:
+                        dataset_name = dataset_name.split(suffix)[0]
+                        break
+                pickle_files.append((file_path, dataset_name))
+    return pickle_files
+
+
 def _count_trees_per_alignment(pickle_files):
     """Count the number of trees in each alignment pickle file.
 
-    Args:
-        pickle_files: List of (file_path, dataset_name) tuples.
-
     Returns:
-        dict: Mapping of dataset_name to tree count.
+        Dict mapping dataset_name to tree count
     """
     alignment_tree_counts = {}
     for file_path, dataset_name in pickle_files:
@@ -45,11 +88,8 @@ def _count_trees_per_alignment(pickle_files):
 def _compute_data_properties(alignment_dict):
     """Compute properties for a single alignment's tree dictionary.
 
-    Args:
-        alignment_dict: Dictionary mapping trees to edge label lists.
-
     Returns:
-        list: [num_trees, num_leaves, num_MP_edges, num_non_MP_edges]
+        List of [num_trees, num_leaves, num_MP_edges, num_non_MP_edges]
     """
     num_trees = len(alignment_dict)
     num_leaves = len(list(alignment_dict.keys())[0])
@@ -68,17 +108,8 @@ def _load_and_balance_trees(
 ):
     """Load trees from pickle files and apply balancing if enabled.
 
-    Alignments with more than the median number of trees are subsampled
-    to the median count when balancing is enabled.
-
-    Args:
-        pickle_files: List of (file_path, dataset_name) tuples.
-        median_trees: Median tree count across all alignments.
-        balance_by_median_num_MP_trees: Whether to apply balancing.
-        logger: PipelineLogger for progress tracking.
-
     Returns:
-        tuple: (all_trees_dict, data_props, subsampled_alignments, trees_removed)
+        Tuple of (all_trees_dict, data_props, subsampled_alignments, trees_removed)
     """
     all_trees_dict = {}
     data_props = {}
@@ -128,14 +159,7 @@ def _load_and_balance_trees(
 def _log_balancing_summary(
     logger, subsampled_alignments, trees_removed, total_trees_after
 ):
-    """Log the summary of balancing operations.
-
-    Args:
-        logger: PipelineLogger instance for output.
-        subsampled_alignments: List of dicts with subsampling info.
-        trees_removed: Total number of trees removed by balancing.
-        total_trees_after: Total tree count after balancing.
-    """
+    """Log the summary of balancing operations."""
     logger.log_section("AGGREGATION", "Balancing Summary")
     logger.log("AGGREGATION", f"Alignments subsampled: {len(subsampled_alignments)}")
     logger.log("AGGREGATION", f"Total trees removed: {trees_removed}")
@@ -213,12 +237,44 @@ def extract_trees_and_labels(
     return trees, labels, all_trees_dict, data_props
 
 
+# =============================================================================
+# pickle_and_save_data and its helpers
+# =============================================================================
+
+
+def _create_stratification_categories(labels):
+    """Create stratification categories based on label sums."""
+    sum_of_ones = [sum(label) for label in labels]
+    counter = Counter(sum_of_ones)
+    categories = pd.qcut(
+        sum_of_ones, q=min(len(counter), 4), labels=False, duplicates="drop"
+    )
+    return categories
+
+
+def _split_train_test(trees, labels, categories):
+    """Split data into train and test sets with stratification."""
+    try:
+        train_trees, test_trees, train_labels, test_labels = train_test_split(
+            trees, labels, train_size=0.8, stratify=categories
+        )
+        return train_trees, test_trees, train_labels, test_labels
+    except ValueError as e:
+        print(f"Error during train-test split: {e}")
+        print(
+            "The dataset is not large enough to split in training and testing data. "
+            "Increase number of trees extracted from hDAG or even better the number of alignments used."
+        )
+        sys.exit("Dataset too small, will not generate training/testing data split.")
+
+
 def pickle_and_save_data(
     dpvt_train_data, dpvt_test_data, all_trees_dict, trees, labels
 ):
-    """
-    Pickle and save the training and testing data.
+    """Pickle and save the training and testing data.
+
     If test data is not provided, save all data as training data.
+
     Args:
         dpvt_train_data (str): Path to save the training data.
         dpvt_test_data (str): Path to save the testing data.
@@ -230,32 +286,10 @@ def pickle_and_save_data(
         with open(dpvt_train_data, "wb") as f:
             pickle.dump(all_trees_dict, f)
     else:
-        # Commented out section could be used to split train and testing data
-        # For Stratifying
-        sum_of_ones = [sum(label) for label in labels]
-        counter = Counter(sum_of_ones)
-
-        # Convert sums to a categorical variable for balancing number of non-MP edges in
-        # train/test/val
-        categories = pd.qcut(
-            sum_of_ones, q=min(len(counter), 4), labels=False, duplicates="drop"
+        categories = _create_stratification_categories(labels)
+        train_trees, test_trees, train_labels, test_labels = _split_train_test(
+            trees, labels, categories
         )
-
-        try:
-            # Attempt to split the data with stratification
-            train_trees, test_trees, train_labels, test_labels = train_test_split(
-                trees, labels, train_size=0.8, stratify=categories
-            )
-        except ValueError as e:
-            # If a ValueError occurs (e.g., due to insufficient data for
-            # stratification), print a custom message
-            print(f"Error during train-test split: {e}")
-            print(
-                "The dataset is not large enough to split in training and testing data. Increase number of trees extracted from hDAG or even better the number of alignments used."
-            )
-            sys.exit(
-                "Dataset too small, will not generate training/testing data split."
-            )
 
         train_dict = {i: j for (i, j) in zip(train_trees, train_labels)}
         test_dict = {i: j for (i, j) in zip(test_trees, test_labels)}
@@ -267,29 +301,45 @@ def pickle_and_save_data(
             pickle.dump(test_dict, f)
 
 
-def save_data_properties(data_props, data_props_file, data_dir):
+# =============================================================================
+# save_data_properties and its helpers
+# =============================================================================
+
+
+def _add_alignment_lengths_to_properties(data_props, data_dir, suffix):
+    """Add alignment length information from cleaned_alignment_length files to data properties.
+
+    Args:
+        data_props: Dictionary of dataset properties to update
+        data_dir: Directory containing alignment subdirectories
+        suffix: Suffix for the alignment length file (e.g., "_no_dup_sites" or "")
     """
-    Save data properties to a CSV file.
+    alignment_length_filename = f"cleaned_alignment_length{suffix}.txt"
+
+    for root, dirs, files in os.walk(data_dir, followlinks=True):
+        if alignment_length_filename in files:
+            dataset_name = os.path.basename(root)
+            if dataset_name in data_props:
+                length_file_path = os.path.join(root, alignment_length_filename)
+                with open(length_file_path, "r") as f:
+                    # Format is "length,num_seqs" - we want the length (first value)
+                    content = f.read().strip()
+                    alignment_length = int(content.split(",")[0])
+                data_props[dataset_name].append(alignment_length)
+
+
+def save_data_properties(data_props, data_props_file, data_dir):
+    """Save data properties to a CSV file.
+
     Args:
         data_props (dict): Dictionary containing properties of datasets.
         data_props_file (str): Path to save the data properties file.
         data_dir (str): Directory containing subdirs with .p pickle files.
     """
-    for root, dirs, files in os.walk(data_dir):
-        alignment_length_file = [f for f in files if "cleaned_alignment_length" in f]
-        if alignment_length_file:
-            alignment_length_file = alignment_length_file[0]
-            subdir = os.path.relpath(root, data_dir)
-            data_subdir = root
-            if os.path.isdir(data_subdir):
-                alignment_length_file = os.path.join(root, alignment_length_file)
-                dataset_name = alignment_length_file.split("/")[-2]
-                if "_no_dup_sites" in data_props_file:
-                    dataset_name += "_no_dup_sites"
-                # only take those datasets for which we actually have pickled
-                # tree dictionaries
-                with open(alignment_length_file, "r") as f:
-                    data_props[dataset_name].append(int(f.read().split(",")[0].strip()))
+    suffix = "_no_dup_sites" if "_no_dup_sites" in data_props_file else ""
+
+    _add_alignment_lengths_to_properties(data_props, data_dir, suffix)
+
     data_props_df = pd.DataFrame.from_dict(
         data_props,
         columns=[
@@ -305,24 +355,46 @@ def save_data_properties(data_props, data_props_file, data_dir):
     print(f"Data properties saved to '{data_props_file}'")
 
 
+# =============================================================================
+# Top-level orchestrator
+# =============================================================================
+
+
 def aggregate_data(
     data_dir,
     data_props_file,
     dpvt_train_data,
     edge_distribution="constant",
     dpvt_test_data=None,
+    balance_by_median_num_MP_trees=True,
 ):
     """
     Aggregate data from the specified directory and save it to a pickle file.
+
     Args:
         data_dir (str): Directory containing subdirs with .p pickle files.
         data_props_file (str): Path to save the data properties file.
         dpvt_train_data (str): Path to save the training data.
         edge_distribution (str): Type of edge distribution ("constant", "uniform", "treesearch_mimic", "random_subtree")
         dpvt_test_data (str): Path to save the testing data.
+        balance_by_median_num_MP_trees (bool): If True (default), subsample alignments with more than median trees to balance dataset.
     """
+    # Initialize logger
+    logger = get_logger(data_dir)
+    logger.log_section("AGGREGATION", f"Starting data aggregation for {data_dir}")
+    logger.log("AGGREGATION", f"Edge distribution: {edge_distribution}")
+    logger.log(
+        "AGGREGATION",
+        f"Balance by median num MP trees: {balance_by_median_num_MP_trees}",
+    )
+
     trees, labels, all_trees_dict, data_props = extract_trees_and_labels(
-        data_dir, edge_distribution
+        data_dir, edge_distribution, balance_by_median_num_MP_trees, logger
     )
     pickle_and_save_data(dpvt_train_data, dpvt_test_data, all_trees_dict, trees, labels)
     save_data_properties(data_props, data_props_file, data_dir)
+
+    logger.log("AGGREGATION", f"Data aggregation complete")
+    logger.log("AGGREGATION", f"Training data saved to: {dpvt_train_data}")
+    if dpvt_test_data:
+        logger.log("AGGREGATION", f"Test data saved to: {dpvt_test_data}")

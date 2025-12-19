@@ -3,6 +3,7 @@ import os
 import datetime
 from dpvtex.larch.scripts.extract_data_from_hdag import extract_data_from_hdag
 from dpvtex.larch.scripts.aggregate_training_data import aggregate_data
+from dpvtex.larch.scripts.pipeline_logger import get_logger
 
 snakefile_dir = workflow.basedir
 default_config_path = os.path.join(snakefile_dir, "config.yaml")

@@ -54,8 +54,8 @@ def generate_sim_config_files(
             "simulated_alignments",
             dataset_name,
         ),
-        "larch_build": os.path.join(
-            script_dir, "..", "..", "..", "..", "larch", "build", "bin"
+        "larch_command": os.path.join(
+            script_dir, "..", "..", "..", "..", "larch", "build", "bin", "larch-usher"
         ),
         "output_data": os.path.join(script_dir, "..", "..", "..", "data"),
         "dataset_name": dataset_name,

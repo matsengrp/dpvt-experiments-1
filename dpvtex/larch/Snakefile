@@ -99,7 +99,7 @@ module preprocessing:
 rule this_all:
     input:
         input_data+"/data_properties_"+dataset_name+csv_suffix,
-        config["output_data"]+"/larch_"+dataset_name+pickle_suffix,
+        config["output_data"]+"/"+dataset_name+pickle_suffix,
         input_data+"/alignment_size_ratios" + dup_sites_suffix + ".pdf",
         input_data+"/cleaned_alignment_sizes" + dup_sites_suffix + ".pdf",
 
@@ -128,7 +128,7 @@ rule generate_dpvt_input:
     output:
         # Use the actual outputs from the nested Snakefile with proper suffixes
         data_props=input_data+"/data_properties_"+dataset_name+csv_suffix,
-        dpvt_data=config["output_data"]+"/larch_"+dataset_name+pickle_suffix,
+        dpvt_data=config["output_data"]+"/"+dataset_name+pickle_suffix,
     shell:
         """
         snakemake --unlock --configfile {config_path}

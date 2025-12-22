@@ -55,7 +55,7 @@ def generate_sim_config_files(
             dataset_name,
         ),
         "larch_build": os.path.join(
-            script_dir, "..", "..", "..", "..", "larch", "build"
+            script_dir, "..", "..", "..", "..", "larch", "build", "bin"
         ),
         "output_data": os.path.join(script_dir, "..", "..", "..", "data"),
         "dataset_name": dataset_name,

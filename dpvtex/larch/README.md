@@ -252,9 +252,6 @@ In `dpvtex/larch/scripts`: scripts called from snakefiles:
         used in future steps.
 
 -   Called from `generate_dpvt_input.snakefile`:
-    -   `check_max_parsimony.py`: Checks if the smallest parsimony score of the
-        hDAG produced by larch decreased in the last 5 iterations. If it did, we
-        want to run larch for more iterations
     -   `extract_data_from_hdag.py`: Reads hDAGs produced by larch and extracts
         MP trees:
         -   read hDAG from larch output and trim to only contain MP trees +

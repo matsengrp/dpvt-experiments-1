@@ -36,13 +36,13 @@ class PipelineLogger:
 
     def _write_header(self):
         """Write the log file header."""
-        with open(self.log_file, 'w') as f:
-            f.write("="*80 + "\n")
+        with open(self.log_file, "w") as f:
+            f.write("=" * 80 + "\n")
             f.write("DPVT Pipeline Execution Log\n")
             if self.dataset_name:
                 f.write(f"Dataset: {self.dataset_name}\n")
             f.write(f"Log created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write("="*80 + "\n\n")
+            f.write("=" * 80 + "\n\n")
 
     def log(self, phase, message, level="INFO"):
         """Log a message with timestamp and phase information.
@@ -55,7 +55,7 @@ class PipelineLogger:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_entry = f"[{timestamp}] [{phase}] [{level}] {message}\n"
 
-        with open(self.log_file, 'a') as f:
+        with open(self.log_file, "a") as f:
             f.write(log_entry)
 
         # Also print to console for real-time feedback
@@ -68,13 +68,12 @@ class PipelineLogger:
             phase: Pipeline phase
             title: Section title
         """
-        with open(self.log_file, 'a') as f:
-            f.write("\n" + "-"*80 + "\n")
+        with open(self.log_file, "a") as f:
+            f.write("\n" + "-" * 80 + "\n")
             f.write(f"{phase}: {title}\n")
-            f.write("-"*80 + "\n")
+            f.write("-" * 80 + "\n")
 
         print(f"\n{'='*80}\n{phase}: {title}\n{'='*80}")
-
 
 
 def get_logger(data_dir, dataset_name=None):

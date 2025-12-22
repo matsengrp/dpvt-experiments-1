@@ -18,15 +18,22 @@ import numpy as np
 
 from lightning.pytorch.callbacks import Callback
 from torch.utils.tensorboard import SummaryWriter
-
-torch.set_num_threads(1)
 from pytorch_lightning import seed_everything
 
-# seed_everything(42, workers=True)
-torch.set_default_dtype(torch.float64)  # Set default to float64 for higher precision
+
+def configure_torch(num_threads=1, dtype=torch.float64):
+    """Configure torch settings. Call this before training/testing."""
+    torch.set_num_threads(num_threads)
+    torch.set_default_dtype(dtype)
 
 
-todays_date = datetime.now().strftime("%Y-%m-%d")
+def get_timestamp():
+    """Get current date as timestamp string."""
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+# Apply default configuration on import for backwards compatibility
+configure_torch()
 
 
 def build_model(model_name):
@@ -54,18 +61,29 @@ def get_trained_model_str(model_name, train_data_name, param_id):
         str: A formatted string representing the trained model path.
     """
     model = f"{model_name}-{train_data_name}"
-    if param_id != None:
+    if param_id is not None:
         model = f"{model_name}-{train_data_name}-{param_id}"
-    if train_data_name == None:
+    if train_data_name is None:
         model = f"{model_name}"
     return model
 
 
 def get_tested_model_str(model_name, train_data_name, test_data_name, param_id):
+    """Generate a string identifier for a tested model.
+
+    Args:
+        model_name: Name of the model.
+        train_data_name: Name of the training data, or None for untrained models.
+        test_data_name: Name of the test data.
+        param_id: Identifier for the parameters used in training, or None.
+
+    Returns:
+        str: A formatted string like "ModelName-TrainData-ON-TestData[-ParamID]".
+    """
     model = f"{model_name}-{train_data_name}-ON-{test_data_name}"
-    if param_id != None:
+    if param_id is not None:
         model = f"{model_name}-{train_data_name}-ON-{test_data_name}-{param_id}"
-    elif train_data_name == None:
+    elif train_data_name is None:
         # No training data implies no param_id
         model = f"{model_name}-ON-{test_data_name}"
     return model
@@ -93,12 +111,30 @@ def get_model_str(model_name, train_data_name, test_data_name=None, param_id=Non
 
 
 def prepend_dir_to_path(path, output_dir=None):
+    """Prepend an output directory to a path.
+
+    Args:
+        path: The base path
+        output_dir: Optional directory to prepend to the path
+
+    Returns:
+        str: Combined path with output_dir prepended, or original path if output_dir is None
+    """
     if output_dir is not None:
         path = str(Path(output_dir) / Path(path))
     return path
 
 
 def append_dir_to_path(path, sub_dir=None):
+    """Append a subdirectory to a path.
+
+    Args:
+        path: The base path
+        sub_dir: Optional subdirectory to append to the path
+
+    Returns:
+        str: Combined path with sub_dir appended, or original path if sub_dir is None
+    """
     if sub_dir is not None:
         path = str(Path(path) / Path(sub_dir))
     return path
@@ -346,7 +382,7 @@ def optimize_hyperparameters(
     device,
     profiling=False,
     n_trials=100,
-    timestamp=str(todays_date),
+    timestamp=None,
     param_id=None,
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
@@ -355,6 +391,8 @@ def optimize_hyperparameters(
     Creates a model in class `model_name` and optimizes its hyperparameters on data `data_name`.
     The best hyperparameters are saved to `best_model_hparams_filepath`.
     """
+    if timestamp is None:
+        timestamp = get_timestamp()
     dir_dict, path_dict = build_paths_dict(
         model_name=model_name,
         train_data_name=data_name,
@@ -393,7 +431,7 @@ def train_model(
     device,
     hyperparameter_path,
     profiling=False,
-    timestamp=str(todays_date),
+    timestamp=None,
     param_id=None,
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
@@ -402,6 +440,8 @@ def train_model(
     """
     Creates a model in class `model_name` and trains it on data `data_name`.
     """
+    if timestamp is None:
+        timestamp = get_timestamp()
     dir_dict, path_dict = build_paths_dict(
         model_name=model_name,
         train_data_name=data_name,
@@ -450,7 +490,7 @@ def continue_train_model(
     feature_length=32,
     dim_mlp_layers=32,
     train_checkpoint=None,
-    timestamp=str(todays_date),
+    timestamp=None,
     param_id=None,
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
@@ -460,6 +500,8 @@ def continue_train_model(
     Loads a model in class `model_name` that was previously trained on `data_name`, and
     continue training it.
     """
+    if timestamp is None:
+        timestamp = get_timestamp()
     dir_dict, path_dict = build_paths_dict(
         model_name=model_name,
         train_data_name=data_name,
@@ -517,7 +559,7 @@ def test_model(
     device,
     hyperparameter_path,
     accum_grad_batches=1,
-    timestamp=str(todays_date),
+    timestamp=None,
     param_id=None,
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
@@ -528,6 +570,8 @@ def test_model(
     it from checkpoint `trained_model_ckpt` and tests it on `test_data_name` dataset
     and saves trained model to checkpoint `test_checkpoint`.
     """
+    if timestamp is None:
+        timestamp = get_timestamp()
     dir_dict, path_dict = build_paths_dict(
         model_name=trained_model_name,
         train_data_name=train_data_name,
@@ -574,7 +618,7 @@ def test_baseline_model(
     model_name,
     test_data_name,
     result_path,
-    timestamp=str(todays_date),
+    timestamp=None,
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
     **wrap_kwargs,
@@ -594,6 +638,8 @@ def test_baseline_model(
     Returns:
         Test results
     """
+    if timestamp is None:
+        timestamp = get_timestamp()
     # Build model based on name
     model = build_model(model_name)
     device = "cpu"  # Always use CPU for baseline models
@@ -812,10 +858,15 @@ def concatenate_csvs(
     input_csv_paths,
     output_csv_path,
 ):
-    """
-    Concatenates multiple CSV files into one CSV file.
-    """
+    """Concatenate multiple CSV files into a single CSV file.
 
+    Args:
+        input_csv_paths: List of paths to input CSV files to concatenate
+        output_csv_path: Path where the concatenated CSV file will be saved
+
+    Returns:
+        None: Writes concatenated data to output_csv_path
+    """
     dfs = []
     for csv_path in input_csv_paths:
         df = pd.read_csv(csv_path)

@@ -8,10 +8,20 @@
 # These can then be used for running the larch pipeline to generate dpvt
 # training and testing datasets.
 
-# Parameters
-num_alignments_list=(200 500)
-num_sequences_list=(10 15 20 25)
-alignment_length_list=(50 100)
+# Parameters - Test configuration
+
+num_alignments_list=(50 100)
+num_sequences_list=(15)
+alignment_length_list=(20)
+edge_distributions=("constant" "random_subtree")
+no_dup_sites="False" # Whether to remove duplicate site patterns in the alignments
+
+# Tree extraction parameters
+max_trees=200                          # Max trees to extract per alignment
+max_spr_moves=100                      # Max SPR moves per tree
+spr_move_divisor=10                    # Divisor for constant SPR distribution
+subtree_max_attempts=100               # Max attempts for subtree replacement
+subtree_target_non_mp_proportion=0.167 # Target non-MP edge proportion (~1/6)
 
 max_attempts=20
 # How much larger to make the initial alignment to account for cleaning
@@ -20,7 +30,7 @@ scaling_factor=2
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Check if simulated_alignments directory exists, create it if not
-simulated_alignments_dir="$(cd "${script_dir}/../../../data" && pwd)/simulated_alignments"
+simulated_alignments_dir="${script_dir}/../../../data/simulated_alignments"
 if [ ! -d "$simulated_alignments_dir" ]; then
     echo "Creating simulated_alignments directory at: $simulated_alignments_dir"
     mkdir -p "$simulated_alignments_dir"
@@ -64,7 +74,7 @@ for num_alignments in "${num_alignments_list[@]}"; do
                         mv $alignment_dir/raw_alignment_$i.fa $alignment_dir/raw_alignment_$i.fasta
 
                         # Clean the alignment and trim to exact target dimensions
-                        python ${script_dir}/clean_data.py $alignment_dir/raw_alignment_$i.fasta $alignment_dir/alignment_$i.fasta $alignment_dir/alignment_stats_$i.txt $target_alignment_length $target_num_sequences
+                        ${script_dir}/clean_alignment.sh $alignment_dir/raw_alignment_$i.fasta $alignment_dir/alignment_$i.fasta $alignment_dir/alignment_stats_$i.txt False $target_alignment_length $target_num_sequences
 
                         # Check if cleaned alignment meets criteria
                         IFS=',' read cleaned_length cleaned_seqs <$alignment_dir/alignment_stats_$i.txt
@@ -88,9 +98,19 @@ for num_alignments in "${num_alignments_list[@]}"; do
                     fi
                 done
             fi
-            # We generate config file independent of datasets
-            echo "Generate config file..."
-            python ${script_dir}/generate_configs.py $target_num_sequences $target_alignment_length $num_alignments
+            # We generate config files for all edge distribution methods
+            echo "Generate config files for all edge distribution methods..."
+            for edge_dist in "${edge_distributions[@]}"; do
+                echo "  Generating config for edge distribution: $edge_dist"
+                python ${script_dir}/generate_sim_configs.py $target_num_sequences $target_alignment_length $num_alignments \
+                    --edge_distribution $edge_dist \
+                    --remove_duplicate_site_patterns $no_dup_sites \
+                    --max_trees $max_trees \
+                    --max_spr_moves $max_spr_moves \
+                    --spr_move_divisor $spr_move_divisor \
+                    --subtree_max_attempts $subtree_max_attempts \
+                    --subtree_target_non_mp_proportion $subtree_target_non_mp_proportion
+            done
         done
     done
 done

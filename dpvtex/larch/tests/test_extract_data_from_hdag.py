@@ -3,10 +3,10 @@ from ete3 import Tree
 
 from dpvtex.larch.scripts.extract_data_from_hdag import (
     extract_hdag_clade_child_clades,
-    root_and_outgroup_leaf,
     get_MP_trees_from_hdag,
     assign_edge_labels,
 )
+from dpvtex.larch.scripts.tree_perturbation import root_and_outgroup_leaf
 
 
 # dictionary for assigning node sequences
@@ -115,7 +115,7 @@ def test_get_MP_trees_from_hdag():
     # flag unlabel=True
     dag = create_test_hdag()
     [tree1, tree2] = create_test_trees()
-    trees_from_dag = get_MP_trees_from_hdag(dag, 3, unlabel=True)
+    trees_from_dag = get_MP_trees_from_hdag(dag, max_trees=3, unlabel=True)
     if len(trees_from_dag) != 2:
         raise ValueError("DAG contains more than 2 trees")
     assert (

@@ -1,74 +1,83 @@
 # dpvt-experiments-1
 
-This repo allows testing models from [dpvt](https://github.com/matsengrp/dpvt)
-on datasets generated in various ways. This repo also contains the code for
-generating this data.
+This repo provides a workflow for training and testing
+[dpvt](https://github.com/matsengrp/dpvt) models (see *Standard Training
+Workflow*). We also provide different ways of generating training and
+testing data from simulated or empirical alignments (*Training/Testing Data
+Generation*).
+
 
 ## Installation
 
-To run the code in this workflow, you will need to creat a pixi environment. To
+To run the code of this repo, you will need to creat a pixi environment. To
 install [pixi](https://pixi.sh/latest/installation/) with curl (on Linux or
 MacOS), run:
 
-```
+```bash
 curl -fsSL https://pixi.sh/install.sh | sh
 ```
 
-Additionally, you will need to clone the
-[dpvt](https://github.com/matsengrp/dpvt) repo into the same parent directory as
-this repo. If you want to save it somewhere else, you will need to update the
-path to the repo in `pixi.toml`.
+Next, clone the [dpvt](https://github.com/matsengrp/dpvt) repo into the same
+parent directory as this repo. If you clone it to a different location, you need
+to update the path to the repo in `pixi.toml`.
 
-You can then install the pixi environment *dpvt-experiments*, which includes the
-dpvt package from the dpvt repo and the dpvtex package from this repo, from
-`pixi.toml`:
+You are now ready to install the pixi environment *dpvt-experiments*, which
+includes the dpvt package from the dpvt repo and the dpvtex package from this
+repo. To install and then activate the environment, run:
 
-```
+```bash
 pixi install
+pixi shell
 ```
 
 
-## Training Workflow
+## Standard Training Workflow
 
-We have a workflow implemented in Snakemake (`Snakefile`), which takes as input
-in `config.yaml` names of models (see _Neural Network Model_), datasets (see
-_Training Data_), and the device on which we want to train (e.g. cpu or gpu, see
-_Device_), and trains and evaluates the given models on all given datasets.
+The standard workflow to train and test the dpvt models is implemented as a
+Snakemake workflow (`Snakefile`), which requires the `config.yaml` file to
+specify models, data, and setting to use for training and testing. These are:
+-  `models`: Names of models to use (see *Neural Network Model*). One or more
+    of: `[ "TraverseNN", "TraverseMaxPooling", "TraverseAvgPooling",
+    "BaselineReversion"]`
+- `train_data`: List of nicknames of training data sets (see _Training Data_). A
+  dictionary containing those nicknames as keys and paths to the files
+  containing the data must be provided (see `data_nicknames_path`) as json file
+- `test_data`: List of nicknames of testing data sets, just like training data
+- `device`: Device you want to use for training/testing (see _Device_). E.g.
+  `"gpu"`, "`cuda"`, `"cpu"`. Special case is `cpu-tree-dataset`, which uses a
+  different data structure for the trees inside the models, which is less
+  efficient than the default
+- `timestamp`: Used for saving output: `{output_dir}/run.{timestamp}/` (see
+  `output_dir`)
+- `use_cross_datasets`: If True, every trained model is tested on every test
+  data set. If False, model trained on train_data set *i* is only tested on
+  test_data set *i* (*i* being the index in the list of train_data and test_data
+  provided in this config)
+- `output_dir`: Name of output directory. Contains all output computed during
+  training and testing, including checkpoints
+- `data_nicknames_path`: Relative path to json file containing a dictionary with
+  data nicknames as keys and paths to files as values. This file needs to
+  provide paths to all train_data and test_data nicknames provided in this
+  config
+- `use_hyperparameter_optimize`: If True, runs hyperparameter optimization with
+  Optuna, unless this has been done already and hyperparameters can be loaded
+  from log file (in
+  `{output_dir}/run.{timestamp}/checkpoint_logs/optimize_hyperparameters/{model}-{train_data}-Param{i}.json`).
+  If False, uses hyperparameters defined at the bottom of this config file
+- `n_hyperparameter_trials`: Number of hyperparameter trials to be run by Optuna
+- `hyperparameters`: Default hyperparameters to be used
 
-The input data is expected to be located in a `data` folder in the root
-directory of this repo. Two lists `train_data` and `test_data` containing names
-of datasets need to be specified, so that the *i*th dataset in `train_data` is
-the training data for a model that is then tested on the *i*th dataset of
-`test_data`. Note that we use nicknames for our datasets in `config.yaml`. We
-need to define the paths to the actual datasets for each nickname in
-`dpvtex/dpvt_data.py`. The data shall be made of dictionaries where trees are
-keys and their values are lists that assign `0` or `1` to edges in the tree,
-ordered by pre-order traversal, where `0` means this edge is in a Maximum
-Parsimony tree and `1` indicates that it is not.
+More details to these inputs can be found in the following subsections.
+To execute the workflow, move into the directory `train` and run:
 
-> Note: Avoid using `-` in nicknames for models or datasets, as this might
-> result in issues with Snakemake
+```bash
+snakemake -c[num_cores]
+```
 
-To execute the workflow, run `snakemake -c[num_cores]` in the directory `train`,
-where `[num_cores]` should be replaced with the number of cores you want to use.
-Alternatively, run `snakemake --snakefile train/Snakefile -c[num_cores]` in the
-root directory, or from any directory with the `--snakefile` path argument
-replaced as appropriate.
+`[num_cores]` should be replaced with the number of cores you want to use.
+Alternatively, run `snakemake --snakefile path/to/Snakefile -c[num_cores]` by
+providing the path to the Snakefile.
 
-We have a workflow implemented in Snakemake (`Snakefile`), which takes as input
-in `config.yaml` names of models (see _Neural Network Model_) and datasets (see
-_Training Data_) and trains and evaluates the given models on all given
-datasets. The input data is expected to be located in a `data` folder in the
-root directory of this repo. The data shall be made of dictionaries where trees
-are keys and their values are lists that assign `0` or `1` to edges in the tree,
-ordered by pre-order traversal, where `0` means this edge is in a Maximum
-Parsimony tree and `1` indicates that it is not.
-
-To execute the workflow, run `snakemake -c[num_cores]` in the directory `train`,
-where `[num_cores]` should be replaced with the number of cores you want to use.
-Alternatively, run `snakemake --snakefile train/Snakefile -c[num_cores]` in the
-root directory, or from any directory with the `--snakefile` path argument
-replaced as appropriate.
 
 ### Neural Network models
 
@@ -82,28 +91,45 @@ We have four different models:
 Details about these models can be found in
 [dpvt](https://github.com/matsengrp/dpvt).
 
-### Training data
 
-Training data can be generated either from empirical or simulated alignments
-using `larch` to construct Maximum Parsimony trees (see
+### Training/testing data
+
+Training and testing data can be generated either from empirical or simulated
+alignments using `larch` to construct Maximum Parsimony trees (see
 `dpvtex/larch/README.md`) or by generating perfect phylogenies (see
 `dpvtex/perfect_phylogenies/README.md`).
 
-Nicknames for the datasets and paths to those datasets must be provided in a
-`dpvt_zoo.py`. We assume that each dataset is given by one file that contains a
-pickled dictionary. The keys of this dictionary shall be trees and their values
-lists of `0`s and `1`s indicating if an edge (indexed in pre-order) is present
-in a MP tree or not. Trees are allowed to have varying lengths. The current
-implementation reads such a dictionary and splits it into training, validation
-when loading training data. The testing data is loaded separately. Training set
-is used to train our models, validation set is used for hyperparameter
-optimization and to assess overfitting, and the test set is used for evaluating
-the trained models.
+The input data must be saved in dictionaries where trees in ete3 format are keys
+and their values are lists that assign `0` or `1` to all edges in the tree
+(including pendant edges), ordered by pre-order traversal, where `0` means this
+edge is in a Maximum Parsimony tree and `1` indicates that it is not.
+
+> Note: Avoid using `-` in nicknames for models or datasets, as this might
+> result in issues with Snakemake
+
+Nicknames for datasets and paths to those datasets must be provided in the json
+file that is provided as `data_nicknames_path` in the config.
+
+#### Data format
+We assume that each dataset is provided by one file that contains a pickled
+dictionary. The keys of this dictionary shall be trees and their values lists of
+`0`s and `1`s indicating if an edge (indexed in pre-order) is present in a MP
+tree or not, respectively. The trees contained in one dataset do not need to
+have the same leaf set and can vary in the number of leaves. Training and
+testing data are loaded separately and need to be in separate files. The
+training set is split into training and validation set. The training set is used
+to train our models, validation set is used for hyperparameter optimization and
+to assess overfitting, and the test set is used for evaluating the trained
+models.
 
 The default data structure for out training and testing data is
 `TraversalDataset`, which creates tensors representing tree traversals when
 loading the data. To use the `TreeDataset` data structure (see more details in
-the `dpvt` repo), set the `device` in `config.yaml` to `cpu-tree-dataset`.
+the `dpvt` repo), set the `device` in `config.yaml` to `cpu-tree-dataset`. The
+`TreeDataset` cannot be used on a GPU. The only exception to the default usage
+of `TraversalDataset` is the Baseline model `BaselineReversion`, which can only
+run on the CPU as it only works with the `TreeDataset` data structure. Even if
+one requests running on a GPU, this model will run on the CPU.
 
 ### Device
 
@@ -133,9 +159,21 @@ performance of classification on the test set.
     code for creating datasets for training and testing dpvt models (See
     _Training Data_).
 
-## Training Data
+## Training/Testing Data Generation
 
-### Generating Perfect Phylogenies
+Training and testing data can be generated from empirical or simulated
+alignments by running the inference software `larch`, which generates maximum
+parsimony trees, and then perturbing them to introduced non-MP edges.
+This is our standard approach to generating data sets for `dpvt`.
+
+A pipeline for generating training and testing dataset with this methods is
+provided in `dpvtex/larch`, which also contains a
+[README](dpvtex/larch/README.md) with details on how to use it.
+
+
+### Alternative Data Generation
+
+#### Generating Perfect Phylogenies
 
 Python classes for creating perfect phylogenies, for a given tree topology, are
 in `generate_data/perfect_phylogeny.py` and
@@ -175,7 +213,7 @@ same as `skip_perms=True`.
 In short, use `PerfectPhylogeny` to get all pefect phylogenies and
 `RandomPefectPhylogeny` to get a single perfect phylogeny at random.
 
-### Perturbing the phylogenies
+#### Perturbing the phylogenies
 
 Perturbing trees is handled by `perfect_phylogenies/perturb_phylogeny.py`. See
 `perfect_phylogenies/examples/perturb_random_perfect_phylogenies.py` for an
@@ -184,11 +222,3 @@ similar phylogeny, but with worse parsimony score.
 
 To generate data for training the neural network, see
 `perfect_phylogenies/examples/make_datasets.py`.
-
-### Larch
-
-Larch is a program that can be used to infer a collection of Maximum Parsimony
-trees for a given alignment. We set up a pipeline that uses larch to create such
-trees and then perturbs them to create training and testing sets for dpvt. We
-describe how to do this in more detail in this
-[README.md](dpvtex/larch/README.md)

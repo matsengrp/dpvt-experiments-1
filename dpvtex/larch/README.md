@@ -7,24 +7,19 @@ alignment.
 
 ## Install
 
-To run this code, you will need to install the `larch-data` environment. This
-can be done by running the following in the base folder of this repo:
-
-```bash
-    conda create env --file environment.yml
-    pip install -e .
-```
+To run this code, you will need to install and activate the pixi
+`dpvt-experiments` environment as explained [here](../../README.md).
 
 Additionally, we use [larch](https://github.com/matsengrp/larch), which first
 needs to be built. Follow the link to get instructions on how to build larch.
-Note that this will require creating a new conda environment, so make sure that
-once you are done installing `larch`, you activate `larch-data` again to run the
-code in this repo.
+Note that this will require creating a conda environment, so make sure that once
+you are done installing `larch`, you activate `dpvt-experiments` again to run
+the code in this repo.
 
 ## Construct historydag with larch-usher and extract trees
 
 This code allows to input an alignment in fasta format and returns a pickled
-file containing a dictionary with trees as keys and lists of 0s and 1s as
+file containing a dictionary with trees as keys and lists of *0*s and *1*s as
 values, which assign each edge in the corresponding tree (in preorder) value 0
 if the edge is present in one of the MP trees found by larch-usher and otherwise
 returns 1. To run this code, you can either follow the all-in-one description,
@@ -37,38 +32,50 @@ use the script `scripts/create_alisim_alignments.sh`, which uses IQ-TREE's
 alisim to simulate alignments
 ([http://www.iqtree.org/doc/AliSim](http://www.iqtree.org/doc/AliSim)). At the
 beginning of this script you can specify a list of the number of alignments you
-want to simulate, a list of number of sequences and sequence lengths that you
-want to generate alignments for. For each combination of number of alignments,
-sequences, and sequence length, a directory will be created in
-`dpvtex/data/simulated_alignments/` that contains a directory for each alignment
-simulated, which itself contains that alignment. The script additionally saves
-configs for each dataset created, which are needed for creating dpvt training
-data (see in _All-in-one_) in the directory `configs/`.
+want to simulate, a list of number of sequences, and a list of sequence lengths
+that you want to generate alignments for as well as a list of keywords
+corresponding to different methods of introducing non-MP edges to the maximum
+parsimony trees computed by larch (see Details in *Edge Distributions*). For
+each combination of number of alignments, sequences, and sequence length, a
+directory will be created in `dpvtex/data/simulated_alignments/` that contains a
+directory for each alignment simulated, which itself contains that alignment.
+The script additionally saves configs, one for each combination of simulated
+dataset and edge distribution, which are needed for creating dpvt training data
+(see in _All-in-one_) in the directory `configs/`. Note that the python script
+`scripts/generate_sim_configs.py` is used to generate configs.
 
-### All-in-one
+### Data generation pipeline
 
-First, we need to specify where we store input data, where we want output data
-to be stored, and some parameters for the run in `config.yaml`:
+We provide a snakemake workflow that takes as input alignments and outputs data
+in the format required by `dpvt` representing trees and labels on their edges,
+identifying edges as MP and non-MP edges.
 
--   `input_data`: directory containing for each alignment a directory with the
+To provide the input and setting as to how to generate this data, the following
+information needs to be provided in the snakemake config `config.yaml`:
+
+- `input_data`: directory containing for each alignment a directory with the
     name of the alignment and a fasta file with the same name as its directory,
     e.g.: `alignment_1/alignment_1.fasta` _Note that we assume DNA sequences.
     Columns containing gaps or ambiguous characters in the input alignment get
-    deleted in our pipeline._
--   `larch_build`: path to the `build` directory created when building `larch`
+    deleted in our pipeline._ The scripts `scripts/create_alisim_alignments.sh`
+    creates data in exactly this format.
+- `larch_build`: path to the `build` directory created when building `larch`
     (see instructions in `larch` repo)
--   `output_data`: path to directory in which output, which is a pickled file
+- `output_data`: path to directory in which output, which is a pickled file
     containing trees and corresponding edge vectors containing MP edge labels,
     should be saved
--   `dataset_name`: name for the dataset that will be used for the output files
-    containing the data. The output files are named `{dataset_name}{_spr}.p`,
-    where `_spr` is only added if `make_worse_spr==TRUE` (see below)
--   `num_cores`: number of cores used for running larch-usher and tree
-    extraction, should match `num_cores` that is provided for snakemake run (see
+- `dataset_name`: name for the dataset that will be used for the output files
+    containing the data. The output files are named
+    `{dataset_name}_{edge_distribution}.p`, where `{edge_distribution}`
+    identifies the method that is used to introduce non-MP edges in the maximum
+    parsimony trees returned by `larch` (see Details in `Edge Distributions`
     below)
--   `make_worse_spr`: True or False depending on whether non-MP edges are
-    supposed to be introduced by SPR moves (True) or by replacing MP subtrees by
-    random subtrees (False)
+- `edge_distribution`: Method used to introduce non-MP edges, see details in the
+  `Edge Distributions` section below
+- `num_cores`: number of cores used for running larch-usher and tree extraction,
+    should match `num_cores` that is provided for snakemake run (see below)
+- `remove_duplicate_site_patterns`: If set to True, duplicate site patterns are
+  removed when computing dpvt datasets
 
 To execute the pipeline, run the following in the `larch/` directory of this
 repo:
@@ -87,11 +94,38 @@ You can then run the pipeline on all configs with:
 ./run_on_simulated_alignments.sh
 ```
 
-The output of this snakemake run will be a pickled file containing dictionaries
-with ete3 trees as keys and lists as values, which indicate whether edges in the
-tree are in a MP tree (0) or not (1), according to a preorder traversal.
+The output of this snakemake run is a pickled file containing dictionaries with
+ete3 trees as keys and lists as values, which indicate whether edges in the tree
+are in a MP tree (*0*) or not (*1*), according to a preorder traversal.
 
-### Running steps individually
+### Edge Distributions
+
+Initially in our pipeline, we run larch-usher on the provided alignments to
+generate Maximum Parsimony trees. We therefore need to perturb these trees to
+introduce non-MP edges. Since larch-usher provides us with a collection of
+maximum parsimony trees, we can compare trees after perturbation with the
+collection of larch-usher trees to ensure that the newly introduced edges are
+actually not present in a maximum parsimony tree.
+
+We present four different methods to introduce non-MP edges, which can be
+specified with the corresponding keyword in the config file
+(`edge_distribution`):
+
+- `constant`: $min(\frac{n}{2}, 100)$ random SPR moves to create non-MP edges
+- `uniform`: number of random SPRs drawn from uniform distribution between 0 and
+  $min(n, 100)$
+- `treesearch`: generate as many random trees as there are MP trees sampled. Of
+  the MP trees, introduce $min(\frac{n}{2}, 100)$ SPR moves on half of these
+  trees, and for the rest, draw the number of SPR moves from a uniform
+  distribution between 0 and $min(n, 100)$
+- `random_subtree`: replace random subtree of depth $\frac{d}{2}$, where d is depth of
+  entire tree, by random tree and repeat until at least $\frac{1}{6}$ th of all edges
+  (including pendant) are non-MP or random subtree replacement has been tried
+  100 times
+
+
+
+### Running all steps individually
 
 In some cases we want to run each step of the pipeline for creating the `dpvt`
 training data separately. For example, we cannot call `larch-usher` from a
@@ -218,9 +252,6 @@ In `dpvtex/larch/scripts`: scripts called from snakefiles:
         used in future steps.
 
 -   Called from `generate_dpvt_input.snakefile`:
-    -   `check_max_parsimony.py`: Checks if the smallest parsimony score of the
-        hDAG produced by larch decreased in the last 5 iterations. If it did, we
-        want to run larch for more iterations
     -   `extract_data_from_hdag.py`: Reads hDAGs produced by larch and extracts
         MP trees:
         -   read hDAG from larch output and trim to only contain MP trees +

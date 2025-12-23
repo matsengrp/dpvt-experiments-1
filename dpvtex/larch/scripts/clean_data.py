@@ -1,11 +1,134 @@
-from Bio import AlignIO
-from Bio.Align import MultipleSeqAlignment
-from Bio.SeqRecord import SeqRecord
-from Bio.Seq import Seq
-from collections import Counter
 import csv
 import os
+import traceback
+from collections import Counter
+
+from Bio import AlignIO
+from Bio.Align import MultipleSeqAlignment
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+
 from dpvtex.larch.scripts.pipeline_logger import get_logger
+
+# CSV header for alignment size statistics
+_ALIGNMENT_STATS_CSV_HEADER = [
+    "alignment_name",
+    "original_num_seqs",
+    "original_num_sites",
+    "cleaned_num_seqs",
+    "cleaned_num_sites",
+    "seq_ratio",
+    "site_ratio",
+]
+
+
+def _determine_input_format(filename):
+    """Determine alignment file format from extension."""
+    if filename.endswith((".nex", ".nexus")):
+        return "nexus"
+    return "fasta"
+
+
+def _write_failure_stats_row(csv_path, alignment_name):
+    """Write a failure row (all zeros) to the alignment stats CSV."""
+    file_exists = os.path.exists(csv_path)
+    with open(csv_path, "a", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        if not file_exists:
+            writer.writerow(_ALIGNMENT_STATS_CSV_HEADER)
+        writer.writerow([alignment_name, 0, 0, 0, 0, 0.0, 0.0])
+
+
+def _handle_alignment_read_failure(
+    error, alignment_name, output_filename, size_stats_csv, logger
+):
+    """Handle failure to read an alignment file.
+
+    Creates failure marker files and logs the error.
+    Returns (0, 0, 0, 0) to indicate failure.
+    """
+    error_msg = f"Failed to read alignment {alignment_name}: {str(error)}"
+    print(f"\nERROR: {error_msg}")
+    logger.log("CLEANING", error_msg, level="ERROR")
+    logger.log("CLEANING", f"Traceback:\n{traceback.format_exc()}", level="ERROR")
+
+    # Create failure marker file
+    with open(output_filename, "w") as f:
+        f.write(f"# FAILED: {error_msg}\n")
+
+    # Write failure row to stats CSV if requested
+    if size_stats_csv is not None:
+        _write_failure_stats_row(size_stats_csv, alignment_name)
+
+    return 0, 0, 0, 0
+
+
+def _apply_core_cleaning(alignment, max_ambiguous_site_frac_per_seq, logger):
+    """Apply core cleaning operations to an alignment.
+
+    Operations:
+    1. Filter low-quality sequences (if threshold provided)
+    2. Remove uninformative sites
+    3. Remove duplicate sequences
+
+    Returns the cleaned alignment.
+    """
+    # Filter low-quality sequences if threshold is provided
+    if max_ambiguous_site_frac_per_seq is not None:
+        alignment, num_kept, num_removed, _ = filter_low_quality_sequences(
+            alignment, max_ambiguous_site_frac_per_seq
+        )
+        logger.log(
+            "CLEANING",
+            f"Low-quality sequence filtering (threshold={max_ambiguous_site_frac_per_seq}): "
+            f"removed {num_removed} sequences, kept {num_kept}",
+        )
+
+    # Remove uninformative sites
+    alignment, num_informative_sites = remove_uninformative_sites(alignment)
+    logger.log(
+        "CLEANING",
+        f"Removed uninformative sites: {num_informative_sites} informative sites retained",
+    )
+
+    # Remove duplicate sequences
+    alignment, num_unique_seqs = remove_duplicate_sequences(alignment)
+    logger.log(
+        "CLEANING",
+        f"Removed duplicate sequences: {num_unique_seqs} unique sequences retained",
+    )
+
+    return alignment
+
+
+def _trim_to_target_dimensions(alignment, target_length, target_seqs, logger):
+    """Trim alignment to target dimensions if specified.
+
+    Returns the trimmed alignment, or original if no targets specified.
+    """
+    if target_length is None or target_seqs is None:
+        return alignment
+
+    original_target_seqs = target_seqs
+    num_seqs = len(alignment)
+
+    if num_seqs < target_seqs:
+        target_seqs = num_seqs
+    else:
+        alignment = MultipleSeqAlignment(alignment[:target_seqs])
+        alignment = create_trimmed_informative_alignment(
+            alignment, target_length, target_seqs
+        )
+        # Remove duplicates after trimming
+        alignment, _ = remove_duplicate_sequences(alignment)
+
+    logger.log(
+        "CLEANING",
+        f"Trimmed to target dimensions: {len(alignment)} sequences "
+        f"(target was {original_target_seqs}), {target_length} sites",
+    )
+
+    return alignment
 
 
 def calculate_sequence_quality(sequence):
@@ -31,28 +154,28 @@ def calculate_sequence_quality(sequence):
 
     if length == 0:
         return {
-            'gap_fraction': 0.0,
-            'ambiguous_fraction': 0.0,
-            'valid_fraction': 0.0,
-            'length': 0
+            "gap_fraction": 0.0,
+            "ambiguous_fraction": 0.0,
+            "valid_fraction": 0.0,
+            "length": 0,
         }
 
     # Standard nucleotides
-    valid_bases = set('ACGT')
+    valid_bases = set("ACGT")
     # Gap characters
-    gap_chars = set('-.')
+    gap_chars = set("-.")
     # Ambiguous IUPAC codes
-    ambiguous_chars = set('NRYKMSWBDHV?')
+    ambiguous_chars = set("NRYKMSWBDHV?")
 
     gap_count = sum(1 for c in seq_str if c in gap_chars)
     ambiguous_count = sum(1 for c in seq_str if c in ambiguous_chars)
     valid_count = sum(1 for c in seq_str if c in valid_bases)
 
     return {
-        'gap_fraction': gap_count / length,
-        'ambiguous_fraction': ambiguous_count / length,
-        'valid_fraction': valid_count / length,
-        'length': length
+        "gap_fraction": gap_count / length,
+        "ambiguous_fraction": ambiguous_count / length,
+        "valid_fraction": valid_count / length,
+        "length": length,
     }
 
 
@@ -84,22 +207,29 @@ def filter_low_quality_sequences(alignment, max_ambiguous_site_frac_per_seq=0.2)
         quality = calculate_sequence_quality(record.seq)
 
         # Combined fraction of gaps and ambiguous bases
-        combined_fraction = quality['gap_fraction'] + quality['ambiguous_fraction']
+        combined_fraction = quality["gap_fraction"] + quality["ambiguous_fraction"]
 
         if combined_fraction > max_ambiguous_site_frac_per_seq:
-            removed_sequences.append({
-                'id': record.id,
-                'reason': 'low_quality',
-                'gap_fraction': quality['gap_fraction'],
-                'ambiguous_fraction': quality['ambiguous_fraction'],
-                'combined_fraction': combined_fraction
-            })
+            removed_sequences.append(
+                {
+                    "id": record.id,
+                    "reason": "low_quality",
+                    "gap_fraction": quality["gap_fraction"],
+                    "ambiguous_fraction": quality["ambiguous_fraction"],
+                    "combined_fraction": combined_fraction,
+                }
+            )
         else:
             kept_sequences.append(record)
 
     filtered_alignment = MultipleSeqAlignment(kept_sequences)
 
-    return filtered_alignment, len(kept_sequences), len(removed_sequences), removed_sequences
+    return (
+        filtered_alignment,
+        len(kept_sequences),
+        len(removed_sequences),
+        removed_sequences,
+    )
 
 
 def is_site_informative(column):
@@ -271,7 +401,7 @@ def remove_identical_site_patterns(multiple_seq_alignment):
     for site_idx in range(alignment_length):
         # Extract the site pattern (column) as a tuple (hashable)
         site_pattern = tuple(
-            str(record.seq[site_idx]) for record in multiple_seq_alignment            
+            str(record.seq[site_idx]) for record in multiple_seq_alignment
         )
         # Check if we've seen this pattern before
         if site_pattern not in unique_patterns:
@@ -318,38 +448,31 @@ def write_alignment_size_stats(
     final_num_sites : int
         Number of sites after cleaning
     """
-    # Check if CSV file exists to determine if we need to write header
     file_exists = os.path.exists(csv_path)
 
     with open(csv_path, "a", newline="") as csvfile:
         writer = csv.writer(csvfile)
 
-        # Write header if this is a new file
         if not file_exists:
-            writer.writerow([
-                "alignment_name",
-                "original_num_seqs",
-                "original_num_sites",
-                "cleaned_num_seqs",
-                "cleaned_num_sites",
-                "seq_ratio",
-                "site_ratio",
-            ])
+            writer.writerow(_ALIGNMENT_STATS_CSV_HEADER)
 
         # Calculate ratios
         seq_ratio = final_num_seqs / original_num_seqs if original_num_seqs > 0 else 0
-        site_ratio = final_num_sites / original_num_sites if original_num_sites > 0 else 0
+        site_ratio = (
+            final_num_sites / original_num_sites if original_num_sites > 0 else 0
+        )
 
-        # Write data row
-        writer.writerow([
-            alignment_name,
-            original_num_seqs,
-            original_num_sites,
-            final_num_seqs,
-            final_num_sites,
-            seq_ratio,
-            site_ratio,
-        ])
+        writer.writerow(
+            [
+                alignment_name,
+                original_num_seqs,
+                original_num_sites,
+                final_num_seqs,
+                final_num_sites,
+                seq_ratio,
+                site_ratio,
+            ]
+        )
 
 
 def clean_alignment(
@@ -394,107 +517,56 @@ def clean_alignment(
         (final_num_seqs, final_num_sites, original_num_seqs, original_num_sites)
         Returns (0, 0, 0, 0) if cleaning fails
     """
-    import traceback
     alignment_name = os.path.basename(os.path.dirname(input_filename))
-
     logger.log_section("CLEANING", f"Starting alignment cleaning for {alignment_name}")
 
-    # Determine input format based on file extension
-    if input_filename.endswith(('.nex', '.nexus')):
-        input_format = 'nexus'
-    else:
-        input_format = 'fasta'
-
-    # Read the original alignment - this is where unequal length errors occur
+    # Read the original alignment
+    input_format = _determine_input_format(input_filename)
     try:
         alignment = AlignIO.read(input_filename, input_format)
         original_num_seqs = len(alignment)
         original_num_sites = alignment.get_alignment_length()
-    except Exception as e:
-        # Failed to read alignment (likely unequal sequence lengths)
-        error_msg = f"Failed to read alignment {alignment_name}: {str(e)}"
-        print(f"\nERROR: {error_msg}")
-        logger.log("CLEANING", error_msg, level="ERROR")
-        logger.log("CLEANING", f"Traceback:\n{traceback.format_exc()}", level="ERROR")
-
-        # Create failure marker files
-        with open(output_filename, 'w') as f:
-            f.write(f"# FAILED: {error_msg}\n")
-
-        if size_stats_csv is not None:
-            file_exists = os.path.exists(size_stats_csv)
-            with open(size_stats_csv, "a", newline="") as csvfile:
-                writer = csv.writer(csvfile)
-                if not file_exists:
-                    writer.writerow([
-                        "alignment_name",
-                        "original_num_seqs",
-                        "original_num_sites",
-                        "cleaned_num_seqs",
-                        "cleaned_num_sites",
-                        "seq_ratio",
-                        "site_ratio",
-                    ])
-                writer.writerow([alignment_name, 0, 0, 0, 0, 0.0, 0.0])
-
-        return 0, 0, 0, 0
-
-    logger.log("CLEANING", f"Original alignment: {original_num_seqs} sequences, {original_num_sites} sites")
-
-    # Filter low-quality sequences if threshold is provided
-    if max_ambiguous_site_frac_per_seq is not None:
-        alignment, num_kept, num_removed, removed_seqs = filter_low_quality_sequences(
-            alignment, max_ambiguous_site_frac_per_seq
+    except (ValueError, FileNotFoundError, OSError) as e:
+        return _handle_alignment_read_failure(
+            e, alignment_name, output_filename, size_stats_csv, logger
         )
-        logger.log("CLEANING", f"Low-quality sequence filtering (threshold={max_ambiguous_site_frac_per_seq}): removed {num_removed} sequences, kept {num_kept}")
 
-    # Remove uninformative sites and duplicate sequences
-    clean_alignment, num_informative_sites = remove_uninformative_sites(alignment)
-    logger.log("CLEANING", f"Removed uninformative sites: {num_informative_sites} informative sites retained")
+    logger.log(
+        "CLEANING",
+        f"Original alignment: {original_num_seqs} sequences, {original_num_sites} sites",
+    )
 
-    clean_alignment, num_unique_seqs = remove_duplicate_sequences(clean_alignment)
-    logger.log("CLEANING", f"Removed duplicate sequences: {num_unique_seqs} unique sequences retained")
+    # Apply core cleaning operations
+    cleaned = _apply_core_cleaning(alignment, max_ambiguous_site_frac_per_seq, logger)
 
     # Remove duplicate site patterns if requested
     if remove_site_patterns:
-        clean_alignment, num_unique_sites = remove_identical_site_patterns(
-            clean_alignment
+        cleaned, num_unique_sites = remove_identical_site_patterns(cleaned)
+        logger.log(
+            "CLEANING",
+            f"Removed duplicate site patterns: {num_unique_sites} unique site patterns retained",
         )
-        logger.log("CLEANING", f"Removed duplicate site patterns: {num_unique_sites} unique site patterns retained")
 
-    # If we need to trim to target dimensions
-    if target_length is not None and target_seqs is not None:
-        original_target_seqs = target_seqs
-        # First trim down to target number of sequences
-        if num_unique_seqs < target_seqs:
-            target_seqs = num_unique_seqs
-        else:
-            clean_alignment = MultipleSeqAlignment(clean_alignment[:target_seqs])
-            # Using create_trimmed_informative_alignment which filters for informative sites
-            clean_alignment = create_trimmed_informative_alignment(
-                clean_alignment, target_length, target_seqs
-            )
-            # Again remove duplicates after trimming
-            clean_alignment, num_unique_seqs = remove_duplicate_sequences(
-                clean_alignment
-            )
-        logger.log("CLEANING", f"Trimmed to target dimensions: {target_seqs} sequences (target was {original_target_seqs}), {target_length} sites")
+    # Trim to target dimensions if specified
+    cleaned = _trim_to_target_dimensions(cleaned, target_length, target_seqs, logger)
 
-    final_num_sites = clean_alignment.get_alignment_length()
-    final_num_seqs = len(clean_alignment)
+    # Write output
+    final_num_sites = cleaned.get_alignment_length()
+    final_num_seqs = len(cleaned)
+    AlignIO.write(cleaned, output_filename, "fasta")
 
-    AlignIO.write(clean_alignment, output_filename, "fasta")
-
-    logger.log("CLEANING", f"Final alignment: {final_num_seqs} sequences, {final_num_sites} sites")
+    logger.log(
+        "CLEANING",
+        f"Final alignment: {final_num_seqs} sequences, {final_num_sites} sites",
+    )
     logger.log("CLEANING", f"Cleaned alignment written to: {output_filename}")
 
+    # Write optional output files
     if algn_length_filename is not None:
         with open(algn_length_filename, "w") as f:
-            f.write(str(final_num_sites) + "," + str(final_num_seqs))
+            f.write(f"{final_num_sites},{final_num_seqs}")
 
-    # Write alignment size statistics to CSV if requested
     if size_stats_csv is not None:
-        alignment_name = os.path.basename(os.path.dirname(input_filename))
         write_alignment_size_stats(
             size_stats_csv,
             alignment_name,

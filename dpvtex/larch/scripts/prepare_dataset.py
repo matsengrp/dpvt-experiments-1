@@ -11,7 +11,39 @@ import pandas as pd
 import numpy as np
 
 
-def create_filtered_dataset(source_dir, stats_file, output_dir, min_frac_sites_retained=0.8):
+def _create_symlinks_for_split(alignments, source_dir, target_dir):
+    """Create symlinks from source to target directory for given alignments.
+
+    Returns the count of symlinks created.
+    """
+    os.makedirs(target_dir, exist_ok=True)
+    created = 0
+    for name in alignments:
+        source_path = os.path.abspath(os.path.join(source_dir, name))
+        target_path = os.path.join(target_dir, name)
+        if os.path.exists(source_path) and not os.path.exists(target_path):
+            os.symlink(source_path, target_path, target_is_directory=True)
+            created += 1
+    return created
+
+
+def _write_split_manifest(
+    manifest_path, split_type, source_manifest, alignments, test_fraction
+):
+    """Write a manifest file for a train/test split."""
+    with open(manifest_path, "w") as f:
+        f.write(f"# {split_type} set\n")
+        f.write(f"# Source manifest: {source_manifest}\n")
+        f.write(f"# Total alignments: {len(alignments)}\n")
+        f.write(f"# Test fraction: {test_fraction}\n")
+        f.write(f"# Date created: {pd.Timestamp.now()}\n\n")
+        for name in sorted(alignments):
+            f.write(f"{name}\n")
+
+
+def create_filtered_dataset(
+    source_dir, stats_file, output_dir, min_frac_sites_retained=0.8
+):
     """
     Create output directory with symlinks to alignments passing quality filters.
 
@@ -35,7 +67,7 @@ def create_filtered_dataset(source_dir, stats_file, output_dir, min_frac_sites_r
     df = pd.read_csv(stats_file)
 
     # Filter by site ratio
-    filtered_df = df[df['site_ratio'] >= min_frac_sites_retained]
+    filtered_df = df[df["site_ratio"] >= min_frac_sites_retained]
 
     print(f"\nFiltering alignments:")
     print(f"  Total alignments: {len(df)}")
@@ -50,7 +82,7 @@ def create_filtered_dataset(source_dir, stats_file, output_dir, min_frac_sites_r
     skipped = []
 
     for _, row in filtered_df.iterrows():
-        alignment_name = row['alignment_name']
+        alignment_name = row["alignment_name"]
         source_path = os.path.abspath(os.path.join(source_dir, alignment_name))
         target_path = os.path.join(output_dir, alignment_name)
 
@@ -70,7 +102,7 @@ def create_filtered_dataset(source_dir, stats_file, output_dir, min_frac_sites_r
 
     # Write manifest
     manifest_file = os.path.join(output_dir, "manifest.txt")
-    with open(manifest_file, 'w') as f:
+    with open(manifest_file, "w") as f:
         f.write(f"# Filtered dataset\n")
         f.write(f"# Source: {source_dir}\n")
         f.write(f"# Filter: site_ratio >= {min_frac_sites_retained}\n")
@@ -87,8 +119,9 @@ def create_filtered_dataset(source_dir, stats_file, output_dir, min_frac_sites_r
     return created
 
 
-def create_train_test_split(source_dir, filtered_manifest, train_dir, test_dir,
-                            test_fraction=0.2):
+def create_train_test_split(
+    source_dir, filtered_manifest, train_dir, test_dir, test_fraction=0.2
+):
     """
     Split filtered dataset into train/test sets with symlinks.
 
@@ -114,10 +147,10 @@ def create_train_test_split(source_dir, filtered_manifest, train_dir, test_dir,
     """
     # Read manifest
     alignments = []
-    with open(filtered_manifest, 'r') as f:
+    with open(filtered_manifest, "r") as f:
         for line in f:
             line = line.strip()
-            if line and not line.startswith('#'):
+            if line and not line.startswith("#"):
                 alignments.append(line)
 
     if len(alignments) == 0:
@@ -136,47 +169,19 @@ def create_train_test_split(source_dir, filtered_manifest, train_dir, test_dir,
     print(f"  Train set: {n_train} ({(1-test_fraction)*100:.0f}%)")
     print(f"  Test set: {n_test} ({test_fraction*100:.0f}%)")
 
-    # Create train directory with symlinks
-    os.makedirs(train_dir, exist_ok=True)
-    train_created = 0
-    for name in train_alignments:
-        source_path = os.path.abspath(os.path.join(source_dir, name))
-        target_path = os.path.join(train_dir, name)
-        if os.path.exists(source_path) and not os.path.exists(target_path):
-            os.symlink(source_path, target_path, target_is_directory=True)
-            train_created += 1
+    # Create directories with symlinks
+    train_created = _create_symlinks_for_split(train_alignments, source_dir, train_dir)
+    test_created = _create_symlinks_for_split(test_alignments, source_dir, test_dir)
 
-    # Create test directory with symlinks
-    os.makedirs(test_dir, exist_ok=True)
-    test_created = 0
-    for name in test_alignments:
-        source_path = os.path.abspath(os.path.join(source_dir, name))
-        target_path = os.path.join(test_dir, name)
-        if os.path.exists(source_path) and not os.path.exists(target_path):
-            os.symlink(source_path, target_path, target_is_directory=True)
-            test_created += 1
-
-    # Write train manifest
+    # Write manifests
     train_manifest = os.path.join(train_dir, "manifest.txt")
-    with open(train_manifest, 'w') as f:
-        f.write(f"# Train set\n")
-        f.write(f"# Source manifest: {filtered_manifest}\n")
-        f.write(f"# Total alignments: {len(train_alignments)}\n")
-        f.write(f"# Test fraction: {test_fraction}\n")
-        f.write(f"# Date created: {pd.Timestamp.now()}\n\n")
-        for name in sorted(train_alignments):
-            f.write(f"{name}\n")
-
-    # Write test manifest
     test_manifest = os.path.join(test_dir, "manifest.txt")
-    with open(test_manifest, 'w') as f:
-        f.write(f"# Test set\n")
-        f.write(f"# Source manifest: {filtered_manifest}\n")
-        f.write(f"# Total alignments: {len(test_alignments)}\n")
-        f.write(f"# Test fraction: {test_fraction}\n")
-        f.write(f"# Date created: {pd.Timestamp.now()}\n\n")
-        for name in sorted(test_alignments):
-            f.write(f"{name}\n")
+    _write_split_manifest(
+        train_manifest, "Train", filtered_manifest, train_alignments, test_fraction
+    )
+    _write_split_manifest(
+        test_manifest, "Test", filtered_manifest, test_alignments, test_fraction
+    )
 
     print(f"\nCreated train/test split:")
     print(f"  Train directory: {train_dir}")

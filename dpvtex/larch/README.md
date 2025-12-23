@@ -173,8 +173,10 @@ following:
 
 ```bash
 cd dpvtex/larch
-python scripts/generate_configs.py PATH/TO/INPUT_DATA DATASET_NAME
+python scripts/generate_configs.py {input_data} {dataset_name} {larch_command} CONFIG_DIR
 ```
+
+Note that `CONFIG_DIR` is an optional argument, it defaults to _configs/_
 
 #### Phase 1: Preprocessing
 

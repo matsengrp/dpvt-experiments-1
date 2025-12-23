@@ -236,9 +236,6 @@ def extract_dataset_label(dataset_name):
     Returns:
         str: Extracted label suitable for plotting
     """
-
-    # LC: TODO: Update dataset labels for new nicknames!
-
     # Scenario (i): simulated datasets
     if "_seq_" in dataset_name:
         # Extract number of leaves, sites, and alignments from the dataset name
@@ -288,7 +285,7 @@ def extract_dataset_label(dataset_name):
         parts = dataset_name.split("_")[-3:]
         name = " ".join(parts) if isinstance(parts, list) else ""
         return name.replace("influenzaC_fluC", "influenza C ")
-    
+
     elif "orthomam" in dataset_name or "pandit" in dataset_name:
         parts = dataset_name.split("_")
         name = parts[0]

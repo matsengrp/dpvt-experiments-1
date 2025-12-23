@@ -24,10 +24,13 @@ import sys
 from pathlib import Path
 
 
-def generate_prepare_config(input_data, dataset_name,
-                            max_ambiguous_site_frac_per_seq=0.2,
-                            min_frac_sites_retained=0.8,
-                            test_fraction=0.2):
+def generate_prepare_config(
+    input_data,
+    dataset_name,
+    max_ambiguous_site_frac_per_seq=0.2,
+    min_frac_sites_retained=0.8,
+    test_fraction=0.2,
+):
     """Generate Phase 1 & 2 config (prepare)."""
     return f"""# Config for {dataset_name} - Phases 1 & 2
 # This config is for preprocessing and dataset preparation
@@ -42,7 +45,7 @@ input_data: "{input_data}"
 # Phase 1: Preprocessing Settings (sequence-level filtering)
 # ============================================================================
 max_ambiguous_site_frac_per_seq: {max_ambiguous_site_frac_per_seq}     # Remove sequences with >{int(max_ambiguous_site_frac_per_seq*100)}% gaps/ambiguous chars
-remove_duplicate_site_patterns: false    # Whether to deduplicate columns
+remove_duplicate_site_patterns: False    # Whether to deduplicate columns
 
 # ============================================================================
 # Phase 2: Dataset Preparation Settings (alignment-level filtering)
@@ -96,7 +99,7 @@ dataset_name: "{dataset_name}_{split_type}_{min_frac_sites_retained}"
 larch_command: "larch"
 edge_distribution: "constant"
 num_cores: 8
-remove_duplicate_site_patterns: false
+remove_duplicate_site_patterns: False
 
 # Tree extraction parameters (optional - defaults shown)
 # max_trees: 200                         # Max trees to extract per alignment
@@ -124,7 +127,8 @@ def main():
 
     input_data = sys.argv[1]
     dataset_name = sys.argv[2]
-    output_dir = sys.argv[3] if len(sys.argv) > 3 else "configs"
+    larch_path = sys.argv[3]
+    output_dir = sys.argv[4] if len(sys.argv) > 4 else "configs"
 
     # Create output directory if needed
     os.makedirs(output_dir, exist_ok=True)
@@ -139,11 +143,11 @@ def main():
     train_path = os.path.join(output_dir, f"{dataset_name}_train.yaml")
     test_path = os.path.join(output_dir, f"{dataset_name}_test.yaml")
 
-    with open(prepare_path, 'w') as f:
+    with open(prepare_path, "w") as f:
         f.write(prepare_config)
-    with open(train_path, 'w') as f:
+    with open(train_path, "w") as f:
         f.write(train_config)
-    with open(test_path, 'w') as f:
+    with open(test_path, "w") as f:
         f.write(test_config)
 
     print(f"Generated config files:")

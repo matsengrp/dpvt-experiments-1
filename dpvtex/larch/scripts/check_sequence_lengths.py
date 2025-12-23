@@ -22,10 +22,10 @@ def check_alignment_has_equal_lengths(alignment_file):
     alignment_file = str(alignment_file)
 
     # Determine format based on file extension
-    if alignment_file.endswith(('.nex', '.nexus')):
-        file_format = 'nexus'
+    if alignment_file.endswith((".nex", ".nexus")):
+        file_format = "nexus"
     else:
-        file_format = 'fasta'
+        file_format = "fasta"
 
     try:
         sequences = list(SeqIO.parse(alignment_file, file_format))
@@ -79,24 +79,22 @@ def scan_directory(base_dir, output_file=None):
     """
     base_path = Path(base_dir)
 
-    results = {
-        "problematic": [],
-        "uniform": [],
-        "errors": []
-    }
+    results = {"problematic": [], "uniform": [], "errors": []}
 
     # Find all subdirectories
-    subdirs = [d for d in base_path.iterdir() if d.is_dir() and ".snakemake" not in str(d)]
+    subdirs = [
+        d for d in base_path.iterdir() if d.is_dir() and ".snakemake" not in str(d)
+    ]
 
     for subdir in sorted(subdirs):
         # Look for alignment files in the subdirectory
         alignment_files = (
-            list(subdir.glob("alignment.nex")) +
-            list(subdir.glob(f"{subdir.name}.nex")) +
-            list(subdir.glob(f"{subdir.name}.fasta")) +
-            list(subdir.glob("*.fasta")) +
-            list(subdir.glob("*.fa")) +
-            list(subdir.glob("*.fna"))
+            list(subdir.glob("alignment.nex"))
+            + list(subdir.glob(f"{subdir.name}.nex"))
+            + list(subdir.glob(f"{subdir.name}.fasta"))
+            + list(subdir.glob("*.fasta"))
+            + list(subdir.glob("*.fa"))
+            + list(subdir.glob("*.fna"))
         )
 
         if not alignment_files:
@@ -122,7 +120,9 @@ def scan_directory(base_dir, output_file=None):
                 for directory in results["problematic"]:
                     f.write(f"{directory}\n")
             else:
-                f.write("# No problematic alignments found - all sequences have equal lengths!\n")
+                f.write(
+                    "# No problematic alignments found - all sequences have equal lengths!\n"
+                )
 
         print(f"\nResults saved to: {output_file}")
 

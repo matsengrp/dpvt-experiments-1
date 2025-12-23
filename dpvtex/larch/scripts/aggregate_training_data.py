@@ -292,26 +292,8 @@ def pickle_and_save_data(
             trees, labels, categories
         )
 
-        try:
-            # Attempt to split the data with stratification
-            train_trees, test_trees, train_labels, test_labels = train_test_split(
-                trees, labels, train_size=0.8, stratify=categories
-            )
-        except ValueError as e:
-            # If a ValueError occurs (e.g., due to insufficient data for
-            # stratification), print a custom message
-            print(f"Error during train-test split: {e}")
-            print(
-                "The dataset is not large enough to split in training and testing data. Increase number of trees extracted from hDAG or even better the number of alignments used."
-            )
-            # Optionally, re-raise the error or handle it further
-            sys.exit(
-                "Dataset too small, will not generate training/testing data split."
-            )
-            raise
-
-        train_dict = {i: j for (i, j) in zip(train_trees, train_labels)}
-        test_dict = {i: j for (i, j) in zip(test_trees, test_labels)}
+        train_dict = {tree: label for tree, label in zip(train_trees, train_labels)}
+        test_dict = {tree: label for tree, label in zip(test_trees, test_labels)}
 
         with open(dpvt_train_data, "wb") as f:
             pickle.dump(train_dict, f)

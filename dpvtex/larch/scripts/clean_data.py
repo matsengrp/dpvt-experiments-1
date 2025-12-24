@@ -9,7 +9,10 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 from dpvtex.larch.scripts.pipeline_logger import get_logger
-from dpvtex.larch.scripts.utils import determine_file_format, get_alignment_name_from_path
+from dpvtex.larch.scripts.utils import (
+    determine_file_format,
+    get_alignment_name_from_path,
+)
 
 # CSV header for alignment size statistics
 _ALIGNMENT_STATS_CSV_HEADER = [

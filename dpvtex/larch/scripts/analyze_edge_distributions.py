@@ -39,6 +39,7 @@ def get_pickle_suffix(method):
     suffix = EDGE_DIST_TO_SUFFIX.get(method, "")
     return f"{suffix}.p" if suffix else ""
 
+
 # Plot sizing constants
 DEFAULT_PLOT_HEIGHT = 4  # Minimum height for subplots in inches
 HEIGHT_PER_DATASET = 1.5  # Additional height per dataset in inches

@@ -1,0 +1,26 @@
+# Phase 3 Config: All Data (no train/test split) for simulated_15_seq_20_sites_50_algnmnts
+# This config points to the filtered dataset created by Phase 2 (no train/test split)
+
+# Input: All Data (no train/test split) from Phase 2 (must match Phase 2 output naming)
+input_data: "../../data/simulated_15_seq_20_sites_50_algnmnts_filtered_0.8"
+
+# Output directory for training data
+output_data: "../../data"
+
+# Dataset name for output files
+dataset_name: "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8"
+
+# Larch settings (should match unified config)
+larch_command: "/home/lcollien/work/git/larch/build/bin/larch-usher"
+edge_distributions:
+  - "constant"
+  - "random_subtree"
+num_cores: 8
+remove_duplicate_site_patterns: False
+
+# Tree extraction parameters
+max_trees: 200                           # Max trees to extract per alignment
+max_spr_moves: 100                       # Max SPR moves per tree
+spr_move_divisor: 10                     # Divisor for constant SPR distribution
+subtree_max_attempts: 100                # Max attempts for subtree replacement
+subtree_target_non_mp_proportion: 0.167  # Target non-MP edge proportion (~1/6)

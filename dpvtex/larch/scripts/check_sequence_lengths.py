@@ -1,6 +1,8 @@
 from Bio import SeqIO
 from pathlib import Path
 
+from dpvtex.larch.scripts.utils import determine_file_format
+
 
 def check_alignment_has_equal_lengths(alignment_file):
     """
@@ -22,10 +24,7 @@ def check_alignment_has_equal_lengths(alignment_file):
     alignment_file = str(alignment_file)
 
     # Determine format based on file extension
-    if alignment_file.endswith((".nex", ".nexus")):
-        file_format = "nexus"
-    else:
-        file_format = "fasta"
+    file_format = determine_file_format(alignment_file)
 
     try:
         sequences = list(SeqIO.parse(alignment_file, file_format))

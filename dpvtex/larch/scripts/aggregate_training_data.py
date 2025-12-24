@@ -8,6 +8,7 @@ from statistics import median
 from sklearn.model_selection import train_test_split
 from collections import Counter
 from dpvtex.larch.scripts.pipeline_logger import get_logger
+from dpvtex.larch.scripts.utils import EDGE_DIST_TO_SUFFIX
 
 
 # =============================================================================
@@ -40,13 +41,7 @@ def _get_dict(file_path):
 
 def _get_expected_suffix(edge_distribution):
     """Map edge distribution type to expected file suffix."""
-    suffix_map = {
-        "constant": "_spr",
-        "uniform": "_uniform",
-        "treesearch_mimic": "_treesearch_mimic",
-        "random_subtree": "_subtree",
-    }
-    return suffix_map.get(edge_distribution, "")
+    return EDGE_DIST_TO_SUFFIX.get(edge_distribution, "")
 
 
 def _collect_pickle_files(data_dir, expected_suffix):
@@ -62,7 +57,7 @@ def _collect_pickle_files(data_dir, expected_suffix):
                 file_path = os.path.join(root, file_name)
                 dataset_name = file_name[:-2]
                 # Remove any edge distribution suffix if it exists
-                for suffix in ["_spr", "_uniform", "_treesearch_mimic", "_subtree"]:
+                for suffix in EDGE_DIST_TO_SUFFIX.values():
                     if suffix in dataset_name:
                         dataset_name = dataset_name.split(suffix)[0]
                         break

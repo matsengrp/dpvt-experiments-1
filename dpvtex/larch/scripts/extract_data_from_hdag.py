@@ -9,6 +9,7 @@ import sys
 from ete3 import Tree
 
 from dpvtex.larch.scripts.pipeline_logger import get_logger
+from dpvtex.larch.scripts.utils import get_alignment_name_from_path
 from dpvtex.larch.scripts.tree_perturbation import (
     increase_tree_parsimony,
     make_worse_spr,
@@ -411,7 +412,7 @@ def extract_data_from_hdag(
         subtree_target_non_mp_proportion (float): Target non-MP edge proportion for
             subtree replacement (default: 1/6)
     """
-    alignment_name = os.path.basename(os.path.dirname(dag_file))
+    alignment_name = get_alignment_name_from_path(dag_file)
     logger.log_section("EXTRACTION", f"Starting tree extraction for {alignment_name}")
     logger.log("EXTRACTION", f"Edge distribution method: {edge_distribution}")
 

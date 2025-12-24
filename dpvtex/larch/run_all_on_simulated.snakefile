@@ -31,6 +31,8 @@ scripts_dir = os.path.join(snakefile_dir, "scripts")
 if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
+from utils import EDGE_DIST_TO_SUFFIX, SUFFIX_TO_EDGE_DIST, get_dup_sites_suffix
+
 # Config file can be specified via --configfile on command line
 default_config_path = os.path.join(snakefile_dir, "config.yaml")
 args = sys.argv
@@ -62,19 +64,7 @@ filtered_dir = f"{output_datasets}/{dataset_name}_filtered_{min_frac_sites_retai
 filtered_dir_abs = os.path.realpath(os.path.join(snakefile_dir, filtered_dir))
 output_data_abs = os.path.realpath(os.path.join(snakefile_dir, output_data))
 
-# Suffix mapping for edge distributions
-# Note: "constant" -> "_spr" and "random_subtree" -> "_subtree" for historical reasons
-EDGE_DIST_TO_SUFFIX = {
-    "constant": "_spr",
-    "uniform": "_uniform",
-    "treesearch_mimic": "_treesearch_mimic",
-    "random_subtree": "_subtree",
-}
-SUFFIX_TO_EDGE_DIST = {suffix: dist_id for dist_id, suffix in EDGE_DIST_TO_SUFFIX.items()}
-
-dup_sites_suffix = ""
-if remove_site_patterns in [True, "True", "true"]:
-    dup_sites_suffix = "_no_dup_sites"
+dup_sites_suffix = get_dup_sites_suffix(remove_site_patterns)
 
 # Final output dataset name (matches what generate_dpvt_input.snakefile expects)
 final_dataset_name = f"{dataset_name}_filtered_{min_frac_sites_retained}"
@@ -140,7 +130,7 @@ rule generate_dpvt_data:
         dpvt_data=f"{output_data}/{final_dataset_name}{{edge_suffix}}" + dup_sites_suffix + ".p",
     wildcard_constraints:
         edge_suffix="|".join(EDGE_DIST_TO_SUFFIX.values())
-    threads: workflow.cores  # Claim all cores to prevent parallel execution (avoids directory lock conflicts)
+    threads: num_cores  # Claim all cores to prevent parallel execution (avoids directory lock conflicts)
     params:
         snakefile=generate_dpvt_snakefile,
         # Use absolute paths for shell command

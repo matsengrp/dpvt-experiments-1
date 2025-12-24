@@ -4,6 +4,11 @@ import datetime
 from dpvtex.larch.scripts.extract_data_from_hdag import extract_data_from_hdag
 from dpvtex.larch.scripts.aggregate_training_data import aggregate_data
 from dpvtex.larch.scripts.pipeline_logger import get_logger
+from dpvtex.larch.scripts.utils import (
+    EDGE_DIST_TO_SUFFIX,
+    SUFFIX_TO_EDGE_DIST,
+    get_dup_sites_suffix,
+)
 
 snakefile_dir = workflow.basedir
 
@@ -31,19 +36,7 @@ subtree_max_attempts = config.get("subtree_max_attempts", 100)  # Max attempts f
 subtree_target_non_mp_proportion = config.get("subtree_target_non_mp_proportion", 1/6)  # Target non-MP edge proportion
 
 
-# Suffix mapping for edge distributions
-# Note: "constant" -> "_spr" and "random_subtree" -> "_subtree" for historical reasons
-EDGE_DIST_TO_SUFFIX = {
-    "constant": "_spr",
-    "uniform": "_uniform",
-    "treesearch_mimic": "_treesearch_mimic",
-    "random_subtree": "_subtree",
-}
-SUFFIX_TO_EDGE_DIST = {suffix: dist_id for dist_id, suffix in EDGE_DIST_TO_SUFFIX.items()}
-
-dup_sites_suffix = ""
-if remove_site_patterns in [True, "True", "true"]:
-    dup_sites_suffix = "_no_dup_sites"
+dup_sites_suffix = get_dup_sites_suffix(remove_site_patterns)
 
 
 def get_subdirs(data_dir):

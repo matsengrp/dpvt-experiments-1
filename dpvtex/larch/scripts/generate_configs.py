@@ -195,7 +195,11 @@ def generate_train_config(
 ):
     """Generate Phase 3 train config."""
     return generate_phase3_config(
-        dataset_name, "train", larch_command, min_frac_sites_retained, edge_distributions
+        dataset_name,
+        "train",
+        larch_command,
+        min_frac_sites_retained,
+        edge_distributions,
     )
 
 

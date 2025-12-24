@@ -9,6 +9,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 from dpvtex.larch.scripts.pipeline_logger import get_logger
+from dpvtex.larch.scripts.utils import determine_file_format, get_alignment_name_from_path
 
 # CSV header for alignment size statistics
 _ALIGNMENT_STATS_CSV_HEADER = [
@@ -20,13 +21,6 @@ _ALIGNMENT_STATS_CSV_HEADER = [
     "seq_ratio",
     "site_ratio",
 ]
-
-
-def _determine_input_format(filename):
-    """Determine alignment file format from extension."""
-    if filename.endswith((".nex", ".nexus")):
-        return "nexus"
-    return "fasta"
 
 
 def _write_failure_stats_row(csv_path, alignment_name):
@@ -517,11 +511,11 @@ def clean_alignment(
         (final_num_seqs, final_num_sites, original_num_seqs, original_num_sites)
         Returns (0, 0, 0, 0) if cleaning fails
     """
-    alignment_name = os.path.basename(os.path.dirname(input_filename))
+    alignment_name = get_alignment_name_from_path(input_filename)
     logger.log_section("CLEANING", f"Starting alignment cleaning for {alignment_name}")
 
     # Read the original alignment
-    input_format = _determine_input_format(input_filename)
+    input_format = determine_file_format(input_filename)
     try:
         alignment = AlignIO.read(input_filename, input_format)
         original_num_seqs = len(alignment)

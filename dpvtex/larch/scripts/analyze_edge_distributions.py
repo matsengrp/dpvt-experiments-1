@@ -16,19 +16,28 @@ import argparse
 import glob
 import os
 
+from dpvtex.larch.scripts.utils import EDGE_DIST_TO_SUFFIX
+
 # Configuration constants
 
 # Map internal method names to display names for plot legends
 METHOD_NAME_MAP = {"constant": "SPR", "random_subtree": "random subtree"}
 
-# Map edge distribution methods to their file suffixes
-EDGE_METHOD_SUFFIXES = {
-    "constant": "_spr.p",
-    "random_subtree": "algnmnts_subtree.p",
-    "uniform": "_uniform.p",
-    "treesearch_mimic": "_treesearch_mimic.p",
-    "mixed": "_spr_subtree_few_sprs.p",
-}
+
+def get_pickle_suffix(method):
+    """Get the pickle file suffix for an edge distribution method.
+
+    Args:
+        method: Edge distribution method name (e.g., "constant", "random_subtree")
+
+    Returns:
+        File suffix including .p extension (e.g., "_spr.p")
+    """
+    # Handle special "mixed" case that's not in the standard mapping
+    if method == "mixed":
+        return "_spr_subtree_few_sprs.p"
+    suffix = EDGE_DIST_TO_SUFFIX.get(method, "")
+    return f"{suffix}.p" if suffix else ""
 
 # Plot sizing constants
 DEFAULT_PLOT_HEIGHT = 4  # Minimum height for subplots in inches
@@ -684,7 +693,7 @@ def main():
     for dataset_name in args.dataset_names:
 
         for method in edge_methods:
-            suffix = EDGE_METHOD_SUFFIXES.get(method, "")
+            suffix = get_pickle_suffix(method)
 
             # Search for files that contain both the dataset_name and suffix as substrings
             all_pickle_files = glob.glob(f"{args.data_dir}/*.p")

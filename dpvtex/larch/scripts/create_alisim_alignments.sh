@@ -27,6 +27,7 @@ max_attempts=20
 scaling_factor=2
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+larch_path="larch"
 
 # Check if simulated_alignments directory exists, create it if not
 simulated_alignments_dir="${script_dir}/../../../data/simulated_alignments"
@@ -108,7 +109,8 @@ for num_alignments in "${num_alignments_list[@]}"; do
             python ${script_dir}/generate_configs.py \
                 -i "${base_directory}" \
                 -d "${dataset_name}" \
-                -l "larch" \
+                -l "${larch_path}" \
+                -o "${script_dir}/../configs/" \
                 $edge_flags \
                 --no-split
         done

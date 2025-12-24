@@ -14,10 +14,14 @@ input_data=os.path.realpath(config["input_data"])
 output_data=config.get("output_data", config.get("larch_output"))  # Support both names
 larch_command=config.get("larch_command", "larch")  # Default to "larch" command
 dataset_name=config["dataset_name"]
-edge_distribution=config.get("edge_distribution", "constant")
 remove_site_patterns = config.get("remove_duplicate_site_patterns", False)
 balance_by_median_num_MP_trees = config.get("balance_by_median_num_MP_trees", True)  # Default to True - balance trees per alignment
 larch_timeout = config.get("larch_timeout", 1800)  # Default timeout: 1800 seconds (30 minutes)
+
+# Support both single edge_distribution (string) and multiple (list)
+edge_distributions = config.get("edge_distributions", config.get("edge_distribution", "constant"))
+if isinstance(edge_distributions, str):
+    edge_distributions = [edge_distributions]
 
 # Tree extraction parameters
 max_trees = config.get("max_trees", 200)  # Max trees to extract per alignment
@@ -27,29 +31,19 @@ subtree_max_attempts = config.get("subtree_max_attempts", 100)  # Max attempts f
 subtree_target_non_mp_proportion = config.get("subtree_target_non_mp_proportion", 1/6)  # Target non-MP edge proportion
 
 
-# Define suffixes based on edge_distribution
-if edge_distribution == "constant":
-    pickle_suffix = "_spr.p"
-    csv_suffix = "_spr.csv"
-elif edge_distribution == "uniform":
-    pickle_suffix = "_uniform.p"
-    csv_suffix = "_uniform.csv"
-elif edge_distribution == "treesearch_mimic":
-    pickle_suffix = "_treesearch_mimic.p"
-    csv_suffix = "_treesearch_mimic.csv"
-elif edge_distribution == "random_subtree":
-    pickle_suffix = "_subtree.p"
-    csv_suffix = "_subtree.csv"
-else:
-    pickle_suffix = ".p"
-    csv_suffix = ".csv"
-
+# Suffix mapping for edge distributions
+# Note: "constant" -> "_spr" and "random_subtree" -> "_subtree" for historical reasons
+EDGE_DIST_TO_SUFFIX = {
+    "constant": "_spr",
+    "uniform": "_uniform",
+    "treesearch_mimic": "_treesearch_mimic",
+    "random_subtree": "_subtree",
+}
+SUFFIX_TO_EDGE_DIST = {suffix: dist_id for dist_id, suffix in EDGE_DIST_TO_SUFFIX.items()}
 
 dup_sites_suffix = ""
 if remove_site_patterns in [True, "True", "true"]:
     dup_sites_suffix = "_no_dup_sites"
-    pickle_suffix = pickle_suffix.replace(".p", "_no_dup_sites.p")
-    csv_suffix = csv_suffix.replace(".csv", "_no_dup_sites.csv")
 
 
 def get_subdirs(data_dir):
@@ -104,8 +98,10 @@ def get_subdirs(data_dir):
 
 rule all:
     input:
-        input_data+"/data_properties_"+dataset_name+csv_suffix,
-        output_data+"/"+dataset_name+pickle_suffix,
+        expand(input_data+"/data_properties_"+dataset_name+"{edge_suffix}" + dup_sites_suffix + ".csv",
+               edge_suffix=[EDGE_DIST_TO_SUFFIX[ed] for ed in edge_distributions]),
+        expand(output_data+"/"+dataset_name+"{edge_suffix}" + dup_sites_suffix + ".p",
+               edge_suffix=[EDGE_DIST_TO_SUFFIX[ed] for ed in edge_distributions]),
 
 
 rule preprocessing:
@@ -197,15 +193,18 @@ rule extract_dpvt_data:
     input:
         pb=input_data+"/{subdir}/larch-output" + dup_sites_suffix + ".pb",
     output:
-        data=input_data+"/{subdir}/{subdir}" + dup_sites_suffix + pickle_suffix,
-        num_children_file=input_data+"/{subdir}/num_children_dag_trees" + dup_sites_suffix + csv_suffix
+        data=input_data+"/{subdir}/{subdir}{edge_suffix}" + dup_sites_suffix + ".p",
+        num_children_file=input_data+"/{subdir}/num_children_dag_trees{edge_suffix}" + dup_sites_suffix + ".csv"
+    wildcard_constraints:
+        edge_suffix="|".join(EDGE_DIST_TO_SUFFIX.values())
     run:
         logger = get_logger(input_data)
+        edge_dist = SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
         extract_data_from_hdag(
             input.pb,
             output.data,
             output.num_children_file,
-            edge_distribution=edge_distribution,
+            edge_distribution=edge_dist,
             logger=logger,
             max_trees=max_trees,
             max_spr_moves=max_spr_moves,
@@ -215,13 +214,25 @@ rule extract_dpvt_data:
         )
 
 
+def get_extract_inputs(wildcards):
+    """Get all per-subdir pickle files for a given edge suffix."""
+    subdirs = get_subdirs(input_data)
+    return expand(
+        input_data+"/{subdir}/{subdir}{edge_suffix}" + dup_sites_suffix + ".p",
+        subdir=subdirs,
+        edge_suffix=wildcards.edge_suffix
+    )
+
 rule aggregate_training_data:
     input:
-        expand(input_data+"/{subdir}/{subdir}" + dup_sites_suffix + pickle_suffix, subdir=get_subdirs(input_data)),
+        pickles=get_extract_inputs,
         size_stats=expand(input_data+"/{subdir}/size_stats" + dup_sites_suffix + ".csv", subdir=get_subdirs(input_data)),
     output:
-        data_props=input_data+"/data_properties_"+dataset_name+csv_suffix,
-        dpvt_data=output_data+"/"+dataset_name+pickle_suffix,
+        data_props=input_data+"/data_properties_"+dataset_name+"{edge_suffix}" + dup_sites_suffix + ".csv",
+        dpvt_data=output_data+"/"+dataset_name+"{edge_suffix}" + dup_sites_suffix + ".p",
+    wildcard_constraints:
+        edge_suffix="|".join(EDGE_DIST_TO_SUFFIX.values())
     run:
-        aggregate_data(data_dir = input_data, data_props_file = output.data_props, dpvt_train_data = output.dpvt_data, edge_distribution=edge_distribution, dpvt_test_data = None, balance_by_median_num_MP_trees=balance_by_median_num_MP_trees)
+        edge_dist = SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
+        aggregate_data(data_dir=input_data, data_props_file=output.data_props, dpvt_train_data=output.dpvt_data, edge_distribution=edge_dist, dpvt_test_data=None, balance_by_median_num_MP_trees=balance_by_median_num_MP_trees)
 

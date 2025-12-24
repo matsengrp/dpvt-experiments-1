@@ -97,14 +97,16 @@ generate `dpvt` training data. The third and final phase consists of actually
 generating dpvt training data by generating maximum parsimony trees with `larch`
 and perturbing them to introduce non-MP edges.
 
-> If alignments are simulated without gaps or ambiguous characters, the first
-> two steps of the pipeline can be skipped.
+> **For simulated data**: If alignments are simulated without gaps or ambiguous
+> characters, you can use the all-in-one workflow with
+> `run_all_on_simulated.snakefile` which runs all phases automatically without
+> manual checkpoints. See [Running on simulated data](#running-on-simulated-data).
 
 ### Simulating alignments
 
-If you want to simulate alignmnents for generating the training data, you can
-use the script `scripts/create_alisim_alignments.sh`, which uses IQ-TREE's
-alisim to simulate alignments
+If you want to simulate alignments for generating the training data, you can use
+the script `scripts/create_alisim_alignments.sh`, which uses IQ-TREE's alisim to
+simulate alignments
 ([http://www.iqtree.org/doc/AliSim](http://www.iqtree.org/doc/AliSim)). At the
 beginning of this script you can specify a list of the number of alignments you
 want to simulate, a list of number of sequences, and a list of sequence lengths
@@ -114,10 +116,6 @@ parsimony trees computed by larch (see Details in _Edge Distributions_). For
 each combination of number of alignments, sequences, and sequence length, a
 directory will be created in `dpvtex/data/simulated_alignments/` that contains a
 directory for each alignment simulated, which itself contains that alignment.
-The script additionally saves configs, one for each combination of simulated
-dataset and edge distribution, which are needed for creating dpvt training data
-(see in _All-in-one_) in the directory `configs/`. Note that the python script
-`scripts/generate_sim_configs.py` is used to generate configs.
 
 ### Running the three-phase workflow
 
@@ -126,10 +124,9 @@ between.
 
 #### Configuration
 
-Create a config file for Phases 1 & 2 (e.g.,
-`configs/{my_dataset}_prepare.yaml`). See
-`configs/simulated_15seq_20sites_100algnmnts_prepare.yaml` for an example using
-simulated alignments. The config file needs to contain the following parameters:
+Create a config file for Phases 1 & 2 (e.g., `configs/{my_dataset}_prepare.yaml`).
+See `configs/simulated_15seq_20sites_100algnmnts_prepare.yaml` for an example
+using simulated alignments. The config file needs to contain the following parameters:
 
 **Phase 1 & 2 config parameters:**
 
@@ -158,8 +155,9 @@ simulated alignments. The config file needs to contain the following parameters:
 - `dataset_name`: name used for output files (e.g., `"{my_dataset}_train_0.8"`)
 - `larch_command`: command to run larch (default: `"larch"`). Can also be set to
   `"larch-phylo"` or a full path like `"/path/to/larch/build/bin/larch-usher"`
-- `edge_distribution`: Method for introducing non-MP edges (see Edge
-  Distributions section)
+- `edge_distributions`: List of methods for introducing non-MP edges (see Edge
+  Distributions section). Can specify multiple to run all in one pipeline
+  execution.
 - `larch_timeout`: Maximum time in seconds for larch to run on each alignment
   (default: 1800 seconds / 30 minutes). Alignments that timeout are
   automatically excluded from downstream processing
@@ -168,15 +166,21 @@ simulated alignments. The config file needs to contain the following parameters:
   helps prevent alignments with many trees from dominating the training data
 - `num_cores`: number of cores for larch-usher and tree extraction
 
-You can generate a config with default values as specified above by running the
-following:
+You can generate config files with default values by running:
 
 ```bash
 cd dpvtex/larch
-python scripts/generate_configs.py {input_data} {dataset_name} {larch_command} CONFIG_DIR
+python scripts/generate_configs.py -i {input_data} -d {dataset_name} -l {larch_command}
 ```
 
-Note that `CONFIG_DIR` is an optional argument, it defaults to _configs/_
+Options:
+
+- `-o, --output-dir`: Directory for config files (default: `configs/`)
+- `--no-split`: Skip train/test splitting (for simulated data, generates
+  `_generate.yaml` instead of `_train.yaml` and `_test.yaml`)
+- `-e, --edge-distributions`: Edge distribution method(s) to use. Can be
+  specified multiple times (e.g., `-e constant -e random_subtree`). Default:
+  `constant`
 
 #### Phase 1: Preprocessing
 
@@ -227,6 +231,9 @@ snakemake --snakefile generate_dpvt_input.snakefile \
   --configfile configs/{my_dataset}_test.yaml \
   --cores 8
 ```
+
+**Note**: If the config specifies multiple `edge_distributions`, all will be
+processed in a single pipeline run, generating separate output files for each.
 
 **Output**:
 
@@ -281,6 +288,45 @@ specified with the corresponding keyword in the config file
   depth of entire tree, by random tree and repeat until at least $\frac{1}{6}$
   th of all edges (including pendant) are non-MP or random subtree replacement
   has been tried 100 times
+
+### Running on simulated data
+
+For simulated data without gaps or ambiguous characters, you can use the
+all-in-one workflow that runs all three phases automatically without manual
+checkpoints:
+
+```bash
+cd dpvtex/larch
+
+# 1. Generate config with --no-split flag (can specify multiple edge distributions)
+python scripts/generate_configs.py \
+    -i ../../data/simulated_alignments/alisim_15_seq_20_sites \
+    -d sim_15seq_20sites \
+    -l larch \
+    -e constant \
+    -e random_subtree \
+    --no-split
+
+# 2. Run all phases automatically (processes all edge distributions)
+snakemake --snakefile run_all_on_simulated.snakefile \
+    --configfile configs/sim_15seq_20sites_prepare.yaml \
+    --cores 8
+```
+
+This generates:
+
+- `configs/sim_15seq_20sites_prepare.yaml`: Config for all phases
+- `configs/sim_15seq_20sites_generate.yaml`: Phase 3 config (if running
+  separately)
+
+The pipeline will generate output files for each edge distribution specified
+(e.g., `*_spr.p` for constant, `*_subtree.p` for random_subtree).
+
+The all-in-one workflow automatically:
+
+1. Preprocesses alignments (Phase 1)
+2. Filters and creates a dataset (Phase 2, no train/test split)
+3. Runs larch and extracts DPVT training data (Phase 3)
 
 ### Running all steps individually
 
@@ -380,35 +426,42 @@ In `dpvtex/larch`:
 
 - `README.md`: Explains in detail how to run the code to create training data
   from alignments using larch
-- `preprocess_alignments.snakefile`: Delete sites with gaps and ambiguous (i.e.
-  non- ACGTacgt characters) from alignments. Additionally flags all directories
-  with alignments have more than 5 characters to be included in further
-  analysis. Alignments with less than 5 characters will be ignored.
-- `generate_dpvt_input.snakefile`: inferring MP hDAG with larch, extracting MP
-  trees, and perturbing them, creating pickled files of training and testing
-  data that can be used as for `dpvt`.
-- `Snakefile`: brings together `preprocess_alignments.snakefile` and
-  `generate_dpvt_input.snakefile` for data as specified in `config.yaml`. This
-  snakefile is required as some filtering of data happens in
-  `preprocess_alignments.snakefile` results in wildcards changing: alignments
-  with less than 5 sites after removing ambiguous characters and gaps will not
-  be used.
-- `config.yaml`: specifying input and output files and additional parameters
-  needed in Snakefile. Description can be found in README
+- `preprocess_alignments.snakefile`: Phase 1 - clean alignments by removing
+  sequences with too many gaps/ambiguous characters and sites with any
+  gaps/ambiguous characters
+- `prepare_datasets.snakefile`: Phase 2 - filter alignments by quality metrics
+  and optionally split into train/test sets
+- `generate_dpvt_input.snakefile`: Phase 3 - run larch to infer MP hDAG, extract
+  MP trees, perturb them to introduce non-MP edges, and create pickled training
+  data for `dpvt`
+- `run_all_on_simulated.snakefile`: All-in-one workflow for simulated data that
+  runs all three phases without manual checkpoints
 - `environment.yml`: larch-data environment required for running code
 
-In `dpvtex/larch/scripts`: scripts called from snakefiles:
+In `dpvtex/larch/scripts`:
 
-- Called from `preprocess_alignments.snakefile`:
+- `generate_configs.py`: Generate YAML config files for the pipeline. Supports
+  `--no-split` for simulated data and `-e` for edge distribution selection.
+- `create_alisim_alignments.sh`: Simulate alignments using IQ-TREE's alisim and
+  generate corresponding config files.
 
-  - `clean_data.py`: Removes all sites from alignments that contain characters
-    that are not in {A,C,G,T,a,c,g,t}
+- Used by `preprocess_alignments.snakefile`:
+
+  - `clean_data.py`: Removes sequences with too many gaps/ambiguous characters
+    and removes all sites that contain characters not in {A,C,G,T,a,c,g,t}
   - `check_size_fasta.py`: Checks whether the alignment after removing gaps and
     ambiguous sites contains more than 5 sites. If it does, it creates a flag
     file in the directory containing the alignment, so it doesn't get used in
     future steps.
+  - `check_sequence_lengths.py`: Scans directories for alignments with unequal
+    sequence lengths and reports them.
 
-- Called from `generate_dpvt_input.snakefile`:
+- Used by `prepare_datasets.snakefile`:
+
+  - `prepare_dataset.py`: Filter alignments by quality metrics and create
+    train/test splits with symlinks to preprocessed data.
+
+- Used by `generate_dpvt_input.snakefile`:
   - `pipeline_logger.py`: Provides structured logging functionality for tracking
     pipeline operations, errors, and data transformations. Creates JSONL log
     files for transparency and debugging.

@@ -7,6 +7,13 @@
 # Additionally, config files are produced by calling generate_configs.py
 # These can then be used for running the larch pipeline to generate dpvt
 # training and testing datasets.
+#
+# To run the pipeline after generating alignments and configs:
+#   snakemake --snakefile run_all_on_simulated.snakefile \
+#       --configfile configs/<dataset_name>_prepare.yaml --cores 8
+#
+# Tree extraction parameters and other settings can be modified in the
+# generated YAML config files.
 
 # Parameters - Test configuration
 
@@ -14,14 +21,6 @@ num_alignments_list=(50 100)
 num_sequences_list=(15)
 alignment_length_list=(20)
 edge_distributions=("constant" "random_subtree")
-no_dup_sites="False" # Whether to remove duplicate site patterns in the alignments
-
-# Tree extraction parameters
-max_trees=200                          # Max trees to extract per alignment
-max_spr_moves=100                      # Max SPR moves per tree
-spr_move_divisor=10                    # Divisor for constant SPR distribution
-subtree_max_attempts=100               # Max attempts for subtree replacement
-subtree_target_non_mp_proportion=0.167 # Target non-MP edge proportion (~1/6)
 
 max_attempts=20
 # How much larger to make the initial alignment to account for cleaning
@@ -44,7 +43,7 @@ for num_alignments in "${num_alignments_list[@]}"; do
         echo "Target number of sequences: $target_num_sequences"
         for target_alignment_length in "${alignment_length_list[@]}"; do
             echo "Target alignment length: $target_alignment_length"
-            base_directory="$simulated_alignments_dir/alisim_alignment_${target_num_sequences}_seq_${target_alignment_length}_sites_${num_alignments}_algnmnts"
+            base_directory="$simulated_alignments_dir/simulated_${target_num_sequences}_seq_${target_alignment_length}_sites_${num_alignments}_algnmnts"
             # Create base directory for alignments
             if [ -d "$base_directory" ]; then
                 echo "$base_directory exists already."
@@ -98,19 +97,20 @@ for num_alignments in "${num_alignments_list[@]}"; do
                     fi
                 done
             fi
-            # We generate config files for all edge distribution methods
-            echo "Generate config files for all edge distribution methods..."
+            # Generate config file with all edge distribution methods
+            echo "Generating config with edge distributions: ${edge_distributions[*]}"
+            dataset_name="simulated_${target_num_sequences}_seq_${target_alignment_length}_sites_${num_alignments}_algnmnts"
+            # Build -e flags for all edge distributions
+            edge_flags=""
             for edge_dist in "${edge_distributions[@]}"; do
-                echo "  Generating config for edge distribution: $edge_dist"
-                python ${script_dir}/generate_sim_configs.py $target_num_sequences $target_alignment_length $num_alignments \
-                    --edge_distribution $edge_dist \
-                    --remove_duplicate_site_patterns $no_dup_sites \
-                    --max_trees $max_trees \
-                    --max_spr_moves $max_spr_moves \
-                    --spr_move_divisor $spr_move_divisor \
-                    --subtree_max_attempts $subtree_max_attempts \
-                    --subtree_target_non_mp_proportion $subtree_target_non_mp_proportion
+                edge_flags="$edge_flags -e $edge_dist"
             done
+            python ${script_dir}/generate_configs.py \
+                -i "${base_directory}" \
+                -d "${dataset_name}" \
+                -l "larch" \
+                $edge_flags \
+                --no-split
         done
     done
 done

@@ -415,6 +415,40 @@ following steps are executed by this script:
 - labels edges by whether they are MP edges are not
 - pickle trees and edge labels and safe to `/path/to/dpvt/training/data`
 
+## Plotting edge distributions
+
+After generating training data, you can visualize and compare the distribution
+of non-MP edges across datasets using the `analyze_edge_distributions.py`
+script. This is useful for understanding how different perturbation methods
+(SPR vs random subtree) affect the proportion of non-MP edges in your data.
+
+```bash
+cd dpvtex/larch
+python scripts/analyze_edge_distributions.py \
+    -d /path/to/pickle/files \
+    -o /path/to/output/plots \
+    -n dataset1 dataset2
+```
+
+**Arguments:**
+
+- `-d`, `--data_dir`: Directory containing the larch output pickle files (required)
+- `-o`, `--output_dir`: Directory to save analysis plots (required)
+- `-n`, `--dataset_names`: Dataset name prefixes to analyze; can specify multiple
+  for comparison (required)
+
+The script searches for pickle files in `data_dir` that match the dataset names
+with suffixes `_spr.p` (for SPR/constant method) and `_subtree.p` (for random
+subtree method).
+
+**Output:**
+
+- `multi_dataset_edge_distribution_comparison.pdf`: Violin plots showing the
+  proportion of non-MP edges per tree for each dataset and method
+- `longest_nonmp_path_comparison.pdf`: Violin plots showing the longest
+  consecutive path of non-MP edges (normalized by tree depth) for each dataset
+  and method
+
 ## More Details and file structure
 
 Here we describe the purpose of each file in the `larch/` directory. Some of
@@ -444,6 +478,8 @@ In `dpvtex/larch/scripts`:
   `--no-split` for simulated data and `-e` for edge distribution selection.
 - `create_alisim_alignments.sh`: Simulate alignments using IQ-TREE's alisim and
   generate corresponding config files.
+- `analyze_edge_distributions.py`: Standalone script to visualize non-MP edge
+  distributions across datasets. See [Plotting edge distributions](#plotting-edge-distributions).
 
 - Used by `preprocess_alignments.snakefile`:
 

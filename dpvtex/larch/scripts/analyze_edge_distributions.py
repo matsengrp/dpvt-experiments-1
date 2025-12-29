@@ -393,6 +393,9 @@ def configure_top_subplot(
     x_limits,
     tick_fontsize=DEFAULT_TICK_FONTSIZE,
     legend_fontsize=DEFAULT_LEGEND_FONTSIZE,
+    label_fontsize=DEFAULT_LABEL_FONTSIZE,
+    show_xlabel=False,
+    xlabel="",
 ):
     """
     Configure and plot the top subplot (datasets with multiple methods).
@@ -404,6 +407,9 @@ def configure_top_subplot(
         x_limits: Tuple of (x_min, x_max)
         tick_fontsize: Font size for tick labels (default: DEFAULT_TICK_FONTSIZE)
         legend_fontsize: Font size for legend (default: DEFAULT_LEGEND_FONTSIZE)
+        label_fontsize: Font size for axis labels (default: DEFAULT_LABEL_FONTSIZE)
+        show_xlabel: Whether to show x-axis labels (default: False)
+        xlabel: Label for x-axis (only used if show_xlabel is True)
     """
     sns.violinplot(
         data=df_multi_method,
@@ -413,10 +419,14 @@ def configure_top_subplot(
         orient="h",
         ax=ax,
     )
-    ax.set_xlabel("")
     ax.set_ylabel("")
     ax.tick_params(axis="y", labelsize=tick_fontsize)
-    ax.tick_params(axis="x", labelbottom=False)  # Hide x-axis tick labels
+    if show_xlabel:
+        ax.set_xlabel(xlabel, fontsize=label_fontsize, labelpad=10)
+        ax.tick_params(axis="x", labelsize=tick_fontsize)
+    else:
+        ax.set_xlabel("")
+        ax.tick_params(axis="x", labelbottom=False)
     ax.set_xlim(x_limits)
     ax.legend(
         bbox_to_anchor=(0.5, 1.25), loc="upper center", fontsize=legend_fontsize, ncol=2
@@ -518,8 +528,14 @@ def create_violin_plots(valid_results, output_dir):
 
     # Configure subplots using helpers
     if num_datasets_multi > 0:
+        # Show x-axis labels on top subplot only if bottom subplot is empty
         configure_top_subplot(
-            axes[0], df_multi_method, "Proportion_Non_MP_Edges", x_limits
+            axes[0],
+            df_multi_method,
+            "Proportion_Non_MP_Edges",
+            x_limits,
+            show_xlabel=(num_datasets_single == 0),
+            xlabel="Proportion of Non-MP Edges",
         )
     else:
         axes[0].axis("off")
@@ -615,6 +631,7 @@ def create_longest_path_plot(analysis_results, output_dir="plots"):
 
     # Configure subplots using helpers
     if num_datasets_multi > 0:
+        # Show x-axis labels on top subplot only if bottom subplot is empty
         configure_top_subplot(
             axes[0],
             df_multi_method,
@@ -622,6 +639,8 @@ def create_longest_path_plot(analysis_results, output_dir="plots"):
             x_limits,
             tick_fontsize=DEFAULT_TICK_FONTSIZE,
             legend_fontsize=DEFAULT_LEGEND_FONTSIZE,
+            show_xlabel=(num_datasets_single == 0),
+            xlabel="Normalized Longest Path of Non-MP Edges",
         )
     else:
         axes[0].axis("off")
@@ -651,34 +670,44 @@ def create_longest_path_plot(analysis_results, output_dir="plots"):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Analyze edge distributions from larch pipeline output"
+        description="Analyze edge distributions from larch pipeline output.",
+        epilog="""
+Examples:
+  # Analyze a single dataset
+  python analyze_edge_distributions.py -d ../../data/larch_output \\
+      -o ./plots -n my_dataset
+
+  # Compare multiple datasets
+  python analyze_edge_distributions.py -d ../../data/larch_output \\
+      -o ./plots -n dataset1 dataset2 dataset3
+
+The script looks for pickle files in data_dir that contain the dataset name
+and appropriate suffixes (_spr.p for SPR method, _subtree.p for random subtree).
+It generates violin plots comparing non-MP edge distributions across datasets.
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
+        "-d",
         "--data_dir",
-        default="data",
+        required=True,
         help="Directory containing the larch output pickle files",
     )
     parser.add_argument(
-        "--output_dir", default="plots", help="Directory to save analysis plots"
+        "-o",
+        "--output_dir",
+        required=True,
+        help="Directory to save analysis plots",
     )
     parser.add_argument(
+        "-n",
         "--dataset_names",
         nargs="+",
-        help="Dataset name prefixes (can specify multiple for comparison)",
-    )
-    parser.add_argument(
-        "--dataset_name",
-        help="Single dataset name prefix (deprecated, use --dataset_names)",
+        required=True,
+        help="Dataset name prefixes to analyze (can specify multiple for comparison)",
     )
 
     args = parser.parse_args()
-
-    # Handle backward compatibility
-    if args.dataset_names is None:
-        if args.dataset_name:
-            args.dataset_names = [args.dataset_name]
-        else:
-            args.dataset_names = ["alisim_alignment_15_seq_50_sites_5_algnmnts"]
 
     # Define the edge distribution methods to analyze
     # edge_methods = ["constant", "uniform", "treesearch_mimic", "random_subtree", ""]
@@ -704,12 +733,6 @@ def main():
                 for f in all_pickle_files
                 if dataset_name in os.path.basename(f) and suffix in os.path.basename(f)
             ]
-
-            # Additional filtering to only get mixed for 50 leaves & few_spr for simulated data
-            if suffix == "_spr_subtree_few_sprs.p":
-                matching_files = [m for m in matching_files if "50" in m]
-            if suffix == "_spr.p" and "sim" in dataset_name:
-                matching_files = [m for m in matching_files if "few" in m]
 
             if matching_files:
                 # Use the first matching file (or you could handle multiple matches differently)

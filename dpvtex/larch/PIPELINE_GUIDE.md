@@ -91,12 +91,16 @@ train/test configs.
 
 **Input**: Raw alignment directories with `.fasta` or `.nex` files
 
-**Output**:
+**Output** (saved in `{input_data}/`):
 
-- Cleaned alignments (`input.fasta`) - same alignments, but with some sequences
-  removed
-- Quality statistics (`size_stats.csv`, `alignment_size_stats.csv`)
+- Cleaned alignments (`{alignment}/input.fasta`) - same alignments, but with
+  some sequences removed
+- Quality statistics (`{alignment}/size_stats.csv`, `alignment_size_stats.csv`)
 - Exclusion list (`unequal_length_alignments.txt`)
+- Visualization plots:
+  - `alignment_size_ratios.pdf` - scatter plot of seq_ratio vs site_ratio
+  - `cleaned_alignment_sizes.pdf` - scatter plot of cleaned dimensions colored
+    by compression ratio
 
 **Run**:
 
@@ -120,8 +124,13 @@ snakemake --snakefile preprocess_alignments.snakefile \
 - `alignment_size_stats.csv` - Review to decide `min_frac_sites_retained`
   threshold
 - Check `site_ratio` column: ratio of cleaned_sites / original_sites
+- `alignment_size_ratios.pdf` - Visualizes how each alignment was reduced
+  (seq_ratio vs site_ratio); alignments in the lower-left lost more data
+- `cleaned_alignment_sizes.pdf` - Shows final alignment dimensions colored by
+  compression ratio; helps identify outliers
 
-**Manual Checkpoint**: Review the statistics before proceeding to Phase 2!
+**Manual Checkpoint**: Review the statistics and plots before proceeding to
+Phase 2!
 
 ## Phase 2: Dataset Preparation
 
@@ -141,9 +150,13 @@ snakemake --snakefile preprocess_alignments.snakefile \
 - Filtered dataset directory with symlinks
 - Train/test split directories with symlinks
 - Manifest files documenting dataset composition
+- Filtered statistics and plots (in `{output_datasets}/{dataset_name}_filtered_{threshold}/`):
+  - `alignment_size_stats.csv` - stats for alignments that passed filtering
+  - `alignment_size_ratios.pdf` - scatter plot of seq_ratio vs site_ratio
+  - `cleaned_alignment_sizes.pdf` - scatter plot of cleaned dimensions
 
 **Configuration**: Uses the same unified config as Phase 1. Adjust
-`min_site_ratio` based on Phase 1 review.
+`min_frac_sites_retained` based on Phase 1 review.
 
 **Run**:
 

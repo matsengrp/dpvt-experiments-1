@@ -7,6 +7,7 @@ if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
 from prepare_dataset import create_filtered_dataset, create_train_test_split
+from plot_alignment_size_ratios import plot_filtered_alignment_stats
 
 # Config file can be specified via --configfile on command line
 # If not specified, falls back to config.yaml in the snakefile directory
@@ -28,6 +29,8 @@ test_dir = f"{output_base}/{dataset_name}_test_{min_frac_sites_retained}"
 rule all:
     input:
         f"{filtered_dir}/manifest.txt",
+        f"{filtered_dir}/alignment_size_ratios.pdf",
+        f"{filtered_dir}/cleaned_alignment_sizes.pdf",
         f"{train_dir}/manifest.txt" if create_split else [],
         f"{test_dir}/manifest.txt" if create_split else []
 
@@ -49,6 +52,20 @@ rule create_filtered_dataset:
             output_dir=params.output_dir,
             min_frac_sites_retained=params.min_frac_sites_retained
         )
+
+
+rule plot_filtered_stats:
+    """Generate plots for the filtered dataset."""
+    input:
+        manifest=f"{filtered_dir}/manifest.txt",
+        stats=f"{source_data}/alignment_size_stats.csv"
+    output:
+        ratios_plot=f"{filtered_dir}/alignment_size_ratios.pdf",
+        sizes_plot=f"{filtered_dir}/cleaned_alignment_sizes.pdf"
+    params:
+        output_dir=filtered_dir
+    run:
+        plot_filtered_alignment_stats(input.manifest, input.stats, params.output_dir)
 
 
 rule create_train_test_split:

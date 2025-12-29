@@ -1,4 +1,9 @@
+import os
+
+import matplotlib
 import pandas as pd
+
+matplotlib.use("Agg")  # Use non-interactive backend (no GUI required)
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -41,8 +46,9 @@ def plot_alignment_size_ratios(csv_path, output_path):
     # Tight layout to prevent label cutoff
     plt.tight_layout()
 
-    # Save the figure
-    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    # Save the figure as PDF
+    plt.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
     print(f"Plot saved to {output_path}")
 
 
@@ -95,6 +101,55 @@ def plot_cleaned_alignment_sizes(csv_path, output_path):
     # Tight layout to prevent label cutoff
     plt.tight_layout()
 
-    # Save the figure
-    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    # Save the figure as PDF
+    plt.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
     print(f"Plot saved to {output_path}")
+
+
+def plot_filtered_alignment_stats(
+    manifest_path, stats_csv_path, output_dir, filtered_stats_filename="alignment_size_stats.csv"
+):
+    """
+    Filter alignment stats to those in manifest and generate plots.
+
+    Parameters:
+    -----------
+    manifest_path : str
+        Path to manifest file listing filtered alignments
+    stats_csv_path : str
+        Path to the original alignment_size_stats.csv
+    output_dir : str
+        Directory to save filtered stats CSV and plots
+    filtered_stats_filename : str
+        Filename for the filtered stats CSV (default: alignment_size_stats.csv)
+
+    Returns:
+    --------
+    tuple
+        (filtered_stats_path, ratios_plot_path, sizes_plot_path)
+    """
+    # Read manifest to get list of filtered alignments
+    with open(manifest_path, "r") as f:
+        filtered_alignments = set(
+            line.strip() for line in f if line.strip() and not line.startswith("#")
+        )
+
+    # Filter stats to only include alignments that passed filtering
+    df = pd.read_csv(stats_csv_path)
+    filtered_df = df[df["alignment_name"].isin(filtered_alignments)]
+
+    # Save filtered stats
+    filtered_stats_path = os.path.join(output_dir, filtered_stats_filename)
+    filtered_df.to_csv(filtered_stats_path, index=False)
+    print(f"\nFiltered stats: {len(filtered_df)} of {len(df)} alignments")
+    print(f"Saved to: {filtered_stats_path}")
+
+    # Generate plots
+    ratios_plot_path = os.path.join(output_dir, "alignment_size_ratios.pdf")
+    sizes_plot_path = os.path.join(output_dir, "cleaned_alignment_sizes.pdf")
+
+    plot_alignment_size_ratios(filtered_stats_path, ratios_plot_path)
+    plot_cleaned_alignment_sizes(filtered_stats_path, sizes_plot_path)
+
+    return filtered_stats_path, ratios_plot_path, sizes_plot_path

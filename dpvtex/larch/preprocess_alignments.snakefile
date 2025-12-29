@@ -13,6 +13,7 @@ from clean_data import clean_alignment
 from check_size_fasta import check_alignment_size
 from check_sequence_lengths import scan_directory
 from pipeline_logger import get_logger
+from plot_alignment_size_ratios import plot_alignment_size_ratios, plot_cleaned_alignment_sizes
 
 # Config file can be specified via --configfile on command line
 # If not specified, falls back to config.yaml in the snakefile directory
@@ -83,6 +84,8 @@ rule all:
     input:
         input_data+"/unequal_length_check.done",
         input_data+"/alignment_size_stats" + dup_sites_suffix + ".csv",
+        input_data+"/alignment_size_ratios" + dup_sites_suffix + ".pdf",
+        input_data+"/cleaned_alignment_sizes" + dup_sites_suffix + ".pdf",
         input_fasta=expand(input_data+"/{subdir}/input" + dup_sites_suffix + ".fasta", subdir=ALL_SUBDIRS),
 
 # First rule: check for unequal lengths and report them
@@ -183,3 +186,18 @@ rule aggregate_alignment_stats:
         if failed_count > 0:
             print(f"  WARNING: {failed_count} alignments failed and were skipped")
         print(f"Output saved to: {output.combined_csv}\n")
+
+
+rule plot_alignment_stats:
+    """Generate plots to visualize alignment cleaning results."""
+    input:
+        stats_csv=input_data+"/alignment_size_stats" + dup_sites_suffix + ".csv"
+    output:
+        ratios_plot=input_data+"/alignment_size_ratios" + dup_sites_suffix + ".pdf",
+        sizes_plot=input_data+"/cleaned_alignment_sizes" + dup_sites_suffix + ".pdf"
+    run:
+        plot_alignment_size_ratios(input.stats_csv, output.ratios_plot)
+        plot_cleaned_alignment_sizes(input.stats_csv, output.sizes_plot)
+        print(f"\nPlots saved to:")
+        print(f"  - {output.ratios_plot}")
+        print(f"  - {output.sizes_plot}")

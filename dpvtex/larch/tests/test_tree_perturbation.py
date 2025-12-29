@@ -290,4 +290,6 @@ if __name__ == "__main__":
     test_increase_tree_parsimony_with_longer_sequences()
     test_increase_tree_parsimony_with_8_leaves()
     test_increase_tree_parsimony_edge_cases()
+    test_spr_move()
+    test_make_worse_spr()
     print("All tests passed!")

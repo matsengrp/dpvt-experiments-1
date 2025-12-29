@@ -1,7 +1,0 @@
-input_data: "../data/larch-data"
-larch_build: "../../../larch/build"
-output_data: "../data"
-dataset_name: "test-dataset"
-edge_distribution: "constant"
-num_cores: 1
-remove_duplicate_site_patterns: false

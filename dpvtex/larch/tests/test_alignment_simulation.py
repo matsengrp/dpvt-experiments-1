@@ -10,6 +10,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from dpvtex.larch.scripts.clean_data import clean_alignment
+from dpvtex.larch.scripts.pipeline_logger import PipelineLogger
 
 
 def run_command(command):
@@ -68,6 +69,10 @@ class TestCleanData:
         """Test that the script removes duplicates and uninformative sites"""
         files = alignment_test_files
 
+        # Create a temporary logger
+        log_file = os.path.join(files["tmp_dir"], "pipeline.log")
+        logger = PipelineLogger(log_file, "test_basic_cleaning")
+
         # Call clean_alignment function directly
         final_num_seqs, final_num_sites, original_num_seqs, original_num_sites = (
             clean_alignment(
@@ -77,6 +82,7 @@ class TestCleanData:
                 remove_site_patterns=False,
                 target_length=None,
                 target_seqs=None,
+                logger=logger,
             )
         )
 
@@ -106,6 +112,10 @@ class TestCleanData:
         """Test that the script trims to specified target dimensions"""
         files = alignment_test_files
 
+        # Create a temporary logger
+        log_file = os.path.join(files["tmp_dir"], "pipeline.log")
+        logger = PipelineLogger(log_file, "test_target_dimensions")
+
         # Target dimensions
         target_length = 4
         target_seqs = 2
@@ -119,6 +129,7 @@ class TestCleanData:
                 remove_site_patterns=False,
                 target_length=target_length,
                 target_seqs=target_seqs,
+                logger=logger,
             )
         )
 
@@ -174,17 +185,17 @@ class TestCreateAlignments:
             )
             shutil.copy2(clean_alignment_sh_path, temp_clean_alignment_sh_path)
 
-            # Create a simplified version of generate_sim_configs.py
+            # Create a simplified version of generate_configs.py
             temp_generate_configs_path = os.path.join(
-                temp_scripts_dir, "generate_sim_configs.py"
+                temp_scripts_dir, "generate_configs.py"
             )
             with open(temp_generate_configs_path, "w") as f:
                 f.write(
                     """#!/usr/bin/env python3
-# A simplified version of generate_sim_configs.py for testing
+# A simplified version of generate_configs.py for testing
 import sys
 # Just print the arguments for testing
-print(f"generate_sim_configs called with: {sys.argv}")
+print(f"generate_configs called with: {sys.argv}")
 """
                 )
 
@@ -259,7 +270,7 @@ print(f"generate_sim_configs called with: {sys.argv}")
 
         # Check if the output directory was created
         output_base = os.path.join(
-            paths["data_dir"], "alisim_alignment_5_seq_20_sites_1_algnmnts"
+            paths["data_dir"], "simulated_5_seq_20_sites_1_algnmnts"
         )
         assert os.path.exists(
             output_base

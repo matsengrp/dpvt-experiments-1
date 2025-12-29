@@ -16,19 +16,29 @@ import argparse
 import glob
 import os
 
+from dpvtex.larch.scripts.utils import EDGE_DIST_TO_SUFFIX
+
 # Configuration constants
 
 # Map internal method names to display names for plot legends
 METHOD_NAME_MAP = {"constant": "SPR", "random_subtree": "random subtree"}
 
-# Map edge distribution methods to their file suffixes
-EDGE_METHOD_SUFFIXES = {
-    "constant": "_spr.p",
-    "random_subtree": "algnmnts_subtree.p",
-    "uniform": "_uniform.p",
-    "treesearch_mimic": "_treesearch_mimic.p",
-    "mixed": "_spr_subtree.p",
-}
+
+def get_pickle_suffix(method):
+    """Get the pickle file suffix for an edge distribution method.
+
+    Args:
+        method: Edge distribution method name (e.g., "constant", "random_subtree")
+
+    Returns:
+        File suffix including .p extension (e.g., "_spr.p")
+    """
+    # Handle special "mixed" case that's not in the standard mapping
+    if method == "mixed":
+        return "_spr_subtree_few_sprs.p"
+    suffix = EDGE_DIST_TO_SUFFIX.get(method, "")
+    return f"{suffix}.p" if suffix else ""
+
 
 # Plot sizing constants
 DEFAULT_PLOT_HEIGHT = 4  # Minimum height for subplots in inches
@@ -223,12 +233,12 @@ def extract_dataset_label(dataset_name):
     Extract a structured label from dataset name for plotting.
 
     Parses dataset names and extracts metadata:
-    - Alisim: extracts leaves, sites, alignments from filename structure
+    - Simulated: extracts sequences, sites, alignments from filename structure
     - Rotavirus: extracts and reformats specimen identifiers
     - Flu: extracts and reformats strain identifiers
 
-    Note: For alisim datasets, returns full metadata labels that are later
-    simplified by simplify_simulated_labels() based on variation across datasets.
+    Note: Returns full metadata labels that may later be simplified to show
+    only the varying parts across datasets.
 
     Args:
         dataset_name: Original dataset filename or identifier
@@ -236,9 +246,8 @@ def extract_dataset_label(dataset_name):
     Returns:
         str: Extracted label suitable for plotting
     """
-
-    # Scenario (i): alisim datasets
-    if "alisim" in dataset_name:
+    # Scenario (i): simulated datasets
+    if "_seq_" in dataset_name:
         # Extract number of leaves, sites, and alignments from the dataset name
         parts = dataset_name.split("_")
         num_leaves = None
@@ -259,11 +268,9 @@ def extract_dataset_label(dataset_name):
                     data_type = "train"
                 elif parts[i - 1] == "200":
                     data_type = "test"
-
         if num_leaves and data_type != "unknown":
             return f"simulated-{num_leaves}-{data_type}"
         elif num_leaves and num_sites and num_algnmnts:
-            # Return full label - will be simplified by relabel_perturbation_dfs
             return f"simulated-{num_leaves}seq-{num_sites}sites-{num_algnmnts}aln"
         elif num_leaves and num_sites:
             return f"simulated-{num_leaves}seq-{num_sites}sites"
@@ -289,145 +296,15 @@ def extract_dataset_label(dataset_name):
         name = " ".join(parts) if isinstance(parts, list) else ""
         return name.replace("influenzaC_fluC", "influenza C ")
 
+    elif "orthomam" in dataset_name or "pandit" in dataset_name:
+        parts = dataset_name.split("_")
+        name = parts[0]
+        if name == "orthomam":
+            data_type = parts[1]
+            return f"{name}-{data_type}"
+        return name
+
     return dataset_name
-
-
-def extract_metadata_from_label(label):
-    """
-    Extract metadata fields from a simulated dataset label.
-
-    Args:
-        label: Label string like "simulated-15seq-20sites-100aln"
-
-    Returns:
-        dict: Metadata with 'label' key and optional 'seq', 'sites', 'aln' keys
-    """
-    meta = {"label": label}
-    if "seq-" in label:
-        parts = label.split("-")
-        for part in parts[1:]:  # Skip "simulated"
-            if "seq" in part:
-                meta["seq"] = part.replace("seq", "")
-            elif "sites" in part:
-                meta["sites"] = part.replace("sites", "")
-            elif "aln" in part:
-                meta["aln"] = part.replace("aln", "")
-    return meta
-
-
-def determine_varying_fields(metadata):
-    """
-    Determine which metadata fields vary across datasets.
-
-    Args:
-        metadata: List of metadata dicts with optional 'seq', 'sites', 'aln' keys
-
-    Returns:
-        tuple: (seq_varies, sites_varies, aln_varies) boolean flags
-    """
-    if not metadata:
-        return False, False, False
-
-    seq_values = [m.get("seq") for m in metadata if "seq" in m]
-    sites_values = [m.get("sites") for m in metadata if "sites" in m]
-    aln_values = [m.get("aln") for m in metadata if "aln" in m]
-
-    seq_varies = len(set(seq_values)) > 1 if seq_values else False
-    sites_varies = len(set(sites_values)) > 1 if sites_values else False
-    aln_varies = len(set(aln_values)) > 1 if aln_values else False
-
-    return seq_varies, sites_varies, aln_varies
-
-
-def build_simplified_label(meta, seq_varies, sites_varies, aln_varies, is_alisim):
-    """
-    Build a simplified label including only varying metadata fields.
-
-    Args:
-        meta: Metadata dict with optional 'seq', 'sites', 'aln' keys
-        seq_varies: Whether seq values vary across datasets
-        sites_varies: Whether sites values vary across datasets
-        aln_varies: Whether aln values vary across datasets
-        is_alisim: Whether this is an alisim dataset
-
-    Returns:
-        str: Simplified label
-    """
-    parts = []
-    if seq_varies and "seq" in meta:
-        parts.append(f"{meta['seq']}seq")
-    if sites_varies and "sites" in meta:
-        parts.append(f"{meta['sites']}sites")
-    if aln_varies and "aln" in meta:
-        parts.append(f"{meta['aln']}aln")
-
-    # For alisim datasets, keep "simulated" prefix; otherwise just use varying parts
-    if is_alisim:
-        simplified = "simulated-" + "-".join(parts) if parts else "simulated"
-    else:
-        simplified = "-".join(parts) if parts else "simulated"
-
-    return simplified
-
-
-def simplify_simulated_labels(df):
-    """
-    Simplify simulated dataset labels by removing constant metadata.
-
-    For alisim datasets: if all have "15seq" and "20sites" but different "aln",
-    simplify from "simulated-15seq-20sites-100aln" to "simulated-100aln".
-
-    Args:
-        df: DataFrame with Dataset column and original_dataset column
-
-    Returns:
-        DataFrame with simplified Dataset labels
-    """
-    simulated_mask = df["Dataset"].str.startswith("simulated-")
-    if not simulated_mask.any():
-        return df
-
-    simulated_datasets = df[simulated_mask]["Dataset"].unique()
-
-    # Check if these are alisim datasets by looking at original names
-    is_alisim = df[simulated_mask]["original_dataset"].str.contains("alisim").any()
-
-    # Extract metadata from all simulated dataset labels
-    metadata = [extract_metadata_from_label(label) for label in simulated_datasets]
-
-    # Determine which fields vary across datasets
-    seq_varies, sites_varies, aln_varies = determine_varying_fields(metadata)
-
-    # Build simplified labels including only varying fields
-    label_map = {
-        meta["label"]: build_simplified_label(
-            meta, seq_varies, sites_varies, aln_varies, is_alisim
-        )
-        for meta in metadata
-    }
-
-    # Apply simplification
-    df["Dataset"] = df["Dataset"].replace(label_map)
-    return df
-
-
-def relabel_perturbation_dfs(df):
-    """
-    Relabel method names and dataset labels in the dataframe.
-
-    Args:
-        df: DataFrame with Dataset, Method, and data columns
-
-    Returns:
-        DataFrame with relabeled method names and datasets
-    """
-    # Replace method names for better legend labels
-    df["Method"] = df["Method"].replace(METHOD_NAME_MAP)
-
-    # Simplify simulated dataset labels based on what varies
-    df = simplify_simulated_labels(df)
-
-    return df
 
 
 def separate_by_method_count(df):
@@ -516,6 +393,9 @@ def configure_top_subplot(
     x_limits,
     tick_fontsize=DEFAULT_TICK_FONTSIZE,
     legend_fontsize=DEFAULT_LEGEND_FONTSIZE,
+    label_fontsize=DEFAULT_LABEL_FONTSIZE,
+    show_xlabel=False,
+    xlabel="",
 ):
     """
     Configure and plot the top subplot (datasets with multiple methods).
@@ -527,6 +407,9 @@ def configure_top_subplot(
         x_limits: Tuple of (x_min, x_max)
         tick_fontsize: Font size for tick labels (default: DEFAULT_TICK_FONTSIZE)
         legend_fontsize: Font size for legend (default: DEFAULT_LEGEND_FONTSIZE)
+        label_fontsize: Font size for axis labels (default: DEFAULT_LABEL_FONTSIZE)
+        show_xlabel: Whether to show x-axis labels (default: False)
+        xlabel: Label for x-axis (only used if show_xlabel is True)
     """
     sns.violinplot(
         data=df_multi_method,
@@ -536,10 +419,14 @@ def configure_top_subplot(
         orient="h",
         ax=ax,
     )
-    ax.set_xlabel("")
     ax.set_ylabel("")
     ax.tick_params(axis="y", labelsize=tick_fontsize)
-    ax.tick_params(axis="x", labelbottom=False)  # Hide x-axis tick labels
+    if show_xlabel:
+        ax.set_xlabel(xlabel, fontsize=label_fontsize, labelpad=10)
+        ax.tick_params(axis="x", labelsize=tick_fontsize)
+    else:
+        ax.set_xlabel("")
+        ax.tick_params(axis="x", labelbottom=False)
     ax.set_xlim(x_limits)
     ax.legend(
         bbox_to_anchor=(0.5, 1.25), loc="upper center", fontsize=legend_fontsize, ncol=2
@@ -618,8 +505,10 @@ def create_violin_plots(valid_results, output_dir):
 
     df = pd.DataFrame(all_data)
 
-    # Normalize labels and separate by method count
-    df = relabel_perturbation_dfs(df)
+    # Replace method names for better legend labels
+    df["Method"] = df["Method"].replace(METHOD_NAME_MAP)
+
+    # Separate by method count
     df_multi_method, df_single_method, num_datasets_multi, num_datasets_single = (
         separate_by_method_count(df)
     )
@@ -639,8 +528,14 @@ def create_violin_plots(valid_results, output_dir):
 
     # Configure subplots using helpers
     if num_datasets_multi > 0:
+        # Show x-axis labels on top subplot only if bottom subplot is empty
         configure_top_subplot(
-            axes[0], df_multi_method, "Proportion_Non_MP_Edges", x_limits
+            axes[0],
+            df_multi_method,
+            "Proportion_Non_MP_Edges",
+            x_limits,
+            show_xlabel=(num_datasets_single == 0),
+            xlabel="Proportion of Non-MP Edges",
         )
     else:
         axes[0].axis("off")
@@ -713,8 +608,10 @@ def create_longest_path_plot(analysis_results, output_dir="plots"):
 
     df = pd.DataFrame(all_data)
 
-    # Normalize labels and separate by method count
-    df = relabel_perturbation_dfs(df)
+    # Replace method names for better legend labels
+    df["Method"] = df["Method"].replace(METHOD_NAME_MAP)
+
+    # Separate by method count
     df_multi_method, df_single_method, num_datasets_multi, num_datasets_single = (
         separate_by_method_count(df)
     )
@@ -732,15 +629,18 @@ def create_longest_path_plot(analysis_results, output_dir="plots"):
     x_max = min(MAX_PROPORTION, df["Normalized_Longest_Path"].max() + X_AXIS_PADDING)
     x_limits = (x_min, x_max)
 
-    # Configure subplots using helpers with smaller font sizes for this plot
+    # Configure subplots using helpers
     if num_datasets_multi > 0:
+        # Show x-axis labels on top subplot only if bottom subplot is empty
         configure_top_subplot(
             axes[0],
             df_multi_method,
             "Normalized_Longest_Path",
             x_limits,
-            tick_fontsize=16,
-            legend_fontsize=16,
+            tick_fontsize=DEFAULT_TICK_FONTSIZE,
+            legend_fontsize=DEFAULT_LEGEND_FONTSIZE,
+            show_xlabel=(num_datasets_single == 0),
+            xlabel="Normalized Longest Path of Non-MP Edges",
         )
     else:
         axes[0].axis("off")
@@ -752,8 +652,8 @@ def create_longest_path_plot(analysis_results, output_dir="plots"):
             "Normalized_Longest_Path",
             x_limits,
             "Normalized Longest Path of Non-MP Edges",
-            tick_fontsize=16,
-            label_fontsize=16,
+            tick_fontsize=DEFAULT_TICK_FONTSIZE,
+            label_fontsize=DEFAULT_LABEL_FONTSIZE,
         )
     else:
         axes[1].axis("off")
@@ -770,34 +670,44 @@ def create_longest_path_plot(analysis_results, output_dir="plots"):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Analyze edge distributions from larch pipeline output"
+        description="Analyze edge distributions from larch pipeline output.",
+        epilog="""
+Examples:
+  # Analyze a single dataset
+  python analyze_edge_distributions.py -d ../../data/larch_output \\
+      -o ./plots -n my_dataset
+
+  # Compare multiple datasets
+  python analyze_edge_distributions.py -d ../../data/larch_output \\
+      -o ./plots -n dataset1 dataset2 dataset3
+
+The script looks for pickle files in data_dir that contain the dataset name
+and appropriate suffixes (_spr.p for SPR method, _subtree.p for random subtree).
+It generates violin plots comparing non-MP edge distributions across datasets.
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
+        "-d",
         "--data_dir",
-        default="data",
+        required=True,
         help="Directory containing the larch output pickle files",
     )
     parser.add_argument(
-        "--output_dir", default="plots", help="Directory to save analysis plots"
+        "-o",
+        "--output_dir",
+        required=True,
+        help="Directory to save analysis plots",
     )
     parser.add_argument(
+        "-n",
         "--dataset_names",
         nargs="+",
-        help="Dataset name prefixes (can specify multiple for comparison)",
-    )
-    parser.add_argument(
-        "--dataset_name",
-        help="Single dataset name prefix (deprecated, use --dataset_names)",
+        required=True,
+        help="Dataset name prefixes to analyze (can specify multiple for comparison)",
     )
 
     args = parser.parse_args()
-
-    # Handle backward compatibility
-    if args.dataset_names is None:
-        if args.dataset_name:
-            args.dataset_names = [args.dataset_name]
-        else:
-            args.dataset_names = ["alisim_alignment_15_seq_50_sites_5_algnmnts"]
 
     # Define the edge distribution methods to analyze
     # edge_methods = ["constant", "uniform", "treesearch_mimic", "random_subtree", ""]
@@ -813,7 +723,7 @@ def main():
     for dataset_name in args.dataset_names:
 
         for method in edge_methods:
-            suffix = EDGE_METHOD_SUFFIXES.get(method, "")
+            suffix = get_pickle_suffix(method)
 
             # Search for files that contain both the dataset_name and suffix as substrings
             all_pickle_files = glob.glob(f"{args.data_dir}/*.p")

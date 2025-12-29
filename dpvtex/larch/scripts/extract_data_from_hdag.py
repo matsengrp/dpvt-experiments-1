@@ -1,12 +1,15 @@
 import historydag as hdag
+import multiprocessing
+import os
 import pickle
 import random
-import os
 import signal
-import multiprocessing
 import sys
+
 from ete3 import Tree
 
+from dpvtex.larch.scripts.pipeline_logger import get_logger
+from dpvtex.larch.scripts.utils import get_alignment_name_from_path
 from dpvtex.larch.scripts.tree_perturbation import (
     increase_tree_parsimony,
     make_worse_spr,
@@ -20,6 +23,61 @@ from dpvtex.larch.scripts.tree_perturbation import (
     prepare_tree_for_perturbation,
     generate_random_trees_for_treesearch,
 )
+
+# Constants
+_TOPOLOGY_COUNT_TIMEOUT_SECONDS = 10
+_ASSUMED_MIN_DAG_TOPOLOGIES = 1000  # Assumed minimum for DAGs with inf topologies
+
+
+def _create_empty_output_files(dpvt_data_file, num_children_file):
+    """Create empty output files to allow pipeline to continue on failures."""
+    with open(dpvt_data_file, "wb") as f:
+        pickle.dump({}, f)
+    with open(num_children_file, "w") as f:
+        f.write("")
+
+
+def _load_dag_from_file(dag_file):
+    """Load a DAG from file (pickle or protobuf format).
+
+    Args:
+        dag_file: Path to DAG file (.p for pickle, .pb for protobuf)
+
+    Returns:
+        The loaded DAG object
+
+    Raises:
+        ValueError: If file format is not recognized
+        Various exceptions from pickle/protobuf loading
+    """
+    if dag_file.endswith(".p"):
+        with open(dag_file, "rb") as f:
+            return pickle.load(f)
+    elif dag_file.endswith(".pb") or dag_file.endswith(".pb.gz"):
+        return hdag.mutation_annotated_dag.load_MAD_protobuf_file(
+            dag_file, compact_genomes=True
+        )
+    else:
+        raise ValueError(
+            f"Unrecognized DAG file format: {dag_file}. Expected .p or .pb/.pb.gz"
+        )
+
+
+def _prepare_dag_for_extraction(dag):
+    """Prepare a DAG for tree extraction.
+
+    Trims to optimal weight topologies and converts to sequence_dag.
+
+    Args:
+        dag: A historydag object
+
+    Returns:
+        A prepared SequenceHistoryDag
+    """
+    dag.trim_optimal_weight()
+    dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
+    dag.unlabel()
+    return dag
 
 
 def get_MP_trees_from_hdag(dag, max_trees, unlabel=True):
@@ -52,8 +110,8 @@ def get_MP_trees_from_hdag(dag, max_trees, unlabel=True):
             "trees instead.",
         )
     if dag_num_topologies == float("inf"):
-        # we can reasonably expect to have more than 1000 topolgies in the DAG
-        sample_ids = random.sample(range(1000), num_samples)
+        # DAG has too many topologies to count; assume at least this many exist
+        sample_ids = random.sample(range(_ASSUMED_MIN_DAG_TOPOLOGIES), num_samples)
     else:
         sample_ids = random.sample(range(dag_num_topologies), num_samples)
 
@@ -62,18 +120,6 @@ def get_MP_trees_from_hdag(dag, max_trees, unlabel=True):
         for i in sample_ids
     ]
     return tree_samples
-
-
-def split(taxon_set, node):
-    """Returns the split given by node, a node of a historydag.
-    Args:
-        node: historydag.dag_node
-    Returns:
-        frozenset of bipartitions {S_1, S_2} of leaf set, i.e. splits"""
-    cu = node.clade_union()
-    set1 = frozenset(node.node_id for node in cu)
-    set2 = frozenset(node.node_id for node in taxon_set - cu)
-    return frozenset({set1, set2})
 
 
 def extract_hdag_clade_child_clades(dag):
@@ -127,66 +173,81 @@ def exists_subset_union(S, C):
     return False
 
 
+def _is_clade_supported_by_dag(clade, dag_clades):
+    """Check if a clade is supported by the DAG (directly or as multifurcation resolution).
+
+    A clade is supported if it either:
+    1. Exists directly in dag_clades, or
+    2. Is a resolution of a multifurcation (union of child clades of some DAG clade)
+
+    Args:
+        clade: frozenset of leaf names representing the clade
+        dag_clades: dict mapping clades to their child clades
+
+    Returns:
+        True if clade is supported by the DAG, False otherwise
+    """
+    # Direct match
+    if clade in dag_clades:
+        return True
+
+    # Check if clade is a resolution of a multifurcation
+    for dag_clade in dag_clades:
+        if clade.issubset(dag_clade):
+            if exists_subset_union(dag_clades[dag_clade], clade):
+                return True
+
+    return False
+
+
 def assign_edge_labels(modified_tree, tree, dag_clades):
     """
-    Assigns label 0/1 to modified_tree edges, depending on whether the edges are
-    supported by dag_clades. `modified_tree' is assumed to be received from
-    changing some edges in tree, so that a lot of edges are still shared between
-    then two. `tree' is assumed to be extracted from the hdag, and is used to
-    make the label assignment more efficient.
+    Assigns label 0/1 to modified_tree edges based on DAG support.
+
+    Labels are 0 for MP edges (supported by DAG) and 1 for non-MP edges.
+    The original tree is used to efficiently initialize labels, since most
+    edges are shared between the original and modified trees.
+
     Args:
-        modified_tree: ete3 tree for which we want to get edge label list
-        tree: ete3 tree that is mostly identical to modified tree (tree before
-            make_worse) - this can make the label assignment more efficient, but
-            can be replaced with a random tree
-        dag_clades: dictionary with clades: child_clades. Can be computed with
-        extract_hdag_clade_child_clades
+        modified_tree: ete3 tree to label
+        tree: original ete3 tree (before perturbation) for efficient initialization
+        dag_clades: dict mapping clades to child clades (from extract_hdag_clade_child_clades)
+
     Returns:
-        list of 0/1 assigned to each node for each edge above it (preorder)
-            whether it is present in the dag with dag_clades or not
+        list of 0/1 labels in preorder traversal (0=MP edge, 1=non-MP edge)
     """
-    # label edges that differ between tree and  modified tree as 1, else 0
-    tree_clades = [
+    # Initialize labels: 0 if edge exists in original tree, 1 otherwise
+    tree_clades = {
         frozenset(node.get_leaf_names()) for node in tree.traverse("preorder")
-    ]
+    }
     leaf_set = frozenset(modified_tree.get_leaf_names())
+
     edge_labels = [
         0 if frozenset(node.get_leaf_names()) in tree_clades else 1
         for node in modified_tree.traverse("preorder")
     ]
-    # update 1s if corresponding edge exists in dag_splits or is resolution of a
-    # multifurcation in dag_splits.
-    i = 0
-    for node in modified_tree.traverse("preorder"):
-        if i in [0, 1]:
-            # Root leaf and node below root are assigned 0 by default This
-            # doesn't change anything, as they will be masked in training
+
+    # Update labels: check if edges marked as non-MP are actually supported by DAG
+    for i, node in enumerate(modified_tree.traverse("preorder")):
+        # Root and first child are always labeled 0 (masked in training)
+        if i < 2:
             edge_labels[i] = 0
-            i += 1
             continue
+
         if edge_labels[i] == 1:
             this_clade = frozenset(node.get_leaf_names())
-            # check this clade and its complement
-            for clade in [this_clade, leaf_set - this_clade]:
-                # if clade actually exists in DAG, label as 0:
-                if clade in dag_clades:
-                    edge_labels[i] = 0
-                # if edge is resolution of multifurcation in dag, we also label as 0
-                # (MP edge with 0 mutations)
-                else:
-                    for dag_clade in dag_clades:
-                        if clade.issubset(dag_clade):
-                            # If there is a union of clades that are children of
-                            # dag_clade, then there is a multifurcation at dag_clade
-                            # that could be resolved so that clade is in a DAG tree
-                            if exists_subset_union(dag_clades[dag_clade], clade):
-                                edge_labels[i] = 0
-                                break
-        i += 1
+            complement_clade = leaf_set - this_clade
+
+            # Check if either the clade or its complement is supported
+            if _is_clade_supported_by_dag(
+                this_clade, dag_clades
+            ) or _is_clade_supported_by_dag(complement_clade, dag_clades):
+                edge_labels[i] = 0
+
     return edge_labels
 
 
-def get_non_dag_edges(
+def generate_perturbed_trees_with_labels(
     dag,
     num_children_file,
     max_trees=0,
@@ -197,7 +258,7 @@ def get_non_dag_edges(
     subtree_target_non_mp_proportion=1 / 6,
 ):
     """
-    Perturbs trees to create perturbed trees containing edges not present in the given dag.
+    Generate perturbed trees with MP/non-MP edge labels from a history DAG.
 
     Args:
         dag: sequence_dag representing the history DAG
@@ -275,7 +336,7 @@ def get_non_dag_edges(
     return tree_to_label_dict
 
 
-def memory_safe_count_topologies(dag, max_time=10):
+def memory_safe_count_topologies(dag, max_time=_TOPOLOGY_COUNT_TIMEOUT_SECONDS):
     """Count topologies in a DAG with timeout protection.
 
     Runs topology counting in a separate process with a timeout to prevent
@@ -284,48 +345,42 @@ def memory_safe_count_topologies(dag, max_time=10):
 
     Args:
         dag: A historydag object to count topologies in.
-        max_time: Maximum seconds to wait before killing the count (default: 10).
+        max_time: Maximum seconds to wait before killing the count.
 
     Returns:
         int or float: Number of topologies, or float('inf') if count timed out
             or encountered an error.
     """
-    # Create a queue for communication between processes
     result_queue = multiprocessing.Queue()
 
-    # Define a function to put the result in the queue
     def count_and_return():
         try:
             count = dag.count_topologies()
             result_queue.put(count)
-        except Exception as e:
+        except Exception as e:  # Broad catch needed - runs in subprocess
             result_queue.put(f"Error: {str(e)}")
 
-    # Start a separate process
-    p = multiprocessing.Process(target=count_and_return)
-    p.start()
-    # Allow the process to run for max_time seconds
-    p.join(timeout=max_time)
-    # Check if process is still running after timeout
-    if p.is_alive():
+    process = multiprocessing.Process(target=count_and_return)
+    process.start()
+    process.join(timeout=max_time)
+
+    if process.is_alive():
         print("Stop counting topologies, returning inf: Function timed out")
-        # Use SIGKILL to forcefully terminate the process
         try:
-            os.kill(p.pid, signal.SIGKILL)
-        except Exception as e:
+            os.kill(process.pid, signal.SIGKILL)
+        except OSError as e:
             print(f"Error killing process: {e}")
         return float("inf")
-    # Process completed within time limit, get the result
+
     if not result_queue.empty():
         result = result_queue.get()
-        # Check if we got an error
         if isinstance(result, str) and result.startswith("Error"):
             print(f"Stop counting topologies, returning inf: {result}")
             return float("inf")
         return result
-    else:
-        print("Stop counting topologies, returning inf: No result returned")
-        return float("inf")
+
+    print("Stop counting topologies, returning inf: No result returned")
+    return float("inf")
 
 
 def extract_data_from_hdag(
@@ -357,35 +412,52 @@ def extract_data_from_hdag(
         subtree_target_non_mp_proportion (float): Target non-MP edge proportion for
             subtree replacement (default: 1/6)
     """
-    print("Start reading DAG")
-    if dag_file[-2:] == ".p":
-        with open(dag_file, "rb") as f:
-            dag = pickle.load(f)
-    elif dag_file[-3:] == ".pb":
-        dag = hdag.mutation_annotated_dag.load_MAD_protobuf_file(
-            dag_file, compact_genomes=True
-        )
-    else:
-        print("Error: First input file should be pickled hDAG or protobuf.")
-        sys.exit(1)
-    # trim to only MP topologies + convert to sequence_dag
-    print("Done reading DAG")
-    print("Start trimming DAG")
-    dag.trim_optimal_weight()
-    print("Done trimming DAG")
-    print("Start converting DAG to sequence_dag")
-    dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
-    print("Done converting DAG to sequence_dag")
-    dag.unlabel()
+    alignment_name = get_alignment_name_from_path(dag_file)
+    logger.log_section("EXTRACTION", f"Starting tree extraction for {alignment_name}")
+    logger.log("EXTRACTION", f"Edge distribution method: {edge_distribution}")
 
-    logger.log("EXTRACTION", "Counting DAG topologies (max 10s timeout)")
+    # Check for empty DAG file (happens when larch times out or fails)
+    if os.path.getsize(dag_file) == 0:
+        logger.log(
+            "EXTRACTION",
+            f"Skipping {alignment_name}: Empty DAG file (likely larch timeout/failure)",
+        )
+        print(f"WARNING: Skipping {alignment_name}: Empty DAG file", file=sys.stderr)
+        _create_empty_output_files(dpvt_data_file, num_children_file)
+        return
+
+    # Load DAG from file
+    logger.log("EXTRACTION", "Reading DAG from file")
+    try:
+        dag = _load_dag_from_file(dag_file)
+    except (ValueError, pickle.UnpicklingError, OSError) as e:
+        logger.log("EXTRACTION", f"Error loading DAG for {alignment_name}: {str(e)}")
+        print(
+            f"WARNING: Skipping {alignment_name}: Invalid/corrupted DAG file",
+            file=sys.stderr,
+        )
+        _create_empty_output_files(dpvt_data_file, num_children_file)
+        return
+
+    logger.log("EXTRACTION", "DAG loaded successfully")
+
+    # Prepare DAG for extraction
+    logger.log("EXTRACTION", "Preparing DAG (trimming and converting)")
+    dag = _prepare_dag_for_extraction(dag)
+
+    # Count topologies
+    logger.log(
+        "EXTRACTION",
+        f"Counting DAG topologies (max {_TOPOLOGY_COUNT_TIMEOUT_SECONDS}s timeout)",
+    )
     num_topologies = min(memory_safe_count_topologies(dag), max_trees)
     logger.log(
         "EXTRACTION",
         f"Number of topologies in DAG: {num_topologies} (capped at {max_trees})",
     )
 
-    tree_label_dict = get_non_dag_edges(
+    # Generate perturbed trees with edge labels
+    tree_label_dict = generate_perturbed_trees_with_labels(
         dag,
         num_children_file,
         max_trees=num_topologies,
@@ -395,5 +467,11 @@ def extract_data_from_hdag(
         subtree_max_attempts=subtree_max_attempts,
         subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
     )
+
+    logger.log("EXTRACTION", f"Generated {len(tree_label_dict)} trees with edge labels")
+
+    # Save output
     with open(dpvt_data_file, "wb") as f:
         pickle.dump(tree_label_dict, f)
+
+    logger.log("EXTRACTION", f"Tree data saved to: {dpvt_data_file}")

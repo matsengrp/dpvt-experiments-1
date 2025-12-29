@@ -1,16 +1,16 @@
 models: [
-    "TraverseNN",
+    # "TraverseNN",
     "TraverseMaxPooling",
     "TraverseAvgPooling",
     "BaselineReversion", # can only run on CPU!
   ]
 train_data: [
-  "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_spr",
-  "larch_alisim_alignment_15_seq_20_sites_100_algnmnts_subtree"
+  "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_spr",
+  "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_subtree"
   ]
 test_data: [
-  "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_spr",
-  "larch_alisim_alignment_15_seq_20_sites_50_algnmnts_subtree"
+  "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8_spr",
+  "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8_subtree"
   ]
 
 device: "cpu"

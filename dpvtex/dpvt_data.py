@@ -68,8 +68,10 @@ def train_val_data_of_nicknames(data_name, device, data_nicknames_path):
     dataset_dict = load_nicknames_dict(data_nicknames_path)
     file_path = dataset_dict[data_name]
     file_path = os.path.realpath(file_path)
+    print(f"Reading pickle file: {file_path}", flush=True)
     with open(file_path, "rb") as f:
         data_dict = pickle.load(f)
+    print(f"Loaded {len(data_dict)} samples from pickle file", flush=True)
 
     # Split into balanced training, validation, and test data using sklearn
     labels = list(data_dict.values())
@@ -99,14 +101,28 @@ def train_val_data_of_nicknames(data_name, device, data_nicknames_path):
         stratify=categories,
         random_state=42,
     )
+    print(
+        f"Split into {len(train_data)} training and {len(val_data)} validation samples",
+        flush=True,
+    )
 
     if device == "cpu-tree-dataset":
         # no need to convert to traversal data structure, as this would add
         # one more traversal, hence increase runtime
+        print("Creating TreeDataset for CPU", flush=True)
         train_data = TreeDataset(train_data, train_labels)
         val_data = TreeDataset(val_data, val_labels)
     else:
+        print(f"Creating TraversalDataset for device: {device}", flush=True)
+        print(
+            f"Converting {len(train_data)} training trees to traversals (this may take a while)...",
+            flush=True,
+        )
         train_data = TraversalDataset(train_data, train_labels, device)
+        print(
+            f"Converting {len(val_data)} validation trees to traversals...", flush=True
+        )
         val_data = TraversalDataset(val_data, val_labels, device)
+        print("Data loading and conversion complete!", flush=True)
 
     return train_data, val_data

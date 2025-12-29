@@ -108,7 +108,10 @@ def plot_cleaned_alignment_sizes(csv_path, output_path):
 
 
 def plot_filtered_alignment_stats(
-    manifest_path, stats_csv_path, output_dir, filtered_stats_filename="alignment_size_stats.csv"
+    manifest_path,
+    stats_csv_path,
+    output_dir,
+    filtered_stats_filename="alignment_size_stats.csv",
 ):
     """
     Filter alignment stats to those in manifest and generate plots.

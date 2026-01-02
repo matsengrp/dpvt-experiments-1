@@ -1,5 +1,5 @@
 models: [
-    # "TraverseNN",
+    "TraverseNN",
     "TraverseMaxPooling",
     "TraverseAvgPooling",
     "BaselineReversion", # can only run on CPU!
@@ -20,6 +20,9 @@ output_dir: "_output"
 data_nicknames_path: "data_nicknames.json"
 use_hyperparameter_optimize: False
 n_hyperparameter_trials: 50
+
+# Profiling options
+profiling: True          # Enable PyTorchProfiler for detailed GPU/CPU profiling
 
 hyperparameters:
   learning_rate: [0.00005]

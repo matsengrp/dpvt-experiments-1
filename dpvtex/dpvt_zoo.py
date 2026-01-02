@@ -439,6 +439,19 @@ def train_model(
 ):
     """
     Creates a model in class `model_name` and trains it on data `data_name`.
+
+    Args:
+        model_name: Name of the model class to use
+        data_name: Nickname of the training dataset
+        train_checkpoint: Path to save the trained model checkpoint
+        device: Device to use ('cpu', 'cuda', etc.)
+        hyperparameter_path: Path to hyperparameters JSON file
+        profiling: If True, enable PyTorchProfiler for detailed GPU/CPU profiling
+        timestamp: Timestamp for logging (defaults to current date)
+        param_id: Parameter identifier for logging
+        output_dir: Base output directory
+        data_nicknames_path: Path to data nicknames JSON file
+        **wrap_kwargs: Additional arguments passed to Wrap
     """
     if timestamp is None:
         timestamp = get_timestamp()
@@ -456,9 +469,11 @@ def train_model(
         train_checkpoint = path_dict["train_checkpoint"]
     # Update default parameters with any provided keyword arguments
     wrap_params = {**wrap_kwargs}
+
     train_data, val_data = train_val_data_of_nicknames(
         data_name, device, data_nicknames_path
     )
+
     model = build_model(model_name)
     log_path = path_dict["train_llog"]
     custom_log_path = path_dict["train_clog"]
@@ -477,6 +492,7 @@ def train_model(
         **wrap_params,
     )
     wrap.train(train_checkpoint)
+
     return model
 
 
@@ -569,6 +585,21 @@ def test_model(
     Loads a trained model, specified by `model_name` and `trained_data_name`, loads
     it from checkpoint `trained_model_ckpt` and tests it on `test_data_name` dataset
     and saves trained model to checkpoint `test_checkpoint`.
+
+    Args:
+        trained_model_name: Name of the model class
+        train_data_name: Name of the training dataset (used for path construction)
+        trained_model_ckpt: Path to the trained model checkpoint
+        test_data_name: Name of the test dataset
+        test_checkpoint: Path to save the test checkpoint
+        device: Device to use ('cpu', 'cuda', etc.)
+        hyperparameter_path: Path to hyperparameters JSON file
+        accum_grad_batches: Number of batches to accumulate gradients over
+        timestamp: Timestamp for logging (defaults to current date)
+        param_id: Parameter identifier for logging
+        output_dir: Base output directory
+        data_nicknames_path: Path to data nicknames JSON file
+        **wrap_kwargs: Additional arguments passed to Wrap
     """
     if timestamp is None:
         timestamp = get_timestamp()
@@ -592,8 +623,9 @@ def test_model(
         feature_length=hparams["feature_length"],
         dim_mlp_layers=hparams["dim_mlp_layers"],
     )
-    # load dataset
+
     test_data = data_of_nicknames(test_data_name, device, data_nicknames_path)
+
     log_path = path_dict["test_llog"]
 
     test_wrap = Wrap(
@@ -607,7 +639,7 @@ def test_model(
         hyperparameter_path=hyperparameter_path,
         added_callbacks=[],
         timestamp=timestamp,
-        **wrap_params,
+        **wrap_kwargs,
     )
 
     # evaluate model

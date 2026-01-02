@@ -21,6 +21,7 @@ from dpvtex.dpvt_zoo import (
     test_baseline_model,
     aggregate_baseline_data_to_csv,
 )
+from plot_times import generate_benchmark_plots
 
 
 snakefile_dir = workflow.basedir
@@ -46,6 +47,8 @@ default_config = {
     "use_cross_datasets": False,
     # if hyperparameter_optimize is False, then uses hyperparameter arguments below.
     "use_hyperparameter_optimize": True,
+    # profiling options
+    "profiling": False,
     "hyperparameters": {
         "learning_rate": [0.0002, 0.0004],
         "batch_size": [512],
@@ -83,6 +86,7 @@ timestamp = config["timestamp"]
 n_hyperparameter_trials = config["n_hyperparameter_trials"]
 use_cross_datasets = config["use_cross_datasets"]
 use_hyperparameter_optimize = config["use_hyperparameter_optimize"]
+profiling = config["profiling"]
 hyperparameters = config["hyperparameters"]
 notebook_input_paths = config["notebook_paths"]
 
@@ -346,6 +350,41 @@ baseline_csv_output_path = f"{run_dir}/result_csvs_and_pdfs/baseline_summary.csv
 config_output_path = f"{run_dir}/result_csvs_and_pdfs/config.yaml"
 data_nicknames_output_path = f"{run_dir}/result_csvs_and_pdfs/data_nicknames.json"
 
+# Benchmark paths for timing plots
+train_benchmark_paths = [
+    get_benchmark_path(
+        rule_name="train_model",
+        model=model_name,
+        train_data=train_data_name,
+        test_data=None,
+        param_id=param_id,
+        device=device,
+        timestamp=timestamp,
+        output_dir=output_dir,
+    )
+    for model_name in trained_models
+    for train_data_name in train_data_names
+    for param_id in param_ids
+]
+test_benchmark_paths = [
+    get_benchmark_path(
+        rule_name="test_model",
+        model=model_name,
+        train_data=train_data_name,
+        test_data=test_data_name,
+        param_id=param_id,
+        device=device,
+        timestamp=timestamp,
+        output_dir=output_dir,
+    )
+    for model_name in trained_models
+    for train_data_name, test_data_name in data_pairs
+    for param_id in param_ids
+]
+all_benchmark_paths = train_benchmark_paths + test_benchmark_paths
+timing_plots_dir = f"{run_dir}/timing_plots"
+timing_plots_output = f"{timing_plots_dir}/training_times.pdf"
+
 notebook_output_paths = [get_notebook_output_path(run_dir, nb) for nb in notebook_input_paths]
 notebook_dict = {os.path.basename(nb):nb for nb in notebook_input_paths}
 if len(notebook_dict) != len(notebook_input_paths):
@@ -356,6 +395,7 @@ rule all:
         notebook_output_paths=notebook_output_paths,
         csv_output_path=csv_output_path,
         baseline_csv_output_path=baseline_csv_output_path if baseline_model_list else [],
+        timing_plot=timing_plots_output,
 
 rule log_metadata_step:
     output:
@@ -437,19 +477,21 @@ rule train_model_step:
             timestamp=timestamp,
             output_dir=output_dir,
         )
-    run:
-        train_model(
-            model_name=wildcards.model_name,
-            data_name=wildcards.train_data_name,
-            train_checkpoint=output.trained_model,
-            device=device,
-            hyperparameter_path=input.hyperparameter_path,
-            profiling=False,
-            timestamp=timestamp,
-            param_id=wildcards.param_id,
-            output_dir=output_dir,
-            data_nicknames_path=data_nicknames_path,
-        )
+    shell:
+        """
+        python -c "from dpvtex.dpvt_zoo import train_model; train_model(
+            model_name='{wildcards.model_name}',
+            data_name='{wildcards.train_data_name}',
+            train_checkpoint='{output.trained_model}',
+            device='{device}',
+            hyperparameter_path='{input.hyperparameter_path}',
+            profiling={profiling},
+            timestamp='{timestamp}',
+            param_id='{wildcards.param_id}',
+            output_dir='{output_dir}',
+            data_nicknames_path='{data_nicknames_path}',
+        )"
+        """
 
 
 rule test_model_step:
@@ -491,20 +533,22 @@ rule test_model_step:
             timestamp=timestamp,
             output_dir=output_dir,
         )
-    run:
-        test_model(
-            trained_model_name=wildcards.model_name,
-            train_data_name=wildcards.train_data_name,
-            trained_model_ckpt=input.trained_model,
-            test_data_name=wildcards.test_data_name,
-            test_checkpoint=output.tested_model,
-            device=device,
-            hyperparameter_path=input.hyperparameter_path,
-            timestamp=timestamp,
-            param_id=wildcards.param_id,
-            output_dir=output_dir,
-            data_nicknames_path=data_nicknames_path,
-        )
+    shell:
+        """
+        python -c "from dpvtex.dpvt_zoo import test_model; test_model(
+            trained_model_name='{wildcards.model_name}',
+            train_data_name='{wildcards.train_data_name}',
+            trained_model_ckpt='{input.trained_model}',
+            test_data_name='{wildcards.test_data_name}',
+            test_checkpoint='{output.tested_model}',
+            device='{device}',
+            hyperparameter_path='{input.hyperparameter_path}',
+            timestamp='{timestamp}',
+            param_id='{wildcards.param_id}',
+            output_dir='{output_dir}',
+            data_nicknames_path='{data_nicknames_path}',
+        )"
+        """
 
 
 rule create_csv_step:
@@ -671,4 +715,20 @@ rule concat_baseline_csvs_step:
         concatenate_csvs(
             input_csv_paths=input.csv_input_paths,
             output_csv_path=output.csv_output_path,
+        )
+
+
+rule plot_times_step:
+    input:
+        benchmark_paths=all_benchmark_paths,
+    output:
+        timing_plot=timing_plots_output,
+    run:
+        generate_benchmark_plots(
+            models=trained_models,
+            train_data_names=train_data_names,
+            test_data_names=test_data_names,
+            benchmark_dir=f"{run_dir}/benchmark_logs",
+            output_dir=timing_plots_dir,
+            nicknames_path_arg=data_nicknames_path,
         )

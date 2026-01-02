@@ -31,6 +31,12 @@ def data_of_nicknames(
     """
     Takes a dataset nickname string, which is a key in `dataset_dict`, and returns the
     corresponding data as a `TreeDataset` object.
+
+    Args:
+        data_name: Dataset nickname (key in the nicknames JSON)
+        device: Device to use ('cpu', 'cuda', or 'cpu-tree-dataset')
+        data_nicknames_path: Path to the JSON file containing dataset nicknames
+        data_struct: Type of dataset to create ('TraversalDataset' or 'TreeDataset')
     """
     dataset_dict = load_nicknames_dict(data_nicknames_path)
     file_path = dataset_dict[data_name]

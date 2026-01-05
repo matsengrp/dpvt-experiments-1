@@ -730,5 +730,5 @@ rule plot_times_step:
             test_data_names=test_data_names,
             benchmark_dir=f"{run_dir}/benchmark_logs",
             output_dir=timing_plots_dir,
-            nicknames_path_arg=data_nicknames_path,
+            nicknames_path=data_nicknames_path,
         )

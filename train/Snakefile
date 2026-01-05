@@ -543,6 +543,7 @@ rule test_model_step:
             test_checkpoint='{output.tested_model}',
             device='{device}',
             hyperparameter_path='{input.hyperparameter_path}',
+            profiling={profiling},
             timestamp='{timestamp}',
             param_id='{wildcards.param_id}',
             output_dir='{output_dir}',

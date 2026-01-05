@@ -1,567 +1,589 @@
+"""
+Runtime visualization for DPVT training and testing.
+
+This module provides functions to visualize training and testing times
+for different models and datasets. It can be used standalone or called
+from Snakemake with configuration parameters.
+
+Usage:
+    Standalone: python plot_times.py
+    From Snakemake: Call generate_benchmark_plots() with config parameters
+"""
+
+import json
 import os
 import pickle
-import json
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
+from dataclasses import dataclass, field
 from pathlib import Path
 
-# Default values (will be overridden when called from Snakemake or standalone)
-nicknames_path = "my_data_nicknames.json"
-nicknames_dict = {}
-train_benchmark_paths = []
-test_benchmark_paths = []
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 
-TRAIN_DATA_NICKNAMES = {}
-TEST_DATA_NICKNAMES = {}
-MODELS = {}
-BENCHMARK_PREFIX = ""
+# =============================================================================
+# Constants
+# =============================================================================
 
+FONT_LARGE, FONT_MED, FONT_SMALL = 16, 14, 12
+MARKER_SCALE, MIN_MARKER = 300, 50
+DPI, PALETTE = 300, "Dark2"
 
-def _init_defaults():
-    """Initialize default values for standalone script execution."""
-    global TRAIN_DATA_NICKNAMES, TEST_DATA_NICKNAMES, MODELS, BENCHMARK_PREFIX
-    global nicknames_dict, train_benchmark_paths, test_benchmark_paths
+MODEL_NAMES = {
+    "TraverseAvgPooling": "Average pooling",
+    "TraverseMaxPooling": "Maximum pooling",
+    "TraverseNN": "Transformer encoder",
+    "BaselineReversion": "Baseline reversion",
+}
 
-    TRAIN_DATA_NICKNAMES = {
-        "simulated_25_seq_100_sites_500_algnmnts_few_spr_filtered_0.8_spr": "sim 25",
-        "simulated_50_seq_100_sites_500_algnmnts_few_spr_filtered_0.8_spr": "sim 50",
-        "orthomam_train_0.5_1000_samples_spr": "OrthoMaM",
-    }
+DEFAULT_TRAIN = {
+    "simulated_25_seq_100_sites_500_algnmnts_few_spr_filtered_0.8_spr": "sim 25",
+    "simulated_50_seq_100_sites_500_algnmnts_few_spr_filtered_0.8_spr": "sim 50",
+    "orthomam_train_0.5_1000_samples_spr": "OrthoMaM",
+}
 
-    TEST_DATA_NICKNAMES = {
-        "orthomam_test_0.5_spr": "OrthoMaM Test",
-        "influenzaC_fluC_M_spr": "flu C M",
-        "influenzaC_fluC_NS_spr": "flu C NS",
-        "influenzaC_fluC_PB2_spr": "flu C PB2",
-        "rotavirusA_H_H2_spr": "rotavirus A H H2",
-        "simulated_25_seq_100_sites_200_algnmnts_few_spr_filtered_0.8_spr": "sim 25",
-        "simulated_50_seq_100_sites_200_algnmnts_few_spr_filtered_0.8_spr": "sim 50",
-        "pandit_full_0.8_spr": "PANDIT",
-    }
-
-    MODELS = {
-        "TraverseAvgPooling": "Average pooling",
-        "TraverseMaxPooling": "Maximum pooling",
-        "TraverseNN": "Transformer encoder"
-    }
-    BENCHMARK_PREFIX = "_output/run.final/benchmark_logs/"
-
-    with open(nicknames_path, 'r') as file:
-        nicknames_dict = json.load(file)
-
-    train_benchmark_paths = get_train_benchmark_paths()
-    test_benchmark_paths = get_test_benchmark_paths()
+DEFAULT_TEST = {
+    "orthomam_test_0.5_spr": "OrthoMaM Test",
+    "influenzaC_fluC_M_spr": "flu C M",
+    "influenzaC_fluC_NS_spr": "flu C NS",
+    "influenzaC_fluC_PB2_spr": "flu C PB2",
+    "rotavirusA_H_H2_spr": "rotavirus A H H2",
+    "simulated_25_seq_100_sites_200_algnmnts_few_spr_filtered_0.8_spr": "sim 25",
+    "simulated_50_seq_100_sites_200_algnmnts_few_spr_filtered_0.8_spr": "sim 50",
+    "pandit_full_0.8_spr": "PANDIT",
+}
 
 
-def get_benchmark_tsv_paths(model, train_nickname, test_nickname=None, benchmark_type="train_model"):
+# =============================================================================
+# Configuration
+# =============================================================================
+
+
+@dataclass
+class PlotConfig:
+    """Configuration for benchmark plotting.
+
+    Attributes:
+        nicknames_dict: Dictionary mapping dataset nicknames to file paths
+        benchmark_prefix: Path prefix for benchmark log files
+        train_nicknames: Maps training dataset names to display labels
+        test_nicknames: Maps test dataset names to display labels
+        models: Maps model names to display labels
     """
-    Get the path to a benchmark TSV file.
+
+    nicknames_dict: dict
+    benchmark_prefix: str
+    train_nicknames: dict = field(default_factory=dict)
+    test_nicknames: dict = field(default_factory=dict)
+    models: dict = field(default_factory=dict)
+
+    @property
+    def data_dir(self) -> str:
+        """Get the data directory from nicknames dict."""
+        return self.nicknames_dict.get("data_dir", ".")
+
+    @classmethod
+    def from_args(
+        cls,
+        models: list[str],
+        train_names: list[str],
+        test_names: list[str],
+        benchmark_dir: str,
+        nicknames_path: str,
+    ) -> "PlotConfig":
+        """Create a PlotConfig from command-line or Snakemake arguments.
+
+        Args:
+            models: List of model names
+            train_names: List of training dataset nicknames
+            test_names: List of test dataset nicknames
+            benchmark_dir: Path to benchmark_logs directory
+            nicknames_path: Path to data_nicknames.json
+
+        Returns:
+            Configured PlotConfig instance
+        """
+        with open(nicknames_path) as f:
+            nicknames = json.load(f)
+        prefix = benchmark_dir if benchmark_dir.endswith("/") else f"{benchmark_dir}/"
+        return cls(
+            nicknames_dict=nicknames,
+            benchmark_prefix=prefix,
+            train_nicknames={n: n for n in train_names},
+            test_nicknames={n: n for n in test_names},
+            models={n: MODEL_NAMES.get(n, n) for n in models},
+        )
+
+    @classmethod
+    def standalone(cls, nicknames_path: str = "my_data_nicknames.json") -> "PlotConfig":
+        """Create config for standalone script execution with default values.
+
+        Args:
+            nicknames_path: Path to the nicknames JSON file
+
+        Returns:
+            Configured PlotConfig instance with default datasets
+        """
+        with open(nicknames_path) as f:
+            nicknames = json.load(f)
+        return cls(
+            nicknames_dict=nicknames,
+            benchmark_prefix="_output/run.final/benchmark_logs/",
+            train_nicknames=DEFAULT_TRAIN.copy(),
+            test_nicknames=DEFAULT_TEST.copy(),
+            models={k: v for k, v in MODEL_NAMES.items() if k != "BaselineReversion"},
+        )
+
+
+# =============================================================================
+# Data Loading
+# =============================================================================
+
+
+def get_benchmark_paths(cfg: PlotConfig, is_test: bool = False) -> list[str]:
+    """Get all benchmark file paths for train or test benchmarks.
 
     Args:
-        model: Model name (e.g., "TraverseAvgPooling")
-        train_nickname: Training data nickname
-        test_nickname: Test data nickname (only needed for benchmark_type="test_model")
-        benchmark_type: One of "train_model", "test_model", or "optimize_hyperparameters"
+        cfg: Plot configuration
+        is_test: If True, get test benchmark paths; otherwise training paths
 
     Returns:
-        Path to the benchmark TSV file
+        List of benchmark TSV file paths
     """
-    if benchmark_type == "test_model":
-        if test_nickname is None:
-            raise ValueError("test_nickname is required for benchmark_type='test_model'")
-        filename = f"{model}-{train_nickname}-ON-{test_nickname}-Param0.tsv"
-    else:
-        filename = f"{model}-{train_nickname}-Param0.tsv"
-
-    return f"{BENCHMARK_PREFIX}{benchmark_type}/{filename}"
-
-
-def get_train_benchmark_paths():
-    """Get all training benchmark TSV paths for all models and training datasets."""
     paths = []
-    for model in MODELS:
-        for train_nickname in TRAIN_DATA_NICKNAMES:
-            path = get_benchmark_tsv_paths(model, train_nickname, benchmark_type="train_model")
-            paths.append(path)
+    btype = "test_model" if is_test else "train_model"
+    for model in cfg.models:
+        for train in cfg.train_nicknames:
+            if is_test:
+                for test in cfg.test_nicknames:
+                    fname = f"{model}-{train}-ON-{test}-Param0.tsv"
+                    paths.append(f"{cfg.benchmark_prefix}{btype}/{fname}")
+            else:
+                fname = f"{model}-{train}-Param0.tsv"
+                paths.append(f"{cfg.benchmark_prefix}{btype}/{fname}")
     return paths
 
 
-def get_test_benchmark_paths():
-    """Get all test benchmark TSV paths for all models, training datasets, and test datasets."""
-    paths = []
-    for model in MODELS:
-        for train_nickname in TRAIN_DATA_NICKNAMES:
-            for test_nickname in TEST_DATA_NICKNAMES:
-                path = get_benchmark_tsv_paths(model, train_nickname, test_nickname, benchmark_type="test_model")
-                paths.append(path)
-    return paths
-
-
-
-def parse_time_to_seconds(time_str):
-    """
-    Convert time string in h:m:s format to total seconds.
+def load_dataset_metadata(cfg: PlotConfig, nicknames: dict) -> tuple[dict, dict, dict]:
+    """Load tree counts, average leaves, and average sites for datasets.
 
     Args:
-        time_str: Time string in format "h:m:s" or "hh:mm:ss"
+        cfg: Plot configuration
+        nicknames: Dictionary of dataset nicknames to load metadata for
 
     Returns:
-        Total seconds as float
+        Tuple of three dictionaries:
+        - counts: Maps nickname to number of trees
+        - avg_leaves: Maps nickname to average leaves per tree
+        - avg_sites: Maps nickname to average sites per tree
     """
-    parts = time_str.split(':')
-    hours = int(parts[0])
-    minutes = int(parts[1])
-    seconds = float(parts[2])
-    return hours * 3600 + minutes * 60 + seconds
+    counts, leaves, sites = {}, {}, {}
 
-
-def load_dataset_sizes():
-    """
-    Load the number of trees in each test dataset from pickle files.
-
-    Returns:
-        Dictionary mapping dataset nickname to number of trees
-    """
-    dataset_sizes = {}
-    data_dir = nicknames_dict.get('data_dir', '.')
-
-    for nickname in TEST_DATA_NICKNAMES.keys():
-        if nickname not in nicknames_dict:
-            print(f"Warning: {nickname} not found in nicknames_dict")
+    for name in nicknames:
+        if name not in cfg.nicknames_dict:
+            print(f"Warning: {name} not in nicknames_dict")
             continue
 
-        file_path = f"{data_dir}/{nicknames_dict[nickname]}"
+        fpath = f"{cfg.data_dir}/{cfg.nicknames_dict[name]}"
         try:
-            with open(file_path, 'rb') as f:
-                data = pickle.load(f)
-            dataset_sizes[nickname] = len(data)
-            print(f"Loaded {nickname}: {len(data)} trees")
-        except Exception as e:
-            print(f"Error loading {file_path}: {e}")
-
-    return dataset_sizes
-
-
-def load_dataset_avg_tree_sizes(dataset_nicknames_dict):
-    """
-    Load the average number of leaves and sites per tree in datasets from pickle files.
-
-    Args:
-        dataset_nicknames_dict: Dictionary mapping nicknames to display labels
-
-    Returns:
-        Tuple of two dictionaries: (avg_leaves_dict, avg_sites_dict)
-        - avg_leaves_dict: Maps dataset nickname to average number of leaves
-        - avg_sites_dict: Maps dataset nickname to average number of sites
-    """
-    avg_tree_sizes = {}
-    avg_site_sizes = {}
-    data_dir = nicknames_dict.get('data_dir', '.')
-
-    for nickname in dataset_nicknames_dict.keys():
-        if nickname not in nicknames_dict:
-            print(f"Warning: {nickname} not found in nicknames_dict")
-            continue
-
-        file_path = f"{data_dir}/{nicknames_dict[nickname]}"
-        try:
-            with open(file_path, 'rb') as f:
+            with open(fpath, "rb") as f:
                 data = pickle.load(f)
 
-            # Calculate average number of leaves across all trees
-            # add 1 for root leaf
-            total_leaves = sum(len(tree)+1 for tree in data.keys())
-            avg_leaves = total_leaves / len(data) if len(data) > 0 else 0
+            counts[name] = len(data)
+            leaves[name] = (
+                sum(len(t) + 1 for t in data.keys()) / len(data) if data else 0
+            )
 
-            # Calculate average number of sites across all trees
-            # Get sequence length from leaves of each tree
-            total_sites = 0
-            num_trees_with_sites = 0
+            total_sites, n_trees = 0, 0
             for tree in data.keys():
-                leaves = tree.get_leaves()
-                if len(leaves) > 0:
-                    # Get sequence length from first leaf
-                    num_sites = len(leaves[0].sequence)
-                    total_sites += num_sites
-                    num_trees_with_sites += 1
+                tree_leaves = tree.get_leaves()
+                if tree_leaves:
+                    total_sites += len(tree_leaves[0].sequence)
+                    n_trees += 1
+            sites[name] = total_sites / n_trees if n_trees else 0
 
-            avg_sites = total_sites / num_trees_with_sites if num_trees_with_sites > 0 else 0
-
-            avg_tree_sizes[nickname] = avg_leaves
-            avg_site_sizes[nickname] = avg_sites
-            print(f"{nickname}: avg {avg_leaves:.1f} leaves, {avg_sites:.1f} sites per tree")
+            print(
+                f"{name}: {counts[name]} trees, "
+                f"{leaves[name]:.1f} leaves, {sites[name]:.1f} sites"
+            )
         except Exception as e:
-            print(f"Error loading {file_path}: {e}")
+            print(f"Error loading {fpath}: {e}")
 
-    return avg_tree_sizes, avg_site_sizes
+    return counts, leaves, sites
 
 
-def load_benchmark_times(paths, is_test=False, dataset_sizes=None):
-    """
-    Load timing data from benchmark TSV files.
+def load_benchmark_times(
+    cfg: PlotConfig, paths: list[str], tree_counts: dict | None = None
+) -> pd.DataFrame:
+    """Load timing data from benchmark TSV files.
 
     Args:
+        cfg: Plot configuration
         paths: List of paths to benchmark TSV files
-        is_test: Whether these are test benchmarks (for label mapping)
-        dataset_sizes: Dictionary mapping dataset nickname to number of trees (optional, for test benchmarks)
+        tree_counts: Optional dict mapping dataset nickname to tree count
 
     Returns:
-        DataFrame with columns: model, train_data, test_data (if applicable), time_seconds, time_str, train_label, test_label, num_trees (if dataset_sizes provided)
+        DataFrame with columns: model, model_label, train_data, train_label,
+        time_seconds, and optionally test_data, test_label, num_trees
     """
     data = []
 
     for path in paths:
-        # Check if file exists
         if not Path(path).exists():
-            print(f"Warning: File not found: {path}")
+            print(f"Warning: {path} not found")
             continue
 
-        # Read TSV file
-        df = pd.read_csv(path, sep='\t')
+        df = pd.read_csv(path, sep="\t")
+        time_str = df.iloc[0, 1]
+        h, m, s = time_str.split(":")
+        seconds = int(h) * 3600 + int(m) * 60 + float(s)
 
-        # Extract time from second column (h:m:s)
-        time_str = df.iloc[0, 1]  # First row, second column
-        time_seconds = parse_time_to_seconds(time_str)
-
-        # Parse filename to extract metadata
-        filename = Path(path).stem  # Remove .tsv extension
-        parts = filename.split('-')
-
+        parts = Path(path).stem.split("-")
         model = parts[0]
 
-        # Check if this is a test benchmark (contains "ON")
-        if "ON" in filename:
-            train_data = parts[1]
-            test_data = parts[3]  # After "ON"
+        entry = {
+            "model": model,
+            "model_label": cfg.models.get(model, model),
+            "train_data": parts[1],
+            "train_label": cfg.train_nicknames.get(parts[1], parts[1]),
+            "time_seconds": seconds,
+        }
 
-            # Get display labels
-            train_label = TRAIN_DATA_NICKNAMES.get(train_data, train_data)
-            test_label = TEST_DATA_NICKNAMES.get(test_data, test_data)
-            model_label = MODELS.get(model, model)
+        if "ON" in Path(path).stem:
+            entry["test_data"] = parts[3]
+            entry["test_label"] = cfg.test_nicknames.get(parts[3], parts[3])
+            if tree_counts and parts[3] in tree_counts:
+                entry["num_trees"] = tree_counts[parts[3]]
 
-            entry = {
-                'model': model,
-                'model_label': model_label,
-                'train_data': train_data,
-                'test_data': test_data,
-                'train_label': train_label,
-                'test_label': test_label,
-                'time_seconds': time_seconds,
-                'time_str': time_str
-            }
-
-            # Add number of trees if dataset_sizes provided
-            if dataset_sizes and test_data in dataset_sizes:
-                entry['num_trees'] = dataset_sizes[test_data]
-
-            data.append(entry)
-        else:
-            train_data = parts[1]
-            train_label = TRAIN_DATA_NICKNAMES.get(train_data, train_data)
-            model_label = MODELS.get(model, model)
-
-            data.append({
-                'model': model,
-                'model_label': model_label,
-                'train_data': train_data,
-                'train_label': train_label,
-                'time_seconds': time_seconds,
-                'time_str': time_str
-            })
+        data.append(entry)
 
     return pd.DataFrame(data)
 
 
-def plot_training_times(output_path='training_times.pdf'):
-    """
-    Create a plot of training times for all models and training datasets.
+# =============================================================================
+# Data Preparation
+# =============================================================================
+
+
+def prepare_data_with_metadata(
+    df: pd.DataFrame,
+    data_col: str,
+    label_col: str,
+    avg_leaves: dict,
+    avg_sites: dict,
+    multiline: bool = False,
+) -> tuple[pd.DataFrame, list[str]]:
+    """Add metadata columns and compute sorted label order.
 
     Args:
+        df: DataFrame to enrich
+        data_col: Column containing dataset nicknames
+        label_col: Column containing display labels
+        avg_leaves: Dict mapping nicknames to average leaves
+        avg_sites: Dict mapping nicknames to average sites
+        multiline: If True, use multiline format for labels
+
+    Returns:
+        Tuple of (enriched DataFrame, sorted label order)
+    """
+    df = df.copy()
+    df["avg_leaves"] = df[data_col].map(avg_leaves)
+    df["avg_sites"] = df[data_col].map(avg_sites)
+
+    sep = ",\n" if multiline else ", "
+    df[f"{label_col}_sized"] = df.apply(
+        lambda r: f"{r[label_col]}\n(n={int(r['avg_leaves'])}{sep}N={int(r['avg_sites'])})",
+        axis=1,
+    )
+
+    order = (
+        df.groupby(f"{label_col}_sized")["avg_leaves"]
+        .first()
+        .sort_values()
+        .index.tolist()
+    )
+    return df, order
+
+
+def prepare_training_data(cfg: PlotConfig) -> tuple[pd.DataFrame, list[str]] | None:
+    """Load and prepare training timing data.
+
+    Args:
+        cfg: Plot configuration
+
+    Returns:
+        Tuple of (prepared DataFrame, sorted label order) or None if no data
+    """
+    _, leaves, sites = load_dataset_metadata(cfg, cfg.train_nicknames)
+    df = load_benchmark_times(cfg, get_benchmark_paths(cfg, is_test=False))
+
+    if df.empty:
+        print("No training data found")
+        return None
+
+    df["time_minutes"] = df["time_seconds"] / 60
+    return prepare_data_with_metadata(df, "train_data", "train_label", leaves, sites)
+
+
+def prepare_testing_data(cfg: PlotConfig) -> tuple[pd.DataFrame, list[str]] | None:
+    """Load and prepare testing timing data with per-tree calculations.
+
+    Args:
+        cfg: Plot configuration
+
+    Returns:
+        Tuple of (prepared DataFrame, sorted label order) or None if no data
+    """
+    counts, leaves, sites = load_dataset_metadata(cfg, cfg.test_nicknames)
+    df = load_benchmark_times(cfg, get_benchmark_paths(cfg, is_test=True), counts)
+
+    if df.empty:
+        print("No testing data found")
+        return None
+
+    if "num_trees" not in df.columns:
+        print("Warning: num_trees not found")
+        return None
+
+    df["time_per_tree"] = df["time_seconds"] / df["num_trees"]
+    return prepare_data_with_metadata(
+        df, "test_data", "test_label", leaves, sites, multiline=True
+    )
+
+
+# =============================================================================
+# Plotting Functions
+# =============================================================================
+
+
+def plot_training_times(
+    cfg: PlotConfig, output_path: str = "training_times.pdf"
+) -> None:
+    """Create a bar plot of training times for all models and datasets.
+
+    Args:
+        cfg: Plot configuration
         output_path: Path to save the plot
     """
-    # Load average tree sizes and sites for training datasets
-    print("Loading average tree sizes for training datasets...")
-    avg_tree_sizes, avg_site_sizes = load_dataset_avg_tree_sizes(TRAIN_DATA_NICKNAMES)
-
-    # Load data
-    df = load_benchmark_times(train_benchmark_paths, is_test=False)
-
-    if df.empty:
-        print("No training data found to plot")
+    result = prepare_training_data(cfg)
+    if not result:
         return
+    df, order = result
 
-    # Convert seconds to minutes for better readability
-    df['time_minutes'] = df['time_seconds'] / 60
-
-    # Add average tree size and sites to dataframe
-    df['avg_tree_size'] = df['train_data'].map(avg_tree_sizes)
-    df['avg_site_size'] = df['train_data'].map(avg_site_sizes)
-
-    # Create labels with tree size and site info
-    df['train_label_with_size'] = df.apply(
-        lambda row: f"{row['train_label']}\n(n={int(row['avg_tree_size'])}, N={int(row['avg_site_size'])})",
-        axis=1
+    fig, ax = plt.subplots(figsize=(12, 6))
+    sns.barplot(
+        data=df,
+        x="train_label_sized",
+        y="time_minutes",
+        hue="model_label",
+        order=order,
+        palette=PALETTE,
+        ax=ax,
     )
 
-    # Sort by average tree size
-    train_label_order = df.groupby('train_label_with_size')['avg_tree_size'].first().sort_values().index.tolist()
-
-    # Create plot
-    plt.figure(figsize=(12, 6))
-    sns.barplot(data=df, x='train_label_with_size', y='time_minutes', hue='model_label',
-                order=train_label_order, palette='Dark2')
-
-    plt.xlabel('Training dataset (avg number of leaves, avg number of sites)', fontsize=16, labelpad=15)
-    plt.ylabel('Time (minutes)', fontsize=16)
-    plt.title('Training times by model and dataset', fontsize=16)
-    plt.xticks(ha='center', fontsize=16)
-    plt.legend(title='Model', fontsize=16, title_fontsize=16)
+    ax.set_xlabel(
+        "Training dataset (n=leaves, N=sites)", fontsize=FONT_LARGE, labelpad=15
+    )
+    ax.set_ylabel("Time (minutes)", fontsize=FONT_LARGE)
+    ax.set_title("Training times by model and dataset", fontsize=FONT_LARGE)
+    ax.tick_params(labelsize=FONT_MED)
+    ax.legend(title="Model", fontsize=FONT_MED, title_fontsize=FONT_LARGE)
+    plt.xticks(ha="center", fontsize=FONT_LARGE)
     plt.tight_layout()
 
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"Training times plot saved to {output_path}")
-    plt.close()
+    plt.savefig(output_path, dpi=DPI, bbox_inches="tight")
+    print(f"Saved: {output_path}")
+    plt.close(fig)
 
 
-def plot_testing_times(output_dir='testing_times_per_tree'):
-    """
-    Create separate plots of testing times per tree for each training dataset.
-    Creates one file per training dataset.
+def plot_testing_times_bar(
+    cfg: PlotConfig, output_prefix: str = "testing_times_per_tree"
+) -> None:
+    """Create bar plots of testing times per tree for each training dataset.
+
+    Creates one PDF file per training dataset.
 
     Args:
-        output_dir: Directory name (without extension) for output files
+        cfg: Plot configuration
+        output_prefix: Prefix for output filenames (will append train dataset name)
     """
-    # Load dataset sizes (number of trees in each test dataset)
-    print("Loading dataset sizes from pickle files...")
-    dataset_sizes = load_dataset_sizes()
-
-    # Load average tree sizes and sites for sorting
-    print("Loading average tree sizes for test datasets...")
-    avg_tree_sizes, avg_site_sizes = load_dataset_avg_tree_sizes(TEST_DATA_NICKNAMES)
-
-    # Load benchmark timing data
-    df = load_benchmark_times(test_benchmark_paths, is_test=True, dataset_sizes=dataset_sizes)
-
-    if df.empty:
-        print("No testing data found to plot")
+    result = prepare_testing_data(cfg)
+    if not result:
         return
+    df, order = result
 
-    # Check if we have num_trees column
-    if 'num_trees' not in df.columns:
-        print("Warning: num_trees not found in dataframe, cannot compute per-tree times")
-        return
-
-    # Calculate time per tree in seconds
-    df['time_per_tree_seconds'] = df['time_seconds'] / df['num_trees']
-
-    # Add average tree size and sites to dataframe for sorting
-    df['avg_tree_size'] = df['test_data'].map(avg_tree_sizes)
-    df['avg_site_size'] = df['test_data'].map(avg_site_sizes)
-
-    # Create labels with tree size and site info
-    df['test_label_with_size'] = df.apply(
-        lambda row: f"{row['test_label']}\n(n={int(row['avg_tree_size'])},\n N={int(row['avg_site_size'])})",
-        axis=1
-    )
-
-    # Sort test labels by average tree size
-    test_label_order = df.groupby('test_label_with_size')['avg_tree_size'].first().sort_values().index.tolist()
-
-    # Create separate plots for each training dataset
-    train_labels = df['train_label'].unique()
-
-    for train_label in train_labels:
-        df_subset = df[df['train_label'] == train_label]
-
-        # Create individual plot
+    for train_label in df["train_label"].unique():
+        subset = df[df["train_label"] == train_label]
         fig, ax = plt.subplots(figsize=(12, 6))
 
         sns.barplot(
-            data=df_subset,
-            x='test_label_with_size',
-            y='time_per_tree_seconds',
-            hue='model_label',
-            order=test_label_order,
-            palette='Dark2',
-            ax=ax
+            data=subset,
+            x="test_label_sized",
+            y="time_per_tree",
+            hue="model_label",
+            order=order,
+            palette=PALETTE,
+            ax=ax,
         )
 
-        ax.set_xlabel('Test dataset (avg number of leaves n, avg number of site N)', fontsize=16, labelpad=15)
-        ax.set_ylabel('Time per tree (seconds)', fontsize=16)
-        ax.set_title(f'Testing time per tree - training on {train_label}', fontsize=16)
-        ax.tick_params(axis='x', labelsize=14)
-        ax.tick_params(axis='y', labelsize=14)
-
-        # Move legend to top left inside the plot
-        ax.legend(title='Model', fontsize=14, title_fontsize=16,
-                  loc='upper left')
-
-        # # Rotate x-axis labels
-        # for label in ax.get_xticklabels():
-        #     label.set_rotation(45)
-        #     label.set_ha('right')
-
+        ax.set_xlabel(
+            "Test dataset (n=leaves, N=sites)", fontsize=FONT_LARGE, labelpad=15
+        )
+        ax.set_ylabel("Time per tree (seconds)", fontsize=FONT_LARGE)
+        ax.set_title(
+            f"Testing time per tree - trained on {train_label}", fontsize=FONT_LARGE
+        )
+        ax.tick_params(labelsize=FONT_MED)
+        ax.legend(
+            title="Model",
+            fontsize=FONT_MED,
+            title_fontsize=FONT_LARGE,
+            loc="upper left",
+        )
         plt.tight_layout()
 
-        # Create filename from train_label (remove spaces and special chars)
-        safe_filename = train_label.replace(' ', '_').replace('=', '').replace('\n', '_')
-        output_path = f"{output_dir}_{safe_filename}.pdf"
-
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        print(f"Testing times per tree plot saved to {output_path}")
-        plt.close()
+        safe_name = train_label.replace(" ", "_").replace("=", "").replace("\n", "_")
+        path = f"{output_prefix}_{safe_name}.pdf"
+        plt.savefig(path, dpi=DPI, bbox_inches="tight")
+        print(f"Saved: {path}")
+        plt.close(fig)
 
 
-def plot_testing_times_scatter(output_dir='testing_times_scatter'):
-    """
-    Create scatter plots of testing times per tree with leaves on y-axis,
-    runtime on x-axis, and marker size representing number of sites.
-    Creates one file per training dataset.
+def plot_testing_times_scatter(
+    cfg: PlotConfig, output_prefix: str = "testing_times_scatter"
+) -> None:
+    """Create scatter plots of testing times with tree size on x-axis.
+
+    Creates one PDF file per training dataset. Marker size indicates
+    the number of sites in each dataset.
 
     Args:
-        output_dir: Directory name (without extension) for output files
+        cfg: Plot configuration
+        output_prefix: Prefix for output filenames (will append train dataset name)
     """
-    # Load dataset sizes (number of trees in each test dataset)
-    print("Loading dataset sizes from pickle files...")
-    dataset_sizes = load_dataset_sizes()
-
-    # Load average tree sizes and sites
-    print("Loading average tree sizes for test datasets...")
-    avg_tree_sizes, avg_site_sizes = load_dataset_avg_tree_sizes(TEST_DATA_NICKNAMES)
-
-    # Load benchmark timing data
-    df = load_benchmark_times(test_benchmark_paths, is_test=True, dataset_sizes=dataset_sizes)
-
-    if df.empty:
-        print("No testing data found to plot")
+    result = prepare_testing_data(cfg)
+    if not result:
         return
+    df, _ = result
 
-    # Check if we have num_trees column
-    if 'num_trees' not in df.columns:
-        print("Warning: num_trees not found in dataframe, cannot compute per-tree times")
-        return
+    # Normalize marker sizes
+    min_s, max_s = df["avg_sites"].min(), df["avg_sites"].max()
+    if max_s > min_s:
+        df["marker_size"] = (
+            (df["avg_sites"] - min_s) / (max_s - min_s) * MARKER_SCALE
+        ) + MIN_MARKER
+    else:
+        df["marker_size"] = MIN_MARKER + MARKER_SCALE / 2
 
-    # Calculate time per tree in seconds
-    df['time_per_tree_seconds'] = df['time_seconds'] / df['num_trees']
+    colors = dict(
+        zip(
+            df["model"].unique(),
+            sns.color_palette(PALETTE, n_colors=len(df["model"].unique())),
+        )
+    )
 
-    # Add average tree size and sites to dataframe
-    df['avg_tree_size'] = df['test_data'].map(avg_tree_sizes)
-    df['avg_site_size'] = df['test_data'].map(avg_site_sizes)
-
-    # Scale marker sizes (normalize sites to reasonable marker sizes)
-    # Using a scaling factor so markers are visible but not too large
-    min_sites = df['avg_site_size'].min()
-    max_sites = df['avg_site_size'].max()
-    df['marker_size'] = ((df['avg_site_size'] - min_sites) / (max_sites - min_sites) * 300) + 50
-
-    # Create separate plots for each training dataset
-    train_labels = df['train_label'].unique()
-
-    # Define colors for each model (using Dark2 palette)
-    all_models = df['model'].unique()
-    colors = sns.color_palette('Dark2', n_colors=len(all_models))
-    model_colors = dict(zip(all_models, colors))
-
-    for train_label in train_labels:
-        df_subset = df[df['train_label'] == train_label]
-
-        # Get only models that have data for this training dataset
-        models_in_subset = df_subset['model'].unique()
-
-        # Create individual plot
+    for train_label in df["train_label"].unique():
+        subset = df[df["train_label"] == train_label]
         fig, ax = plt.subplots(figsize=(14, 10))
 
-        # Plot each model with different colors and offset labels
-        model_list = list(models_in_subset)
-        for idx, model in enumerate(model_list):
-            df_model = df_subset[df_subset['model'] == model]
-            model_label = MODELS.get(model, model)
+        # Plot each model
+        for idx, model in enumerate(subset["model"].unique()):
+            mdata = subset[subset["model"] == model]
             ax.scatter(
-                df_model['avg_tree_size'],
-                df_model['time_per_tree_seconds'],
-                s=df_model['marker_size'],
-                c=[model_colors[model]],
+                mdata["avg_leaves"],
+                mdata["time_per_tree"],
+                s=mdata["marker_size"],
+                c=[colors[model]],
                 alpha=0.6,
-                edgecolors='black',
+                edgecolors="black",
                 linewidth=1.5,
-                label=model_label
+                label=cfg.models.get(model, model),
             )
-
-            # Add labels only for models that are not TraverseMaxPooling
-            if 'MaxPooling' not in model:
-                # Add labels for each point with vertical offset based on model index
-                # Alternate vertical positions to avoid overlap
-                y_offset = -15 if idx % 2 == 0 else 15
-                for _, row in df_model.iterrows():
+            # Add labels for non-MaxPooling models
+            if "MaxPooling" not in model:
+                y_off = -15 if idx % 2 == 0 else 15
+                for _, row in mdata.iterrows():
                     ax.annotate(
-                        row['test_label'],
-                        (row['avg_tree_size'], row['time_per_tree_seconds']),
-                        xytext=(5, y_offset),
-                        textcoords='offset points',
-                        fontsize=12,
-                        alpha=0.8
+                        row["test_label"],
+                        (row["avg_leaves"], row["time_per_tree"]),
+                        xytext=(5, y_off),
+                        textcoords="offset points",
+                        fontsize=FONT_SMALL,
+                        alpha=0.8,
                     )
 
-        ax.set_xlabel('Average Number of Leaves', fontsize=16, labelpad=20)
-        ax.set_ylabel('Time per Tree (seconds)', fontsize=16)
-        ax.set_title(f'Testing Time per Tree vs Tree Size - Training: {train_label}', fontsize=16)
-        ax.tick_params(axis='both', labelsize=16)
+        ax.set_xlabel("Average Number of Leaves", fontsize=FONT_LARGE, labelpad=20)
+        ax.set_ylabel("Time per Tree (seconds)", fontsize=FONT_LARGE)
+        ax.set_title(
+            f"Testing Time vs Tree Size - trained on {train_label}", fontsize=FONT_LARGE
+        )
+        ax.tick_params(labelsize=FONT_LARGE)
         ax.grid(True, alpha=0.3)
 
-        # Create legend for models
-        model_legend = ax.legend(title='Model', fontsize=14, title_fontsize=14,
-                                  bbox_to_anchor=(1.02, 1), loc='upper left')
-
-        # Add a second legend for marker sizes
-        # Create dummy scatter plots for size legend
-        size_legend_elements = []
-        size_values = [min_sites, (min_sites + max_sites) / 2, max_sites]
-        size_labels = [f'{int(s)} sites' for s in size_values]
-
-        for size_val, size_label in zip(size_values, size_labels):
-            marker_s = ((size_val - min_sites) / (max_sites - min_sites) * 300) + 50
-            size_legend_elements.append(
-                plt.scatter([], [], s=marker_s, c='gray', alpha=0.6,
-                           edgecolors='black', linewidth=1.5, label=size_label)
-            )
-
-        # Add size legend below the model legend
-        size_legend = ax.legend(
-            handles=size_legend_elements,
-            title='Number of Sites',
-            fontsize=12,
-            title_fontsize=12,
-            bbox_to_anchor=(1.02, 0.5),
-            loc='upper left'
+        # Model legend
+        model_leg = ax.legend(
+            title="Model",
+            fontsize=FONT_MED,
+            title_fontsize=FONT_MED,
+            bbox_to_anchor=(1.02, 1),
+            loc="upper left",
         )
-        ax.add_artist(model_legend)  # Keep both legends
 
-        # Adjust layout to make room for legends
+        # Size legend
+        size_handles = []
+        for val in [min_s, (min_s + max_s) / 2, max_s]:
+            ms = (
+                ((val - min_s) / (max_s - min_s) * MARKER_SCALE + MIN_MARKER)
+                if max_s > min_s
+                else MIN_MARKER
+            )
+            size_handles.append(
+                plt.scatter(
+                    [],
+                    [],
+                    s=ms,
+                    c="gray",
+                    alpha=0.6,
+                    edgecolors="black",
+                    linewidth=1.5,
+                    label=f"{int(val)} sites",
+                )
+            )
+        size_leg = ax.legend(
+            handles=size_handles,
+            title="Sites",
+            fontsize=FONT_SMALL,
+            title_fontsize=FONT_SMALL,
+            bbox_to_anchor=(1.02, 0.5),
+            loc="upper left",
+        )
+        ax.add_artist(model_leg)
+
         plt.subplots_adjust(right=0.75)
+        safe_name = train_label.replace(" ", "_").replace("=", "").replace("\n", "_")
+        path = f"{output_prefix}_{safe_name}.pdf"
+        plt.savefig(
+            path, dpi=DPI, bbox_extra_artists=[model_leg, size_leg], bbox_inches="tight"
+        )
+        print(f"Saved: {path}")
+        plt.close(fig)
 
-        # Create filename from train_label
-        safe_filename = train_label.replace(' ', '_').replace('=', '').replace('\n', '_')
-        output_path = f"{output_dir}_{safe_filename}.pdf"
 
-        # Get both legends as extra artists to include in bbox
-        plt.savefig(output_path, dpi=300, bbox_extra_artists=[model_legend, size_legend], bbox_inches='tight')
-        print(f"Testing times scatter plot saved to {output_path}")
-        plt.close()
+# =============================================================================
+# Public API
+# =============================================================================
 
 
 def generate_benchmark_plots(
-    models,
-    train_data_names,
-    test_data_names,
-    benchmark_dir,
-    output_dir,
-    nicknames_path_arg,
-):
-    """
-    Generate training and testing time plots using provided configuration.
+    models: list[str],
+    train_data_names: list[str],
+    test_data_names: list[str],
+    benchmark_dir: str,
+    output_dir: str,
+    nicknames_path: str,
+) -> None:
+    """Generate all benchmark plots using provided configuration.
 
-    This function can be called from Snakemake with parameters from config.yaml.
+    This is the main entry point for Snakemake integration.
 
     Args:
         models: List of model names (e.g., ["TraverseAvgPooling", "TraverseNN"])
@@ -569,52 +591,19 @@ def generate_benchmark_plots(
         test_data_names: List of test data nicknames
         benchmark_dir: Path to benchmark_logs directory
         output_dir: Directory to save output plots
-        nicknames_path_arg: Path to data_nicknames.json
+        nicknames_path: Path to data_nicknames.json
     """
-    # Override global variables with provided config
-    global MODELS, TRAIN_DATA_NICKNAMES, TEST_DATA_NICKNAMES, BENCHMARK_PREFIX
-    global nicknames_dict, train_benchmark_paths, test_benchmark_paths
-
-    # Model display names
-    model_display = {
-        "TraverseAvgPooling": "Average pooling",
-        "TraverseMaxPooling": "Maximum pooling",
-        "TraverseNN": "Transformer encoder"
-    }
-    MODELS = {name: model_display.get(name, name) for name in models}
-
-    # Use nickname as both key and label
-    TRAIN_DATA_NICKNAMES = {name: name for name in train_data_names}
-    TEST_DATA_NICKNAMES = {name: name for name in test_data_names}
-
-    BENCHMARK_PREFIX = benchmark_dir
-    if not BENCHMARK_PREFIX.endswith('/'):
-        BENCHMARK_PREFIX += '/'
-
-    # Load nicknames
-    with open(nicknames_path_arg, 'r') as f:
-        nicknames_dict = json.load(f)
-
-    # Regenerate benchmark paths
-    train_benchmark_paths = get_train_benchmark_paths()
-    test_benchmark_paths = get_test_benchmark_paths()
-
-    # Create output directory if needed
+    cfg = PlotConfig.from_args(
+        models, train_data_names, test_data_names, benchmark_dir, nicknames_path
+    )
     os.makedirs(output_dir, exist_ok=True)
 
-    # Generate plots
-    training_plot_path = os.path.join(output_dir, "training_times.pdf")
-    plot_training_times(output_path=training_plot_path)
-
-    testing_plot_prefix = os.path.join(output_dir, "testing_times_per_tree")
-    plot_testing_times(output_dir=testing_plot_prefix)
-
+    plot_training_times(cfg, os.path.join(output_dir, "training_times.pdf"))
+    plot_testing_times_bar(cfg, os.path.join(output_dir, "testing_times_per_tree"))
     print(f"All plots saved to {output_dir}")
 
 
-if __name__ == '__main__':
-    # Initialize defaults and generate plots (for standalone use)
-    _init_defaults()
-    plot_training_times()
-    plot_testing_times()
-    # plot_testing_times_scatter()
+if __name__ == "__main__":
+    config = PlotConfig.standalone()
+    plot_training_times(config)
+    plot_testing_times_bar(config)

@@ -1,5 +1,7 @@
 {
   "data_dir": "../data",
+  "benchmark_train": "benchmark_train.p",
+  "benchmark_test": "benchmark_test.p",
   "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8_spr": "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8_spr.p",
   "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8_subtree": "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8_subtree.p",
   "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_spr": "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_spr.p",

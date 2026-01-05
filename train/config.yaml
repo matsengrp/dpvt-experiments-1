@@ -21,8 +21,7 @@ data_nicknames_path: "data_nicknames.json"
 use_hyperparameter_optimize: False
 n_hyperparameter_trials: 50
 
-# Profiling options
-profiling: True          # Enable PyTorchProfiler for detailed GPU/CPU profiling
+profiling: True
 
 hyperparameters:
   learning_rate: [0.00005]

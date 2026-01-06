@@ -21,7 +21,7 @@ data_nicknames_path: "data_nicknames.json"
 use_hyperparameter_optimize: False
 n_hyperparameter_trials: 50
 
-profiling: True
+profiling: False
 
 hyperparameters:
   learning_rate: [0.00005]

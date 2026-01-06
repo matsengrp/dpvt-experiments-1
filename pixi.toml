@@ -30,18 +30,9 @@ usher = "<=0.6.5"
 tbparse = "*"
 seaborn = "*"
 papermill = "*"
-# R packages
-r-base = "*"
-r-optparse = "*"
-r-remotes = "*"
 pytorch = ">=2.0.0,<3"
 lightning = ">=2.3.3,<3"
-r-ape = ">=5.8_1,<6"
-r-matrix = ">=1.7_4,<2"
-r-phangorn = ">=2.12.1,<3"
 torchmetrics = ">=1.8.2,<2"
-nodejs = "*"
-torch-tb-profiler = ">=0.4.3,<0.5"
 
 [pypi-dependencies]
 dpvt = { path = "../dpvt", editable = true }

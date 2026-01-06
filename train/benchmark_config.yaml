@@ -1,0 +1,35 @@
+models: [
+    "TraverseNN",
+    "TraverseMaxPooling",
+    "TraverseAvgPooling",
+    "BaselineReversion", # can only run on CPU!
+  ]
+train_data: [
+  "benchmark_train"
+  # "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_spr",
+  # "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_subtree"
+  ]
+test_data: [
+  "benchmark_test"
+  # "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8_spr",
+  # "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8_subtree"
+  ]
+
+device: "gpu"
+# timestamp: "TODAY"
+use_cross_datasets: True
+output_dir: "_output"
+data_nicknames_path: "data_nicknames.json"
+use_hyperparameter_optimize: False
+n_hyperparameter_trials: 50
+
+# Profiling options
+profiling: True          # Enable PyTorchProfiler for detailed GPU/CPU profiling
+
+hyperparameters:
+  learning_rate: [0.00005]
+  batch_size: [4]
+  accum_grad_batches: [2]
+  epochs: [200]
+  feature_length: [64]
+  dim_mlp_layers: [256]

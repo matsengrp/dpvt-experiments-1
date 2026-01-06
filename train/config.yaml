@@ -1,5 +1,5 @@
 models: [
-    # "TraverseNN",
+    "TraverseNN",
     "TraverseMaxPooling",
     "TraverseAvgPooling",
     "BaselineReversion", # can only run on CPU!
@@ -20,6 +20,8 @@ output_dir: "_output"
 data_nicknames_path: "data_nicknames.json"
 use_hyperparameter_optimize: False
 n_hyperparameter_trials: 50
+
+profiling: False
 
 hyperparameters:
   learning_rate: [0.00005]

@@ -194,8 +194,8 @@ def _make_dataset_label(
 
 def plot_training_times(config: PlotConfig, output_path: str = "training_times.pdf") -> None:
     """Create a bar plot of training times for all models and datasets."""
-    _, leaves, sites = load_dataset_metadata(cfg, config.train_nicknames)
-    df = load_benchmark_times(cfg, get_benchmark_paths(cfg, for_testing=False))
+    _, leaves, sites = load_dataset_metadata(config, config.train_nicknames)
+    df = load_benchmark_times(config, get_benchmark_paths(config, for_testing=False))
     if df.empty:
         logger.warning("No training data found")
         return
@@ -234,13 +234,13 @@ def plot_testing_times(
         logger.warning("profiler_prefix not set, cannot create stacked plots")
         return
 
-    counts, leaves, sites = load_dataset_metadata(cfg, config.test_nicknames)
-    df = load_benchmark_times(cfg, get_benchmark_paths(cfg, for_testing=True), counts)
+    counts, leaves, sites = load_dataset_metadata(config, config.test_nicknames)
+    df = load_benchmark_times(config, get_benchmark_paths(config, for_testing=True), counts)
     if df.empty or "num_trees" not in df.columns:
         logger.warning("No testing data found")
         return
 
-    preproc_times = load_preprocessing_times(cfg)
+    preproc_times = load_preprocessing_times(config)
     if not preproc_times:
         logger.warning("No preprocessing times found")
         return
@@ -333,9 +333,9 @@ def generate_benchmark_plots(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    plot_training_times(cfg, os.path.join(output_dir, "training_times.pdf"))
+    plot_training_times(config, os.path.join(output_dir, "training_times.pdf"))
     plot_testing_times(
-        cfg, os.path.join(output_dir, "testing_times_per_tree")
+        config, os.path.join(output_dir, "testing_times_per_tree")
     )
 
     logger.info(f"All plots saved to {output_dir}")

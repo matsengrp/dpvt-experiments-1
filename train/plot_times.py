@@ -28,6 +28,15 @@ MODEL_NAMES = {
     "BaselineReversion": "Baseline reversion",
 }
 
+DATASET_NAMES = {
+    "orthomam": "OrthoMaM",
+    "pandit": "PANDIT",
+    "fluC_NS": "flu C NS",
+    "fluC_M": "flu C M",
+    "fluC_PB2": "flu C PB2",
+    "rotavirus": "rotavirus",
+}
+
 # =============================================================================
 # Configuration
 # =============================================================================
@@ -173,6 +182,16 @@ def _is_simulated(name: str) -> bool:
     return "simulated" in name.lower() or "alisim" in name.lower()
 
 
+def _get_dataset_display_name(data_name: str, label: str) -> str:
+    """Get display name for a dataset, checking mappings."""
+    if _is_simulated(data_name):
+        return "simulated"
+    for key, display_name in DATASET_NAMES.items():
+        if key.lower() in data_name.lower():
+            return display_name
+    return label
+
+
 def _make_dataset_label(
     data_name: str,
     label: str,
@@ -181,9 +200,9 @@ def _make_dataset_label(
     tree_count: int | None = None,
 ) -> str:
     """Create a formatted dataset label for plot axes."""
-    name = "simulated" if _is_simulated(data_name) else label
+    name = _get_dataset_display_name(data_name, label)
     if tree_count is not None:
-        return f"{name}\n(n={int(avg_leaves)},\nN={int(avg_sites)},\nT={tree_count})"
+        return f"{name}\n(n={int(avg_leaves)}, N={int(avg_sites)}, T={tree_count})"
     return f"{name}\n(n={int(avg_leaves)}, N={int(avg_sites)})"
 
 
@@ -266,6 +285,8 @@ def plot_testing_times(
     # Create one plot per training dataset
     for train_label in df["train_label"].unique():
         subset = df[df["train_label"] == train_label]
+        train_data = subset["train_data"].iloc[0]
+        train_display_name = _get_dataset_display_name(train_data, train_label)
         test_labels = [t for t in order if t in subset["label"].values]
         models = subset["model_label"].unique()
         if not test_labels:
@@ -292,8 +313,7 @@ def plot_testing_times(
 
         ax.set_xlabel("Test dataset (n=leaves, N=sites, T=trees)", fontsize=FONT_LARGE, labelpad=15)
         ax.set_ylabel("Time per tree (seconds)", fontsize=FONT_LARGE)
-        ax.set_title(f"Testing time breakdown - trained on {train_label}\n"
-                     "(lighter = preprocessing, darker = inference)", fontsize=FONT_LARGE)
+        ax.set_title(f"Testing time breakdown - trained on {train_display_name}", fontsize=FONT_LARGE)
         ax.set_xticks(x)
         ax.set_xticklabels(test_labels, rotation=45, ha="right", fontsize=FONT_SMALL)
         ax.tick_params(labelsize=FONT_MED)

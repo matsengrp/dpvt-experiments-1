@@ -123,7 +123,7 @@ def _make_dataset_label(
     """Create a formatted dataset label for plot axes."""
     name = _get_dataset_display_name(data_name, label)
     if tree_count is not None:
-        return f"{name}\n(n={int(avg_leaves)}, N={int(avg_sites)}, T={tree_count})"
+        return f"{name}\n(n={int(avg_leaves)},\nN={int(avg_sites)},\nT={tree_count})"
     return f"{name}\n(n={int(avg_leaves)}, N={int(avg_sites)})"
 
 
@@ -312,10 +312,9 @@ def plot_training_times(
         ax=ax,
     )
     ax.set_xlabel(
-        "Training dataset (n=leaves, N=sites)", fontsize=FONT_LARGE, labelpad=15
+        "Training dataset (avg number of leaves, avg number of sites, number of trees)", fontsize=FONT_LARGE, labelpad=15
     )
     ax.set_ylabel("Time (minutes)", fontsize=FONT_LARGE)
-    ax.set_title("Training times by model and dataset", fontsize=FONT_LARGE)
     ax.tick_params(labelsize=FONT_MED)
     ax.legend(
         title="Model",
@@ -382,8 +381,6 @@ def _plot_single_test_breakdown(
     output_prefix: str,
 ) -> None:
     """Create a single stacked bar plot for one training dataset."""
-    train_data = subset["train_data"].iloc[0]
-    train_display_name = _get_dataset_display_name(train_data, train_label)
     test_labels = [t for t in order if t in subset["label"].values]
     models = subset["model_label"].unique()
 
@@ -428,24 +425,19 @@ def _plot_single_test_breakdown(
         )
 
     ax.set_xlabel(
-        "Test dataset (n=leaves, N=sites, T=trees)",
+        "Test dataset (avg number of leaves, avg number of sites, number of trees)",
         fontsize=FONT_LARGE,
         labelpad=15,
     )
     ax.set_ylabel("Time per tree (seconds)", fontsize=FONT_LARGE)
-    ax.set_title(
-        f"Testing time breakdown - trained on {train_display_name}",
-        fontsize=FONT_LARGE,
-    )
     ax.set_xticks(x)
-    ax.set_xticklabels(test_labels, rotation=45, ha="right", fontsize=FONT_SMALL)
+    ax.set_xticklabels(test_labels, ha="center", fontsize=FONT_SMALL)
     ax.tick_params(labelsize=FONT_MED)
     ax.legend(
         title="Model",
         fontsize=FONT_SMALL,
         title_fontsize=FONT_MED,
-        bbox_to_anchor=(1.02, 1),
-        loc="upper left",
+        loc="upper right",
     )
     plt.tight_layout()
 
@@ -473,6 +465,134 @@ def plot_testing_times(
 # =============================================================================
 # Public API
 # =============================================================================
+
+
+def plot_available_training_times(
+    run_dir: str,
+    nicknames_path: str,
+    train_nicknames: list[str],
+    output_path: str = "training_times.pdf",
+) -> None:
+    """Plot training times for all available model/dataset combinations.
+
+    This function discovers which benchmark files exist in the run directory
+    and plots training times for all available combinations, allowing for
+    incomplete model/dataset matrices.
+
+    Args:
+        run_dir: Directory containing benchmark files (with train_model subdir).
+        nicknames_path: Path to the JSON file mapping nicknames to data files.
+        train_nicknames: List of dataset nicknames to include in the plot.
+        output_path: Output path for the PDF plot.
+    """
+    benchmark_dir = Path(run_dir) / "benchmark_logs" / "train_model"
+    if not benchmark_dir.exists():
+        raise FileNotFoundError(f"Benchmark directory not found: {benchmark_dir}")
+
+    with open(nicknames_path) as f:
+        nicknames_dict = json.load(f)
+
+    # Discover available benchmark files
+    available_files = list(benchmark_dir.glob("*-*-Param0.tsv"))
+    if not available_files:
+        raise FileNotFoundError(f"No benchmark files found in {benchmark_dir}")
+
+    # Parse filenames and filter by requested datasets
+    data = []
+    for path in available_files:
+        parts = path.stem.replace("-Param0", "").split("-")
+        if len(parts) != 2:
+            continue
+        model, train_data = parts
+        if train_data not in train_nicknames:
+            continue
+
+        df = pd.read_csv(path, sep="\t")
+        if df.empty or df.shape[1] < 2:
+            continue
+
+        seconds = _parse_time_to_seconds(df.iloc[0, 1])
+        data.append({
+            "model": model,
+            "model_label": MODEL_NAMES.get(model, model),
+            "train_data": train_data,
+            "train_label": train_data,
+            "time_seconds": seconds,
+        })
+
+    if not data:
+        raise ValueError("No matching benchmark data found for specified datasets")
+
+    df = pd.DataFrame(data)
+
+    # Load dataset metadata
+    data_dir = Path(nicknames_dict.get("data_dir", "."))
+    tree_counts_by_dataset, avg_leaves_by_dataset, avg_sites_by_dataset = {}, {}, {}
+
+    for name in df["train_data"].unique():
+        if name not in nicknames_dict:
+            continue
+        file_path = data_dir / nicknames_dict[name]
+        if not file_path.exists():
+            continue
+        with open(file_path, "rb") as f:
+            pkl_data = pickle.load(f)
+
+        tree_counts_by_dataset[name] = len(pkl_data)
+        avg_leaves_by_dataset[name] = (
+            sum(len(t) + 1 for t in pkl_data.keys()) / len(pkl_data) if pkl_data else 0
+        )
+
+        total_sites, n_trees = 0, 0
+        for tree in pkl_data.keys():
+            tree_leaves = tree.get_leaves()
+            if tree_leaves:
+                total_sites += len(tree_leaves[0].sequence)
+                n_trees += 1
+        avg_sites_by_dataset[name] = total_sites / n_trees if n_trees else 0
+
+    # Add labels to dataframe
+    df = _add_labels_to_dataframe(
+        df,
+        "train_data",
+        "train_label",
+        avg_leaves_by_dataset,
+        avg_sites_by_dataset,
+        tree_counts_by_dataset,
+    )
+    df["time_minutes"] = df["time_seconds"] / 60
+    order = _compute_label_order(df)
+
+    # Create plot
+    fig, ax = plt.subplots(figsize=(12, 6))
+    sns.barplot(
+        data=df,
+        x="label",
+        y="time_minutes",
+        hue="model_label",
+        order=order,
+        palette=PALETTE,
+        ax=ax,
+    )
+    ax.set_xlabel(
+        "Training dataset (avg number of leaves, avg number of sites, number of trees)",
+        fontsize=FONT_LARGE,
+        labelpad=15,
+    )
+    ax.set_ylabel("Time (minutes)", fontsize=FONT_LARGE)
+    ax.tick_params(labelsize=FONT_MED)
+    ax.legend(
+        title="Model",
+        fontsize=FONT_MED,
+        title_fontsize=FONT_LARGE,
+        bbox_to_anchor=(1.02, 1),
+        loc="upper left",
+    )
+    plt.xticks(ha="center", fontsize=FONT_LARGE)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=DPI, bbox_inches="tight")
+    logger.info(f"Saved: {output_path}")
+    plt.close(fig)
 
 
 def generate_benchmark_plots(

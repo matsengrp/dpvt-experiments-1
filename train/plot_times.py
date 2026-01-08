@@ -94,7 +94,9 @@ def get_benchmark_paths(config: PlotConfig, for_testing: bool = False) -> list[s
     return paths
 
 
-def load_dataset_metadata(config: PlotConfig, nicknames: dict) -> tuple[dict, dict, dict]:
+def load_dataset_metadata(
+    config: PlotConfig, nicknames: dict
+) -> tuple[dict, dict, dict]:
     """Load tree counts, average leaves, and average sites for datasets."""
     counts, leaves, sites = {}, {}, {}
 
@@ -114,7 +116,9 @@ def load_dataset_metadata(config: PlotConfig, nicknames: dict) -> tuple[dict, di
                 n_trees += 1
         sites[name] = total_sites / n_trees if n_trees else 0
 
-        logger.info(f"{name}: {counts[name]} trees, {leaves[name]:.1f} leaves, {sites[name]:.1f} sites")
+        logger.info(
+            f"{name}: {counts[name]} trees, {leaves[name]:.1f} leaves, {sites[name]:.1f} sites"
+        )
 
     return counts, leaves, sites
 
@@ -211,7 +215,9 @@ def _make_dataset_label(
 # =============================================================================
 
 
-def plot_training_times(config: PlotConfig, output_path: str = "training_times.pdf") -> None:
+def plot_training_times(
+    config: PlotConfig, output_path: str = "training_times.pdf"
+) -> None:
     """Create a bar plot of training times for all models and datasets."""
     _, leaves, sites = load_dataset_metadata(config, config.train_nicknames)
     df = load_benchmark_times(config, get_benchmark_paths(config, for_testing=False))
@@ -230,14 +236,28 @@ def plot_training_times(config: PlotConfig, output_path: str = "training_times.p
     order = df.groupby("label")["avg_leaves"].first().sort_values().index.tolist()
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    sns.barplot(data=df, x="label", y="time_minutes", hue="model_label",
-                order=order, palette=PALETTE, ax=ax)
-    ax.set_xlabel("Training dataset (n=leaves, N=sites)", fontsize=FONT_LARGE, labelpad=15)
+    sns.barplot(
+        data=df,
+        x="label",
+        y="time_minutes",
+        hue="model_label",
+        order=order,
+        palette=PALETTE,
+        ax=ax,
+    )
+    ax.set_xlabel(
+        "Training dataset (n=leaves, N=sites)", fontsize=FONT_LARGE, labelpad=15
+    )
     ax.set_ylabel("Time (minutes)", fontsize=FONT_LARGE)
     ax.set_title("Training times by model and dataset", fontsize=FONT_LARGE)
     ax.tick_params(labelsize=FONT_MED)
-    ax.legend(title="Model", fontsize=FONT_MED, title_fontsize=FONT_LARGE,
-              bbox_to_anchor=(1.02, 1), loc="upper left")
+    ax.legend(
+        title="Model",
+        fontsize=FONT_MED,
+        title_fontsize=FONT_LARGE,
+        bbox_to_anchor=(1.02, 1),
+        loc="upper left",
+    )
     plt.xticks(ha="center", fontsize=FONT_LARGE)
     plt.tight_layout()
     plt.savefig(output_path, dpi=DPI, bbox_inches="tight")
@@ -254,7 +274,9 @@ def plot_testing_times(
         return
 
     counts, leaves, sites = load_dataset_metadata(config, config.test_nicknames)
-    df = load_benchmark_times(config, get_benchmark_paths(config, for_testing=True), counts)
+    df = load_benchmark_times(
+        config, get_benchmark_paths(config, for_testing=True), counts
+    )
     if df.empty or "num_trees" not in df.columns:
         logger.warning("No testing data found")
         return
@@ -268,8 +290,11 @@ def plot_testing_times(
     df["time_per_tree"] = df["time_seconds"] / df["num_trees"]
     df["label"] = df.apply(
         lambda r: _make_dataset_label(
-            r["test_data"], r["test_label"], r["avg_leaves"],
-            sites[r["test_data"]], counts[r["test_data"]]
+            r["test_data"],
+            r["test_label"],
+            r["avg_leaves"],
+            sites[r["test_data"]],
+            counts[r["test_data"]],
         ),
         axis=1,
     )
@@ -277,10 +302,13 @@ def plot_testing_times(
 
     # Add preprocessing/inference breakdown
     df["preproc_per_tree"] = df.apply(
-        lambda r: preproc_times.get((r["model"], r["train_data"], r["test_data"]), 0) / r["num_trees"],
-        axis=1
+        lambda r: preproc_times.get((r["model"], r["train_data"], r["test_data"]), 0)
+        / r["num_trees"],
+        axis=1,
     )
-    df["inference_per_tree"] = (df["time_per_tree"] - df["preproc_per_tree"]).clip(lower=0)
+    df["inference_per_tree"] = (df["time_per_tree"] - df["preproc_per_tree"]).clip(
+        lower=0
+    )
 
     # Create one plot per training dataset
     for train_label in df["train_label"].unique():
@@ -302,23 +330,55 @@ def plot_testing_times(
             preproc_vals, inference_vals = [], []
             for tl in test_labels:
                 row = model_data[model_data["label"] == tl]
-                preproc_vals.append(row["preproc_per_tree"].values[0] if len(row) else 0)
-                inference_vals.append(row["inference_per_tree"].values[0] if len(row) else 0)
+                preproc_vals.append(
+                    row["preproc_per_tree"].values[0] if len(row) else 0
+                )
+                inference_vals.append(
+                    row["inference_per_tree"].values[0] if len(row) else 0
+                )
 
             offset = (i - len(models) / 2 + 0.5) * width
-            ax.bar(x + offset, preproc_vals, width, label=f"{model} (preprocess)",
-                   color=colors[i], alpha=0.5, edgecolor="black", linewidth=0.5)
-            ax.bar(x + offset, inference_vals, width, bottom=preproc_vals,
-                   label=f"{model} (inference)", color=colors[i], edgecolor="black", linewidth=0.5)
+            ax.bar(
+                x + offset,
+                preproc_vals,
+                width,
+                label=f"{model} (preprocess)",
+                color=colors[i],
+                alpha=0.5,
+                edgecolor="black",
+                linewidth=0.5,
+            )
+            ax.bar(
+                x + offset,
+                inference_vals,
+                width,
+                bottom=preproc_vals,
+                label=f"{model} (inference)",
+                color=colors[i],
+                edgecolor="black",
+                linewidth=0.5,
+            )
 
-        ax.set_xlabel("Test dataset (n=leaves, N=sites, T=trees)", fontsize=FONT_LARGE, labelpad=15)
+        ax.set_xlabel(
+            "Test dataset (n=leaves, N=sites, T=trees)",
+            fontsize=FONT_LARGE,
+            labelpad=15,
+        )
         ax.set_ylabel("Time per tree (seconds)", fontsize=FONT_LARGE)
-        ax.set_title(f"Testing time breakdown - trained on {train_display_name}", fontsize=FONT_LARGE)
+        ax.set_title(
+            f"Testing time breakdown - trained on {train_display_name}",
+            fontsize=FONT_LARGE,
+        )
         ax.set_xticks(x)
         ax.set_xticklabels(test_labels, rotation=45, ha="right", fontsize=FONT_SMALL)
         ax.tick_params(labelsize=FONT_MED)
-        ax.legend(title="Model", fontsize=FONT_SMALL, title_fontsize=FONT_MED,
-                  bbox_to_anchor=(1.02, 1), loc="upper left")
+        ax.legend(
+            title="Model",
+            fontsize=FONT_SMALL,
+            title_fontsize=FONT_MED,
+            bbox_to_anchor=(1.02, 1),
+            loc="upper left",
+        )
         plt.tight_layout()
 
         safe_name = train_label.replace(" ", "_").replace("=", "").replace("\n", "_")
@@ -354,8 +414,6 @@ def generate_benchmark_plots(
     os.makedirs(output_dir, exist_ok=True)
 
     plot_training_times(config, os.path.join(output_dir, "training_times.pdf"))
-    plot_testing_times(
-        config, os.path.join(output_dir, "testing_times_per_tree")
-    )
+    plot_testing_times(config, os.path.join(output_dir, "testing_times_per_tree"))
 
     logger.info(f"All plots saved to {output_dir}")

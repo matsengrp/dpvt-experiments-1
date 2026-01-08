@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 import pickle
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,7 +18,10 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 FONT_LARGE, FONT_MED, FONT_SMALL = 16, 14, 12
-DPI, PALETTE = 300, "Dark2"
+DPI = 300
+PALETTE = "Dark2"
+BAR_GROUP_WIDTH = 0.8
+BAR_CENTERING_OFFSET = 0.5
 
 MODEL_NAMES = {
     "TraverseAvgPooling": "Average pooling",
@@ -47,26 +49,35 @@ class PlotConfig:
     """Configuration for benchmark plotting."""
 
     nicknames_dict: dict
-    benchmark_prefix: str
+    benchmark_prefix: Path
     train_nicknames: dict = field(default_factory=dict)
     test_nicknames: dict = field(default_factory=dict)
     models: dict = field(default_factory=dict)
-    profiler_prefix: str | None = None
+    profiler_prefix: Path | None = None
 
     @property
-    def data_dir(self) -> str:
+    def data_dir(self) -> Path:
         """Get the data directory from nicknames dict."""
-        return self.nicknames_dict.get("data_dir", ".")
+        return Path(self.nicknames_dict.get("data_dir", "."))
 
     @classmethod
     def from_args(cls, models, train_names, test_names, benchmark_dir, nicknames_path):
         """Create a PlotConfig from Snakemake arguments."""
-        with open(nicknames_path) as f:
+        if not models or not train_names or not test_names:
+            raise ValueError(
+                "models, train_names, and test_names must all be non-empty"
+            )
+
+        nicknames_file = Path(nicknames_path)
+        if not nicknames_file.exists():
+            raise FileNotFoundError(f"Nicknames file not found: {nicknames_path}")
+
+        with open(nicknames_file) as f:
             nicknames = json.load(f)
-        prefix = benchmark_dir if benchmark_dir.endswith("/") else f"{benchmark_dir}/"
+
         return cls(
             nicknames_dict=nicknames,
-            benchmark_prefix=prefix,
+            benchmark_prefix=Path(benchmark_dir),
             train_nicknames={n: n for n in train_names},
             test_nicknames={n: n for n in test_names},
             models={n: MODEL_NAMES.get(n, n) for n in models},
@@ -74,111 +85,17 @@ class PlotConfig:
 
 
 # =============================================================================
-# Data Loading
+# Helper Functions
 # =============================================================================
 
 
-def get_benchmark_paths(config: PlotConfig, for_testing: bool = False) -> list[str]:
-    """Get all benchmark file paths for train or test benchmarks."""
-    paths = []
-    btype = "test_model" if for_testing else "train_model"
-    for model in config.models:
-        for train in config.train_nicknames:
-            if for_testing:
-                for test in config.test_nicknames:
-                    fname = f"{model}-{train}-ON-{test}-Param0.tsv"
-                    paths.append(f"{config.benchmark_prefix}{btype}/{fname}")
-            else:
-                fname = f"{model}-{train}-Param0.tsv"
-                paths.append(f"{config.benchmark_prefix}{btype}/{fname}")
-    return paths
-
-
-def load_dataset_metadata(
-    config: PlotConfig, nicknames: dict
-) -> tuple[dict, dict, dict]:
-    """Load tree counts, average leaves, and average sites for datasets."""
-    counts, leaves, sites = {}, {}, {}
-
-    for name in nicknames:
-        file_path = f"{config.data_dir}/{config.nicknames_dict[name]}"
-        with open(file_path, "rb") as f:
-            data = pickle.load(f)
-
-        counts[name] = len(data)
-        leaves[name] = sum(len(t) + 1 for t in data.keys()) / len(data) if data else 0
-
-        total_sites, n_trees = 0, 0
-        for tree in data.keys():
-            tree_leaves = tree.get_leaves()
-            if tree_leaves:
-                total_sites += len(tree_leaves[0].sequence)
-                n_trees += 1
-        sites[name] = total_sites / n_trees if n_trees else 0
-
-        logger.info(
-            f"{name}: {counts[name]} trees, {leaves[name]:.1f} leaves, {sites[name]:.1f} sites"
-        )
-
-    return counts, leaves, sites
-
-
-def load_benchmark_times(
-    config: PlotConfig, paths: list[str], tree_counts: dict | None = None
-) -> pd.DataFrame:
-    """Load timing data from benchmark TSV files."""
-    data = []
-
-    for path in paths:
-        if not Path(path).exists():
-            logger.warning(f"{path} not found")
-            continue
-
-        df = pd.read_csv(path, sep="\t")
-        time_str = df.iloc[0, 1]
+def _parse_time_to_seconds(time_str: str) -> float:
+    """Parse HH:MM:SS time string to seconds."""
+    try:
         h, m, s = time_str.split(":")
-        seconds = int(h) * 3600 + int(m) * 60 + float(s)
-
-        parts = Path(path).stem.split("-")
-        model = parts[0]
-
-        entry = {
-            "model": model,
-            "model_label": config.models.get(model, model),
-            "train_data": parts[1],
-            "train_label": config.train_nicknames.get(parts[1], parts[1]),
-            "time_seconds": seconds,
-        }
-
-        if "ON" in Path(path).stem:
-            entry["test_data"] = parts[3]
-            entry["test_label"] = config.test_nicknames.get(parts[3], parts[3])
-            if tree_counts and parts[3] in tree_counts:
-                entry["num_trees"] = tree_counts[parts[3]]
-
-        data.append(entry)
-
-    return pd.DataFrame(data)
-
-
-def load_preprocessing_times(config: PlotConfig) -> dict[tuple[str, str, str], float]:
-    """Load all preprocessing times from profiler output files."""
-    if not config.profiler_prefix:
-        return {}
-
-    times = {}
-    for model in config.models:
-        for train in config.train_nicknames:
-            for test in config.test_nicknames:
-                fname = f"preprocessing_test-{model}-{train}-ON-{test}-Param0.txt"
-                path = Path(config.profiler_prefix) / fname
-                if not path.exists():
-                    continue
-                for line in path.read_text().splitlines():
-                    if line.startswith("Total"):
-                        times[(model, train, test)] = float(line.split()[1])
-                        break
-    return times
+        return int(h) * 3600 + int(m) * 60 + float(s)
+    except (ValueError, AttributeError) as e:
+        raise ValueError(f"Expected time format 'HH:MM:SS', got '{time_str}'") from e
 
 
 def _is_simulated(name: str) -> bool:
@@ -210,6 +127,157 @@ def _make_dataset_label(
     return f"{name}\n(n={int(avg_leaves)}, N={int(avg_sites)})"
 
 
+def _add_labels_to_dataframe(
+    df: pd.DataFrame,
+    data_column: str,
+    label_column: str,
+    avg_leaves_by_dataset: dict,
+    avg_sites_by_dataset: dict,
+    tree_counts_by_dataset: dict | None = None,
+) -> pd.DataFrame:
+    """Add avg_leaves and formatted label columns to DataFrame."""
+    df = df.copy()
+    df["avg_leaves"] = df[data_column].map(avg_leaves_by_dataset)
+    df["label"] = df.apply(
+        lambda r: _make_dataset_label(
+            r[data_column],
+            r[label_column],
+            r["avg_leaves"],
+            avg_sites_by_dataset[r[data_column]],
+            tree_counts_by_dataset[r[data_column]] if tree_counts_by_dataset else None,
+        ),
+        axis=1,
+    )
+    return df
+
+
+def _compute_label_order(df: pd.DataFrame) -> list[str]:
+    """Compute dataset label ordering by average leaves (ascending)."""
+    return df.groupby("label")["avg_leaves"].first().sort_values().index.tolist()
+
+
+# =============================================================================
+# Data Loading
+# =============================================================================
+
+
+def get_benchmark_paths(config: PlotConfig, for_testing: bool = False) -> list[Path]:
+    """Get all benchmark file paths for train or test benchmarks."""
+    paths = []
+    btype = "test_model" if for_testing else "train_model"
+    for model in config.models:
+        for train in config.train_nicknames:
+            if for_testing:
+                for test in config.test_nicknames:
+                    fname = f"{model}-{train}-ON-{test}-Param0.tsv"
+                    paths.append(config.benchmark_prefix / btype / fname)
+            else:
+                fname = f"{model}-{train}-Param0.tsv"
+                paths.append(config.benchmark_prefix / btype / fname)
+    return paths
+
+
+def load_dataset_metadata(
+    config: PlotConfig, nicknames: dict
+) -> tuple[dict, dict, dict]:
+    """Load tree counts, average leaves, and average sites for datasets."""
+    tree_counts_by_dataset, avg_leaves_by_dataset, avg_sites_by_dataset = {}, {}, {}
+
+    for name in nicknames:
+        file_path = config.data_dir / config.nicknames_dict[name]
+        with open(file_path, "rb") as f:
+            data = pickle.load(f)
+
+        tree_counts_by_dataset[name] = len(data)
+        avg_leaves_by_dataset[name] = (
+            sum(len(t) + 1 for t in data.keys()) / len(data) if data else 0
+        )
+
+        total_sites, n_trees = 0, 0
+        for tree in data.keys():
+            tree_leaves = tree.get_leaves()
+            if tree_leaves:
+                total_sites += len(tree_leaves[0].sequence)
+                n_trees += 1
+        avg_sites_by_dataset[name] = total_sites / n_trees if n_trees else 0
+
+        logger.info(
+            f"{name}: {tree_counts_by_dataset[name]} trees, "
+            f"{avg_leaves_by_dataset[name]:.1f} leaves, "
+            f"{avg_sites_by_dataset[name]:.1f} sites"
+        )
+
+    return tree_counts_by_dataset, avg_leaves_by_dataset, avg_sites_by_dataset
+
+
+def load_benchmark_times(
+    config: PlotConfig,
+    paths: list[Path],
+    tree_counts_by_dataset: dict | None = None,
+) -> pd.DataFrame:
+    """Load timing data from benchmark TSV files."""
+    if not paths:
+        raise ValueError("No benchmark paths provided")
+
+    existing_paths = [p for p in paths if p.exists()]
+    if not existing_paths:
+        raise FileNotFoundError(
+            f"No benchmark files found. Searched {len(paths)} paths. "
+            f"First missing: {paths[0]}"
+        )
+
+    missing_count = len(paths) - len(existing_paths)
+    if missing_count:
+        logger.warning(f"{missing_count}/{len(paths)} benchmark files not found")
+
+    data = []
+    for path in existing_paths:
+        df = pd.read_csv(path, sep="\t")
+        if df.empty or df.shape[1] < 2:
+            raise ValueError(f"Benchmark file has insufficient data: {path}")
+
+        seconds = _parse_time_to_seconds(df.iloc[0, 1])
+        parts = path.stem.split("-")
+
+        entry = {
+            "model": parts[0],
+            "model_label": config.models.get(parts[0], parts[0]),
+            "train_data": parts[1],
+            "train_label": config.train_nicknames.get(parts[1], parts[1]),
+            "time_seconds": seconds,
+        }
+
+        if "ON" in path.stem:
+            entry["test_data"] = parts[3]
+            entry["test_label"] = config.test_nicknames.get(parts[3], parts[3])
+            if tree_counts_by_dataset and parts[3] in tree_counts_by_dataset:
+                entry["num_trees"] = tree_counts_by_dataset[parts[3]]
+
+        data.append(entry)
+
+    return pd.DataFrame(data)
+
+
+def load_preprocessing_times(config: PlotConfig) -> dict[tuple[str, str, str], float]:
+    """Load all preprocessing times from profiler output files."""
+    if not config.profiler_prefix:
+        return {}
+
+    times = {}
+    for model in config.models:
+        for train in config.train_nicknames:
+            for test in config.test_nicknames:
+                fname = f"preprocessing_test-{model}-{train}-ON-{test}-Param0.txt"
+                path = config.profiler_prefix / fname
+                if not path.exists():
+                    continue
+                for line in path.read_text().splitlines():
+                    if line.startswith("Total"):
+                        times[(model, train, test)] = float(line.split()[1])
+                        break
+    return times
+
+
 # =============================================================================
 # Plotting Functions
 # =============================================================================
@@ -219,21 +287,19 @@ def plot_training_times(
     config: PlotConfig, output_path: str = "training_times.pdf"
 ) -> None:
     """Create a bar plot of training times for all models and datasets."""
-    _, leaves, sites = load_dataset_metadata(config, config.train_nicknames)
+    _, avg_leaves_by_dataset, avg_sites_by_dataset = load_dataset_metadata(
+        config, config.train_nicknames
+    )
     df = load_benchmark_times(config, get_benchmark_paths(config, for_testing=False))
     if df.empty:
         logger.warning("No training data found")
         return
 
-    df["avg_leaves"] = df["train_data"].map(leaves)
-    df["time_minutes"] = df["time_seconds"] / 60
-    df["label"] = df.apply(
-        lambda r: _make_dataset_label(
-            r["train_data"], r["train_label"], r["avg_leaves"], sites[r["train_data"]]
-        ),
-        axis=1,
+    df = _add_labels_to_dataframe(
+        df, "train_data", "train_label", avg_leaves_by_dataset, avg_sites_by_dataset
     )
-    order = df.groupby("label")["avg_leaves"].first().sort_values().index.tolist()
+    df["time_minutes"] = df["time_seconds"] / 60
+    order = _compute_label_order(df)
 
     fig, ax = plt.subplots(figsize=(12, 6))
     sns.barplot(
@@ -265,42 +331,38 @@ def plot_training_times(
     plt.close(fig)
 
 
-def plot_testing_times(
-    config: PlotConfig, output_prefix: str = "testing_times_per_tree"
-) -> None:
-    """Create bar plots showing preprocessing vs inference time per tree."""
+def _prepare_testing_data(
+    config: PlotConfig,
+) -> tuple[pd.DataFrame, list[str]] | None:
+    """Load and prepare testing data with preprocessing times."""
     if not config.profiler_prefix:
         logger.warning("profiler_prefix not set, cannot create stacked plots")
-        return
+        return None
 
-    counts, leaves, sites = load_dataset_metadata(config, config.test_nicknames)
+    tree_counts_by_dataset, avg_leaves_by_dataset, avg_sites_by_dataset = (
+        load_dataset_metadata(config, config.test_nicknames)
+    )
     df = load_benchmark_times(
-        config, get_benchmark_paths(config, for_testing=True), counts
+        config, get_benchmark_paths(config, for_testing=True), tree_counts_by_dataset
     )
     if df.empty or "num_trees" not in df.columns:
         logger.warning("No testing data found")
-        return
+        return None
 
     preproc_times = load_preprocessing_times(config)
     if not preproc_times:
         logger.warning("No preprocessing times found")
-        return
+        return None
 
-    df["avg_leaves"] = df["test_data"].map(leaves)
-    df["time_per_tree"] = df["time_seconds"] / df["num_trees"]
-    df["label"] = df.apply(
-        lambda r: _make_dataset_label(
-            r["test_data"],
-            r["test_label"],
-            r["avg_leaves"],
-            sites[r["test_data"]],
-            counts[r["test_data"]],
-        ),
-        axis=1,
+    df = _add_labels_to_dataframe(
+        df,
+        "test_data",
+        "test_label",
+        avg_leaves_by_dataset,
+        avg_sites_by_dataset,
+        tree_counts_by_dataset,
     )
-    order = df.groupby("label")["avg_leaves"].first().sort_values().index.tolist()
-
-    # Add preprocessing/inference breakdown
+    df["time_per_tree"] = df["time_seconds"] / df["num_trees"]
     df["preproc_per_tree"] = df.apply(
         lambda r: preproc_times.get((r["model"], r["train_data"], r["test_data"]), 0)
         / r["num_trees"],
@@ -310,81 +372,102 @@ def plot_testing_times(
         lower=0
     )
 
-    # Create one plot per training dataset
+    return df, _compute_label_order(df)
+
+
+def _plot_single_test_breakdown(
+    subset: pd.DataFrame,
+    train_label: str,
+    order: list[str],
+    output_prefix: str,
+) -> None:
+    """Create a single stacked bar plot for one training dataset."""
+    train_data = subset["train_data"].iloc[0]
+    train_display_name = _get_dataset_display_name(train_data, train_label)
+    test_labels = [t for t in order if t in subset["label"].values]
+    models = subset["model_label"].unique()
+
+    if not test_labels:
+        return
+
+    x = np.arange(len(test_labels))
+    width = BAR_GROUP_WIDTH / len(models)
+    colors = sns.color_palette(PALETTE, n_colors=len(models))
+    fig, ax = plt.subplots(figsize=(14, 7))
+
+    for i, model in enumerate(models):
+        model_data = subset[subset["model_label"] == model]
+        preproc_vals, inference_vals = [], []
+        for tl in test_labels:
+            row = model_data[model_data["label"] == tl]
+            preproc_vals.append(row["preproc_per_tree"].values[0] if len(row) else 0)
+            inference_vals.append(
+                row["inference_per_tree"].values[0] if len(row) else 0
+            )
+
+        offset = (i - len(models) / 2 + BAR_CENTERING_OFFSET) * width
+        ax.bar(
+            x + offset,
+            preproc_vals,
+            width,
+            label=f"{model} (preprocess)",
+            color=colors[i],
+            alpha=0.5,
+            edgecolor="black",
+            linewidth=0.5,
+        )
+        ax.bar(
+            x + offset,
+            inference_vals,
+            width,
+            bottom=preproc_vals,
+            label=f"{model} (inference)",
+            color=colors[i],
+            edgecolor="black",
+            linewidth=0.5,
+        )
+
+    ax.set_xlabel(
+        "Test dataset (n=leaves, N=sites, T=trees)",
+        fontsize=FONT_LARGE,
+        labelpad=15,
+    )
+    ax.set_ylabel("Time per tree (seconds)", fontsize=FONT_LARGE)
+    ax.set_title(
+        f"Testing time breakdown - trained on {train_display_name}",
+        fontsize=FONT_LARGE,
+    )
+    ax.set_xticks(x)
+    ax.set_xticklabels(test_labels, rotation=45, ha="right", fontsize=FONT_SMALL)
+    ax.tick_params(labelsize=FONT_MED)
+    ax.legend(
+        title="Model",
+        fontsize=FONT_SMALL,
+        title_fontsize=FONT_MED,
+        bbox_to_anchor=(1.02, 1),
+        loc="upper left",
+    )
+    plt.tight_layout()
+
+    safe_name = train_label.replace(" ", "_").replace("=", "").replace("\n", "_")
+    output_path = f"{output_prefix}_{safe_name}.pdf"
+    plt.savefig(output_path, dpi=DPI, bbox_inches="tight")
+    logger.info(f"Saved: {output_path}")
+    plt.close(fig)
+
+
+def plot_testing_times(
+    config: PlotConfig, output_prefix: str = "testing_times_per_tree"
+) -> None:
+    """Create bar plots showing preprocessing vs inference time per tree."""
+    result = _prepare_testing_data(config)
+    if result is None:
+        return
+
+    df, order = result
     for train_label in df["train_label"].unique():
         subset = df[df["train_label"] == train_label]
-        train_data = subset["train_data"].iloc[0]
-        train_display_name = _get_dataset_display_name(train_data, train_label)
-        test_labels = [t for t in order if t in subset["label"].values]
-        models = subset["model_label"].unique()
-        if not test_labels:
-            continue
-
-        x = np.arange(len(test_labels))
-        width = 0.8 / len(models)
-        colors = sns.color_palette(PALETTE, n_colors=len(models))
-        fig, ax = plt.subplots(figsize=(14, 7))
-
-        for i, model in enumerate(models):
-            model_data = subset[subset["model_label"] == model]
-            preproc_vals, inference_vals = [], []
-            for tl in test_labels:
-                row = model_data[model_data["label"] == tl]
-                preproc_vals.append(
-                    row["preproc_per_tree"].values[0] if len(row) else 0
-                )
-                inference_vals.append(
-                    row["inference_per_tree"].values[0] if len(row) else 0
-                )
-
-            offset = (i - len(models) / 2 + 0.5) * width
-            ax.bar(
-                x + offset,
-                preproc_vals,
-                width,
-                label=f"{model} (preprocess)",
-                color=colors[i],
-                alpha=0.5,
-                edgecolor="black",
-                linewidth=0.5,
-            )
-            ax.bar(
-                x + offset,
-                inference_vals,
-                width,
-                bottom=preproc_vals,
-                label=f"{model} (inference)",
-                color=colors[i],
-                edgecolor="black",
-                linewidth=0.5,
-            )
-
-        ax.set_xlabel(
-            "Test dataset (n=leaves, N=sites, T=trees)",
-            fontsize=FONT_LARGE,
-            labelpad=15,
-        )
-        ax.set_ylabel("Time per tree (seconds)", fontsize=FONT_LARGE)
-        ax.set_title(
-            f"Testing time breakdown - trained on {train_display_name}",
-            fontsize=FONT_LARGE,
-        )
-        ax.set_xticks(x)
-        ax.set_xticklabels(test_labels, rotation=45, ha="right", fontsize=FONT_SMALL)
-        ax.tick_params(labelsize=FONT_MED)
-        ax.legend(
-            title="Model",
-            fontsize=FONT_SMALL,
-            title_fontsize=FONT_MED,
-            bbox_to_anchor=(1.02, 1),
-            loc="upper left",
-        )
-        plt.tight_layout()
-
-        safe_name = train_label.replace(" ", "_").replace("=", "").replace("\n", "_")
-        plt.savefig(f"{output_prefix}_{safe_name}.pdf", dpi=DPI, bbox_inches="tight")
-        logger.info(f"Saved: {output_prefix}_{safe_name}.pdf")
-        plt.close(fig)
+        _plot_single_test_breakdown(subset, train_label, order, output_prefix)
 
 
 # =============================================================================
@@ -405,15 +488,13 @@ def generate_benchmark_plots(
     config = PlotConfig.from_args(
         models, train_data_names, test_data_names, benchmark_dir, nicknames_path
     )
-    # Add profiler prefix if provided
     if profiler_dir:
-        config.profiler_prefix = (
-            profiler_dir if profiler_dir.endswith("/") else f"{profiler_dir}/"
-        )
+        config.profiler_prefix = Path(profiler_dir)
 
-    os.makedirs(output_dir, exist_ok=True)
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
 
-    plot_training_times(config, os.path.join(output_dir, "training_times.pdf"))
-    plot_testing_times(config, os.path.join(output_dir, "testing_times_per_tree"))
+    plot_training_times(config, str(output_path / "training_times.pdf"))
+    plot_testing_times(config, str(output_path / "testing_times_per_tree"))
 
     logger.info(f"All plots saved to {output_dir}")

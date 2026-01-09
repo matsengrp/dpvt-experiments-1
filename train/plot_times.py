@@ -23,12 +23,17 @@ PALETTE = "Dark2"
 BAR_GROUP_WIDTH = 0.8
 BAR_CENTERING_OFFSET = 0.5
 
+# Model display names - order determines bar order in plots (rightmost last)
 MODEL_NAMES = {
     "TraverseAvgPooling": "Average pooling",
     "TraverseMaxPooling": "Maximum pooling",
     "TraverseNN": "Transformer encoder",
-    "BaselineReversion": "Baseline reversion",
 }
+
+# Fixed color and order for consistent plots
+_PALETTE_COLORS = sns.color_palette(PALETTE, n_colors=len(MODEL_NAMES))
+MODEL_ORDER = list(MODEL_NAMES.values())
+MODEL_COLORS = dict(zip(MODEL_ORDER, _PALETTE_COLORS))
 
 DATASET_NAMES = {
     "orthomam": "OrthoMaM",
@@ -36,7 +41,7 @@ DATASET_NAMES = {
     "fluC_NS": "flu C NS",
     "fluC_M": "flu C M",
     "fluC_PB2": "flu C PB2",
-    "rotavirus": "rotavirus",
+    "rotavirus": "rota A H H2",
 }
 
 # =============================================================================
@@ -123,8 +128,8 @@ def _make_dataset_label(
     """Create a formatted dataset label for plot axes."""
     name = _get_dataset_display_name(data_name, label)
     if tree_count is not None:
-        return f"{name}\n(n={int(avg_leaves)},\nN={int(avg_sites)},\nT={tree_count})"
-    return f"{name}\n(n={int(avg_leaves)}, N={int(avg_sites)})"
+        return f"{name}\nn={int(avg_leaves)}\nN={int(avg_sites)}\nT={tree_count}"
+    return f"{name}\nn={int(avg_leaves)}, N={int(avg_sites)}"
 
 
 def _add_labels_to_dataframe(
@@ -308,7 +313,8 @@ def plot_training_times(
         y="time_minutes",
         hue="model_label",
         order=order,
-        palette=PALETTE,
+        hue_order=MODEL_ORDER,
+        palette=MODEL_COLORS,
         ax=ax,
     )
     ax.set_xlabel(
@@ -382,14 +388,14 @@ def _plot_single_test_breakdown(
 ) -> None:
     """Create a single stacked bar plot for one training dataset."""
     test_labels = [t for t in order if t in subset["label"].values]
-    models = subset["model_label"].unique()
+    available_models = set(subset["model_label"].unique())
+    models = [m for m in MODEL_ORDER if m in available_models]
 
     if not test_labels:
         return
 
     x = np.arange(len(test_labels))
     width = BAR_GROUP_WIDTH / len(models)
-    colors = sns.color_palette(PALETTE, n_colors=len(models))
     fig, ax = plt.subplots(figsize=(14, 7))
 
     for i, model in enumerate(models):
@@ -402,13 +408,14 @@ def _plot_single_test_breakdown(
                 row["inference_per_tree"].values[0] if len(row) else 0
             )
 
+        color = MODEL_COLORS.get(model, _PALETTE_COLORS[i % len(_PALETTE_COLORS)])
         offset = (i - len(models) / 2 + BAR_CENTERING_OFFSET) * width
         ax.bar(
             x + offset,
             preproc_vals,
             width,
             label=f"{model} (preprocess)",
-            color=colors[i],
+            color=color,
             alpha=0.5,
             edgecolor="black",
             linewidth=0.5,
@@ -419,7 +426,7 @@ def _plot_single_test_breakdown(
             width,
             bottom=preproc_vals,
             label=f"{model} (inference)",
-            color=colors[i],
+            color=color,
             edgecolor="black",
             linewidth=0.5,
         )
@@ -437,7 +444,7 @@ def _plot_single_test_breakdown(
         title="Model",
         fontsize=FONT_SMALL,
         title_fontsize=FONT_MED,
-        loc="upper right",
+        loc="upper center",
     )
     plt.tight_layout()
 
@@ -571,7 +578,8 @@ def plot_available_training_times(
         y="time_minutes",
         hue="model_label",
         order=order,
-        palette=PALETTE,
+        hue_order=MODEL_ORDER,
+        palette=MODEL_COLORS,
         ax=ax,
     )
     ax.set_xlabel(
@@ -585,7 +593,7 @@ def plot_available_training_times(
         title="Model",
         fontsize=FONT_MED,
         title_fontsize=FONT_LARGE,
-        bbox_to_anchor=(1.02, 1),
+        # bbox_to_anchor=(1.02, 1),
         loc="upper left",
     )
     plt.xticks(ha="center", fontsize=FONT_LARGE)

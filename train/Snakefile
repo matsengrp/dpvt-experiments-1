@@ -545,4 +545,5 @@ rule plot_times_step:
             benchmark_dir=f"{run_dir}/benchmark_logs",
             output_dir=timing_plots_dir,
             nicknames_path=data_nicknames_path,
+            profiler_dir=f"{run_dir}/preprocessing_times",
         )

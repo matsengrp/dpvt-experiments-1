@@ -277,17 +277,21 @@ We present four different methods to introduce non-MP edges, which can be
 specified with the corresponding keyword in the config file
 (`edge_distribution`):
 
-- `constant`: $min(\frac{n}{2}, 100)$ random SPR moves to create non-MP edges
-- `uniform`: number of random SPRs drawn from uniform distribution between 0 and
-  $min(n, 100)$
-- `treesearch`: generate as many random trees as there are MP trees sampled. Of
-  the MP trees, introduce $min(\frac{n}{2}, 100)$ SPR moves on half of these
-  trees, and for the rest, draw the number of SPR moves from a uniform
-  distribution between 0 and $min(n, 100)$
-- `random_subtree`: replace random subtree of depth $\frac{d}{2}$, where d is
-  depth of entire tree, by random tree and repeat until at least $\frac{1}{6}$
-  th of all edges (including pendant) are non-MP or random subtree replacement
-  has been tried 100 times
+- `constant`: Perform iterative SPR moves until target non-MP proportion is
+  reached. Each SPR move is bounded by `spr_radius` (max topological distance
+  between prune and regraft locations). Moves that would exceed the target
+  proportion are rejected. Controlled by config parameters: `spr_radius`,
+  `spr_target_non_mp_proportion` (default: 0.1), `max_spr_attempts` (default: 100).
+- `uniform`: Same as `constant` - uses target-based SPR with radius control.
+- `treesearch_mimic`: (Legacy) Generate as many random trees as there are MP
+  trees sampled. Of the MP trees, introduce $min(\frac{n}{2}, 100)$ SPR moves
+  on half of these trees, and for the rest, draw the number of SPR moves from
+  a uniform distribution between 0 and $min(n, 100)$. Uses legacy parameters
+  `max_spr_moves` and `spr_move_divisor`.
+- `random_subtree`: Replace random subtree of depth $\frac{d}{2}$, where d is
+  depth of entire tree, by random tree and repeat until at least
+  `subtree_target_non_mp_proportion` (default: 1/6) of all edges are non-MP
+  or max attempts reached.
 
 ### Running on simulated data
 

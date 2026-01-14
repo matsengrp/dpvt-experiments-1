@@ -58,7 +58,7 @@ edge_distributions = config.get("edge_distributions", config.get("edge_distribut
 if isinstance(edge_distributions, str):
     edge_distributions = [edge_distributions]
 
-# New SPR parameters (for constant/uniform edge distributions)
+# SPR parameters
 spr_radius = config.get("spr_radius", None)  # None means unlimited
 spr_target_non_mp_proportion = config.get("spr_target_non_mp_proportion", 0.1)
 max_spr_attempts = config.get("max_spr_attempts", 100)
@@ -66,10 +66,6 @@ max_spr_attempts = config.get("max_spr_attempts", 100)
 # Subtree replacement parameters
 subtree_max_attempts = config.get("subtree_max_attempts", 100)
 subtree_target_non_mp_proportion = config.get("subtree_target_non_mp_proportion", 1/6)
-
-# Legacy SPR parameters (for treesearch_mimic only)
-max_spr_moves = config.get("max_spr_moves", 100)
-spr_move_divisor = config.get("spr_move_divisor", 10)
 
 # Derived paths - use relative paths to match what prepare_datasets.snakefile produces
 filtered_dir = f"{output_datasets}/{dataset_name}_filtered_{min_frac_sites_retained}"
@@ -160,9 +156,6 @@ rule generate_dpvt_data:
         # Subtree parameters
         subtree_max_attempts=subtree_max_attempts,
         subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
-        # Legacy SPR parameters
-        max_spr_moves=max_spr_moves,
-        spr_move_divisor=spr_move_divisor
     run:
         edge_dist = SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
         # Handle None for spr_radius (convert to "null" for YAML)
@@ -182,7 +175,5 @@ rule generate_dpvt_data:
                 max_spr_attempts={params.max_spr_attempts} \
                 subtree_max_attempts={params.subtree_max_attempts} \
                 subtree_target_non_mp_proportion={params.subtree_target_non_mp_proportion} \
-                max_spr_moves={params.max_spr_moves} \
-                spr_move_divisor={params.spr_move_divisor} \
             --rerun-incomplete
         """)

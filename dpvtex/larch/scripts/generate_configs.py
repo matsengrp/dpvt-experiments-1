@@ -53,7 +53,7 @@ DEFAULT_TEST_FRACTION = 0.2  # Fraction of alignments for test set
 DEFAULT_NUM_CORES = 8
 DEFAULT_MAX_TREES = 200  # Max trees to extract per alignment
 
-# New SPR parameters (for constant/uniform edge distributions)
+# SPR parameters
 DEFAULT_SPR_RADIUS = None  # Max topological distance for SPR regraft (None = unlimited)
 DEFAULT_SPR_TARGET_NON_MP_PROPORTION = 0.1  # Target non-MP edge proportion (10%)
 DEFAULT_MAX_SPR_ATTEMPTS = 100  # Max SPR attempts before stopping
@@ -61,10 +61,6 @@ DEFAULT_MAX_SPR_ATTEMPTS = 100  # Max SPR attempts before stopping
 # Subtree replacement parameters
 DEFAULT_SUBTREE_MAX_ATTEMPTS = 100  # Max attempts for subtree replacement
 DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION = 0.167  # Target non-MP edge proportion (~1/6)
-
-# Legacy SPR parameters (for treesearch_mimic only)
-DEFAULT_MAX_SPR_MOVES = 100  # Max SPR moves per tree
-DEFAULT_SPR_MOVE_DIVISOR = 10  # Divisor for constant SPR distribution
 
 
 def format_edge_distributions(edge_distributions):
@@ -143,10 +139,6 @@ max_spr_attempts: {DEFAULT_MAX_SPR_ATTEMPTS}                   # Max SPR attempt
 # Subtree replacement parameters
 subtree_max_attempts: {DEFAULT_SUBTREE_MAX_ATTEMPTS}                # Max attempts for subtree replacement
 subtree_target_non_mp_proportion: {DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION}  # Target non-MP edge proportion (~1/6)
-
-# Legacy SPR parameters (for treesearch_mimic only)
-max_spr_moves: {DEFAULT_MAX_SPR_MOVES}                       # Max SPR moves per tree
-spr_move_divisor: {DEFAULT_SPR_MOVE_DIVISOR}                     # Divisor for constant SPR distribution
 """
 
 
@@ -207,10 +199,6 @@ max_spr_attempts: {DEFAULT_MAX_SPR_ATTEMPTS}                   # Max SPR attempt
 # Subtree replacement parameters
 subtree_max_attempts: {DEFAULT_SUBTREE_MAX_ATTEMPTS}                # Max attempts for subtree replacement
 subtree_target_non_mp_proportion: {DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION}  # Target non-MP edge proportion (~1/6)
-
-# Legacy SPR parameters (for treesearch_mimic only)
-max_spr_moves: {DEFAULT_MAX_SPR_MOVES}                       # Max SPR moves per tree
-spr_move_divisor: {DEFAULT_SPR_MOVE_DIVISOR}                     # Divisor for constant SPR distribution
 """
 
 

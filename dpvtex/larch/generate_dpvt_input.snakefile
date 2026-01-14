@@ -31,7 +31,7 @@ if isinstance(edge_distributions, str):
 # Tree extraction parameters
 max_trees = config.get("max_trees", 200)  # Max trees to extract per alignment
 
-# New SPR parameters (for constant/uniform edge distributions)
+# SPR parameters
 spr_radius = config.get("spr_radius", None)  # Max topological distance for SPR regraft (None = unlimited)
 spr_target_non_mp_proportion = config.get("spr_target_non_mp_proportion", 0.1)  # Target non-MP edge proportion
 max_spr_attempts = config.get("max_spr_attempts", 100)  # Max SPR attempts before stopping
@@ -39,10 +39,6 @@ max_spr_attempts = config.get("max_spr_attempts", 100)  # Max SPR attempts befor
 # Subtree replacement parameters
 subtree_max_attempts = config.get("subtree_max_attempts", 100)  # Max attempts for subtree replacement
 subtree_target_non_mp_proportion = config.get("subtree_target_non_mp_proportion", 1/6)  # Target non-MP edge proportion
-
-# Legacy SPR parameters (for treesearch_mimic only)
-max_spr_moves = config.get("max_spr_moves", 100)  # Max SPR moves per tree
-spr_move_divisor = config.get("spr_move_divisor", 10)  # Divisor for constant SPR distribution
 
 
 dup_sites_suffix = get_dup_sites_suffix(remove_site_patterns)
@@ -214,8 +210,6 @@ rule extract_dpvt_data:
             max_spr_attempts=max_spr_attempts,
             subtree_max_attempts=subtree_max_attempts,
             subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
-            max_spr_moves=max_spr_moves,
-            spr_move_divisor=spr_move_divisor,
         )
 
 

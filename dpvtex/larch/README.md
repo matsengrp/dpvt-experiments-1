@@ -283,11 +283,11 @@ specified with the corresponding keyword in the config file
   proportion are rejected. Controlled by config parameters: `spr_radius`,
   `spr_target_non_mp_proportion` (default: 0.1), `max_spr_attempts` (default: 100).
 - `uniform`: Same as `constant` - uses target-based SPR with radius control.
-- `treesearch_mimic`: (Legacy) Generate as many random trees as there are MP
-  trees sampled. Of the MP trees, introduce $min(\frac{n}{2}, 100)$ SPR moves
-  on half of these trees, and for the rest, draw the number of SPR moves from
-  a uniform distribution between 0 and $min(n, 100)$. Uses legacy parameters
-  `max_spr_moves` and `spr_move_divisor`.
+- `treesearch_mimic`: Generate as many random trees as there are MP trees
+  sampled (these have most edges non-MP). Of the MP trees, the first half uses
+  `spr_target_non_mp_proportion` as target, and the second half draws the
+  target uniformly from [0, `spr_target_non_mp_proportion`]. Uses the same
+  target-based SPR with radius control as `constant`/`uniform`.
 - `random_subtree`: Replace random subtree of depth $\frac{d}{2}$, where d is
   depth of entire tree, by random tree and repeat until at least
   `subtree_target_non_mp_proportion` (default: 1/6) of all edges are non-MP

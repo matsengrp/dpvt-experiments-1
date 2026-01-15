@@ -8,6 +8,7 @@ from dpvtex.larch.scripts.utils import (
     EDGE_DIST_TO_SUFFIX,
     SUFFIX_TO_EDGE_DIST,
     get_dup_sites_suffix,
+    get_full_edge_suffix,
 )
 
 snakefile_dir = workflow.basedir
@@ -44,6 +45,14 @@ subtree_target_non_mp_proportion = config.get("subtree_target_non_mp_proportion"
 
 
 dup_sites_suffix = get_dup_sites_suffix(remove_site_patterns)
+
+# Build full edge suffixes including SPR/subtree parameters
+FULL_EDGE_SUFFIX = {
+    ed: get_full_edge_suffix(ed, spr_radius, spr_target_non_mp_proportion,
+                             subtree_target_non_mp_proportion)
+    for ed in edge_distributions
+}
+FULL_SUFFIX_TO_EDGE_DIST = {v: k for k, v in FULL_EDGE_SUFFIX.items()}
 
 
 def get_subdirs(data_dir):
@@ -99,9 +108,9 @@ def get_subdirs(data_dir):
 rule all:
     input:
         expand(input_data+"/data_properties_"+dataset_name+"{edge_suffix}" + dup_sites_suffix + ".csv",
-               edge_suffix=[EDGE_DIST_TO_SUFFIX[ed] for ed in edge_distributions]),
+               edge_suffix=FULL_EDGE_SUFFIX.values()),
         expand(output_data+"/"+dataset_name+"{edge_suffix}" + dup_sites_suffix + ".p",
-               edge_suffix=[EDGE_DIST_TO_SUFFIX[ed] for ed in edge_distributions]),
+               edge_suffix=FULL_EDGE_SUFFIX.values()),
 
 
 rule preprocessing:
@@ -196,10 +205,10 @@ rule extract_dpvt_data:
         data=input_data+"/{subdir}/{subdir}{edge_suffix}" + dup_sites_suffix + ".p",
         num_children_file=input_data+"/{subdir}/num_children_dag_trees{edge_suffix}" + dup_sites_suffix + ".csv"
     wildcard_constraints:
-        edge_suffix="|".join(EDGE_DIST_TO_SUFFIX.values())
+        edge_suffix="|".join(FULL_EDGE_SUFFIX.values())
     run:
         logger = get_logger(input_data)
-        edge_dist = SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
+        edge_dist = FULL_SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
         extract_data_from_hdag(
             input.pb,
             output.data,
@@ -232,8 +241,8 @@ rule aggregate_training_data:
         data_props=input_data+"/data_properties_"+dataset_name+"{edge_suffix}" + dup_sites_suffix + ".csv",
         dpvt_data=output_data+"/"+dataset_name+"{edge_suffix}" + dup_sites_suffix + ".p",
     wildcard_constraints:
-        edge_suffix="|".join(EDGE_DIST_TO_SUFFIX.values())
+        edge_suffix="|".join(FULL_EDGE_SUFFIX.values())
     run:
-        edge_dist = SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
+        edge_dist = FULL_SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
         aggregate_data(data_dir=input_data, data_props_file=output.data_props, dpvt_train_data=output.dpvt_data, edge_distribution=edge_dist, dpvt_test_data=None, balance_by_median_num_MP_trees=balance_by_median_num_MP_trees)
 

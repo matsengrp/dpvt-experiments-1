@@ -15,6 +15,7 @@ from pathlib import Path
 import argparse
 import glob
 import os
+import re
 
 from dpvtex.larch.scripts.utils import EDGE_DIST_TO_SUFFIX
 
@@ -24,20 +25,55 @@ from dpvtex.larch.scripts.utils import EDGE_DIST_TO_SUFFIX
 METHOD_NAME_MAP = {"constant": "SPR", "random_subtree": "random subtree"}
 
 
-def get_pickle_suffix(method):
-    """Get the pickle file suffix for an edge distribution method.
+def get_pickle_pattern(method):
+    """Get regex pattern to match pickle files for an edge distribution method.
 
-    Args:
-        method: Edge distribution method name (e.g., "constant", "random_subtree")
-
-    Returns:
-        File suffix including .p extension (e.g., "_spr.p")
+    Matches both old-style suffixes (e.g., _spr.p) and new-style with parameters
+    (e.g., _spr_r2_t0.1.p, _subtree_t0.167.p).
     """
-    # Handle special "mixed" case that's not in the standard mapping
     if method == "mixed":
-        return "_spr_subtree_few_sprs.p"
-    suffix = EDGE_DIST_TO_SUFFIX.get(method, "")
-    return f"{suffix}.p" if suffix else ""
+        return r"_spr_subtree_few_sprs\.p$"
+    elif method == "constant":
+        return r"_spr(_r[^_]+_t[^_]+)?\.p$"
+    elif method == "random_subtree":
+        return r"_subtree(_t[^_]+)?\.p$"
+    elif method == "uniform":
+        return r"_uniform(_r[^_]+_t[^_]+)?\.p$"
+    elif method == "treesearch_mimic":
+        return r"_treesearch_mimic(_r[^_]+_t[^_]+)?\.p$"
+    return r"\.p$"
+
+
+def extract_method_label_from_filename(filename, method):
+    """Extract a descriptive method label including parameters from filename.
+
+    E.g., 'dataset_spr_r2_t0.1.p' -> 'SPR (r=2, t=0.1)'
+          'dataset_subtree_t0.167.p' -> 'subtree (t=0.167)'
+    """
+    basename = os.path.basename(filename)
+    base_name = METHOD_NAME_MAP.get(method, method)
+
+    # Try to extract SPR parameters (radius and target)
+    # Use [\d.]+ to match decimal numbers like 0.1, 0.167
+    spr_match = re.search(r"_spr_r([^_]+)_t([\d.]+)\.p$", basename)
+    if spr_match:
+        radius, target = spr_match.groups()
+        return f"{base_name} (r={radius}, t={target})"
+
+    # Try to extract subtree parameters (target only)
+    subtree_match = re.search(r"_subtree_t([\d.]+)\.p$", basename)
+    if subtree_match:
+        target = subtree_match.group(1)
+        return f"{base_name} (t={target})"
+
+    # Try to extract uniform/treesearch_mimic parameters
+    other_match = re.search(r"_(uniform|treesearch_mimic)_r([^_]+)_t([\d.]+)\.p$", basename)
+    if other_match:
+        _, radius, target = other_match.groups()
+        return f"{base_name} (r={radius}, t={target})"
+
+    # Fallback to base name for old-style suffixes
+    return base_name
 
 
 # Plot sizing constants
@@ -505,9 +541,6 @@ def create_violin_plots(valid_results, output_dir):
 
     df = pd.DataFrame(all_data)
 
-    # Replace method names for better legend labels
-    df["Method"] = df["Method"].replace(METHOD_NAME_MAP)
-
     # Separate by method count
     df_multi_method, df_single_method, num_datasets_multi, num_datasets_single = (
         separate_by_method_count(df)
@@ -607,9 +640,6 @@ def create_longest_path_plot(analysis_results, output_dir="plots"):
         return
 
     df = pd.DataFrame(all_data)
-
-    # Replace method names for better legend labels
-    df["Method"] = df["Method"].replace(METHOD_NAME_MAP)
 
     # Separate by method count
     df_multi_method, df_single_method, num_datasets_multi, num_datasets_single = (
@@ -723,41 +753,36 @@ It generates violin plots comparing non-MP edge distributions across datasets.
     for dataset_name in args.dataset_names:
 
         for method in edge_methods:
-            suffix = get_pickle_suffix(method)
+            pattern = get_pickle_pattern(method)
 
-            # Search for files that contain both the dataset_name and suffix as substrings
+            # Search for files that match dataset_name and method pattern
             all_pickle_files = glob.glob(f"{args.data_dir}/*.p")
 
             matching_files = [
                 f
                 for f in all_pickle_files
-                if dataset_name in os.path.basename(f) and suffix in os.path.basename(f)
+                if dataset_name in os.path.basename(f) and re.search(pattern, os.path.basename(f))
             ]
 
             if matching_files:
                 # Use the first matching file (or you could handle multiple matches differently)
                 pickle_file = matching_files[0]
-                print(f"Found file for {method} method: {pickle_file}")
+                method_label = extract_method_label_from_filename(pickle_file, method)
+                print(f"Found file for {method_label}: {pickle_file}")
 
                 data = load_tree_label_data(pickle_file)
 
                 if data:
-                    analysis = analyze_edge_distributions(data, method, dataset_name)
-                    analysis["pickle_file"] = (
-                        pickle_file  # Add pickle_file for longest path plot
-                    )
+                    analysis = analyze_edge_distributions(data, method_label, dataset_name)
+                    analysis["pickle_file"] = pickle_file
                     analysis_results.append(analysis)
                 else:
                     analysis_results.append(
-                        analyze_edge_distributions({}, method, dataset_name)
+                        analyze_edge_distributions({}, method_label, dataset_name)
                     )
             else:
                 print(
                     f"No file found for dataset '{dataset_name}' with method '{method}'"
-                )
-                # Add empty result for completeness
-                analysis_results.append(
-                    analyze_edge_distributions({}, method, dataset_name)
                 )
 
     create_comparison_plots(analysis_results, args.output_dir)

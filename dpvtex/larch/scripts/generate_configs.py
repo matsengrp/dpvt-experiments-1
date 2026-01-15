@@ -60,7 +60,7 @@ DEFAULT_MAX_SPR_ATTEMPTS = 100  # Max SPR attempts before stopping
 
 # Subtree replacement parameters
 DEFAULT_SUBTREE_MAX_ATTEMPTS = 100  # Max attempts for subtree replacement
-DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION = 0.167  # Target non-MP edge proportion (~1/6)
+DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION = 0.1  # Target non-MP edge proportion
 
 
 def format_edge_distributions(edge_distributions):
@@ -138,7 +138,7 @@ max_spr_attempts: {DEFAULT_MAX_SPR_ATTEMPTS}                   # Max SPR attempt
 
 # Subtree replacement parameters
 subtree_max_attempts: {DEFAULT_SUBTREE_MAX_ATTEMPTS}                # Max attempts for subtree replacement
-subtree_target_non_mp_proportion: {DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION}  # Target non-MP edge proportion (~1/6)
+subtree_target_non_mp_proportion: {DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION}  # Target non-MP edge proportion
 """
 
 
@@ -198,7 +198,7 @@ max_spr_attempts: {DEFAULT_MAX_SPR_ATTEMPTS}                   # Max SPR attempt
 
 # Subtree replacement parameters
 subtree_max_attempts: {DEFAULT_SUBTREE_MAX_ATTEMPTS}                # Max attempts for subtree replacement
-subtree_target_non_mp_proportion: {DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION}  # Target non-MP edge proportion (~1/6)
+subtree_target_non_mp_proportion: {DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION}  # Target non-MP edge proportion
 """
 
 

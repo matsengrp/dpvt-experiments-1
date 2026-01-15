@@ -36,7 +36,7 @@ scripts_dir = os.path.join(snakefile_dir, "scripts")
 if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
-from utils import EDGE_DIST_TO_SUFFIX, SUFFIX_TO_EDGE_DIST, get_dup_sites_suffix
+from utils import EDGE_DIST_TO_SUFFIX, SUFFIX_TO_EDGE_DIST, get_dup_sites_suffix, get_full_edge_suffix
 
 # Config file can be specified via --configfile on command line
 default_config_path = os.path.join(snakefile_dir, "config.yaml")
@@ -80,6 +80,14 @@ output_data_abs = os.path.realpath(os.path.join(snakefile_dir, output_data))
 
 dup_sites_suffix = get_dup_sites_suffix(remove_site_patterns)
 
+# Build full edge suffixes including SPR/subtree parameters
+FULL_EDGE_SUFFIX = {
+    ed: get_full_edge_suffix(ed, spr_radius, spr_target_non_mp_proportion,
+                             subtree_target_non_mp_proportion)
+    for ed in edge_distributions
+}
+FULL_SUFFIX_TO_EDGE_DIST = {v: k for k, v in FULL_EDGE_SUFFIX.items()}
+
 # Final output dataset name (matches what generate_dpvt_input.snakefile expects)
 final_dataset_name = f"{dataset_name}_filtered_{min_frac_sites_retained}"
 
@@ -96,9 +104,9 @@ rule all:
     input:
         # Phase 3 outputs for all edge distributions
         expand(f"{filtered_dir}/data_properties_{final_dataset_name}{{edge_suffix}}" + dup_sites_suffix + ".csv",
-               edge_suffix=[EDGE_DIST_TO_SUFFIX[ed] for ed in edge_distributions]),
+               edge_suffix=FULL_EDGE_SUFFIX.values()),
         expand(f"{output_data}/{final_dataset_name}{{edge_suffix}}" + dup_sites_suffix + ".p",
-               edge_suffix=[EDGE_DIST_TO_SUFFIX[ed] for ed in edge_distributions]),
+               edge_suffix=FULL_EDGE_SUFFIX.values()),
 
 
 # =============================================================================
@@ -143,7 +151,7 @@ rule generate_dpvt_data:
         data_props=f"{filtered_dir}/data_properties_{final_dataset_name}{{edge_suffix}}" + dup_sites_suffix + ".csv",
         dpvt_data=f"{output_data}/{final_dataset_name}{{edge_suffix}}" + dup_sites_suffix + ".p",
     wildcard_constraints:
-        edge_suffix="|".join(EDGE_DIST_TO_SUFFIX.values())
+        edge_suffix="|".join(FULL_EDGE_SUFFIX.values())
     threads: num_cores
     resources:
         # Limit to one generate_dpvt_data job at a time to avoid .snakemake directory lock conflicts
@@ -166,7 +174,7 @@ rule generate_dpvt_data:
         subtree_max_attempts=subtree_max_attempts,
         subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
     run:
-        edge_dist = SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
+        edge_dist = FULL_SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
         # Handle None for spr_radius (convert to "null" for YAML)
         spr_radius_str = "null" if params.spr_radius is None else params.spr_radius
         shell(f"""

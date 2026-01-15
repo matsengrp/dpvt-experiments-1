@@ -62,3 +62,29 @@ def get_alignment_name_from_path(filepath):
         The name of the parent directory.
     """
     return os.path.basename(os.path.dirname(str(filepath)))
+
+
+def get_spr_param_suffix(spr_radius, spr_target_proportion):
+    """Generate suffix like '_r2_t0.1' for SPR parameters."""
+    radius_str = "None" if spr_radius is None else str(spr_radius)
+    return f"_r{radius_str}_t{spr_target_proportion}"
+
+
+def get_subtree_param_suffix(subtree_target_proportion):
+    """Generate suffix like '_t0.167' for subtree parameters."""
+    return f"_t{subtree_target_proportion}"
+
+
+def get_full_edge_suffix(edge_distribution, spr_radius=None, spr_target_proportion=None,
+                         subtree_target_proportion=None):
+    """Generate full suffix including params for each method."""
+    base_suffix = EDGE_DIST_TO_SUFFIX.get(edge_distribution, "")
+
+    if edge_distribution in ("constant", "uniform", "treesearch_mimic"):
+        if spr_radius is not None or spr_target_proportion is not None:
+            return base_suffix + get_spr_param_suffix(spr_radius, spr_target_proportion)
+    elif edge_distribution == "random_subtree":
+        if subtree_target_proportion is not None:
+            return base_suffix + get_subtree_param_suffix(subtree_target_proportion)
+
+    return base_suffix

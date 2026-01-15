@@ -821,6 +821,7 @@ def perturb_tree_with_subtree_replacement(
     dag_clades,
     subtree_max_attempts,
     subtree_target_non_mp_proportion,
+    subtree_depth=None,
 ):
     """Perturb a tree by replacing random subtrees until target proportion of non-MP edges.
 
@@ -830,6 +831,7 @@ def perturb_tree_with_subtree_replacement(
         dag_clades: Clades extracted from the hDAG
         subtree_max_attempts: Maximum number of subtree replacement attempts
         subtree_target_non_mp_proportion: Target proportion of non-MP edges
+        subtree_depth: Depth of subtrees to replace. If None or > tree_depth/2, uses tree_depth/2.
 
     Returns:
         tuple: (perturbed_tree, edge_labels)
@@ -838,7 +840,11 @@ def perturb_tree_with_subtree_replacement(
     from dpvtex.larch.scripts.extract_data_from_hdag import assign_edge_labels
 
     tree_d = tree_depth(tree)
-    depth = int(tree_d // 2)
+    max_depth = int(tree_d // 2)
+    if subtree_depth is None or subtree_depth > max_depth:
+        depth = max_depth
+    else:
+        depth = subtree_depth
     modified_tree = tree.copy()
 
     for attempt in range(subtree_max_attempts):

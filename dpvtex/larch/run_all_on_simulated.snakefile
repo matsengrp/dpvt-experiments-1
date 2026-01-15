@@ -71,6 +71,7 @@ max_spr_attempts = config.get("max_spr_attempts", 100)
 # Subtree replacement parameters
 subtree_max_attempts = config.get("subtree_max_attempts", 100)
 subtree_target_non_mp_proportion = config.get("subtree_target_non_mp_proportion", 1/6)
+subtree_depth = config.get("subtree_depth", None)
 
 # Derived paths - use relative paths to match what prepare_datasets.snakefile produces
 filtered_dir = f"{output_datasets}/{dataset_name}_filtered_{min_frac_sites_retained}"
@@ -173,10 +174,12 @@ rule generate_dpvt_data:
         # Subtree parameters
         subtree_max_attempts=subtree_max_attempts,
         subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
+        subtree_depth=subtree_depth,
     run:
         edge_dist = FULL_SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
-        # Handle None for spr_radius (convert to "null" for YAML)
+        # Handle None values (convert to "null" for YAML)
         spr_radius_str = "null" if params.spr_radius is None else params.spr_radius
+        subtree_depth_str = "null" if params.subtree_depth is None else params.subtree_depth
         shell(f"""
         snakemake --snakefile {params.snakefile} \
             --cores {params.num_cores} \
@@ -192,5 +195,6 @@ rule generate_dpvt_data:
                 max_spr_attempts={params.max_spr_attempts} \
                 subtree_max_attempts={params.subtree_max_attempts} \
                 subtree_target_non_mp_proportion={params.subtree_target_non_mp_proportion} \
+                subtree_depth={subtree_depth_str} \
             --rerun-incomplete
         """)

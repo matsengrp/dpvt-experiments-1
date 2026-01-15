@@ -42,6 +42,8 @@ max_spr_attempts = config.get("max_spr_attempts", 100)  # Max SPR attempts befor
 # Subtree replacement parameters
 subtree_max_attempts = config.get("subtree_max_attempts", 100)  # Max attempts for subtree replacement
 subtree_target_non_mp_proportion = config.get("subtree_target_non_mp_proportion", 1/6)  # Target non-MP edge proportion
+_subtree_depth_raw = config.get("subtree_depth", None)
+subtree_depth = None if _subtree_depth_raw in (None, "None", "null", "") else int(_subtree_depth_raw)
 
 
 dup_sites_suffix = get_dup_sites_suffix(remove_site_patterns)
@@ -221,6 +223,7 @@ rule extract_dpvt_data:
             max_spr_attempts=max_spr_attempts,
             subtree_max_attempts=subtree_max_attempts,
             subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
+            subtree_depth=subtree_depth,
         )
 
 

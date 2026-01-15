@@ -259,6 +259,7 @@ def generate_perturbed_trees_with_labels(
     # Subtree parameters
     subtree_max_attempts=100,
     subtree_target_non_mp_proportion=1 / 6,
+    subtree_depth=None,
 ):
     """
     Generate perturbed trees with MP/non-MP edge labels from a history DAG.
@@ -321,6 +322,7 @@ def generate_perturbed_trees_with_labels(
                     dag_clades,
                     subtree_max_attempts,
                     subtree_target_non_mp_proportion,
+                    subtree_depth,
                 )
             elif edge_distribution in ("constant", "uniform"):
                 # Use target-based SPR perturbation with radius control
@@ -420,6 +422,7 @@ def extract_data_from_hdag(
     # Subtree parameters
     subtree_max_attempts=100,
     subtree_target_non_mp_proportion=1 / 6,
+    subtree_depth=None,
 ):
     """
     Extracts dpvt data from a history DAG and saves it to a file.
@@ -496,6 +499,7 @@ def extract_data_from_hdag(
         max_spr_attempts=max_spr_attempts,
         subtree_max_attempts=subtree_max_attempts,
         subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
+        subtree_depth=subtree_depth,
     )
 
     logger.log("EXTRACTION", f"Generated {len(tree_label_dict)} trees with edge labels")

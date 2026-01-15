@@ -32,7 +32,9 @@ if isinstance(edge_distributions, str):
 max_trees = config.get("max_trees", 200)  # Max trees to extract per alignment
 
 # SPR parameters
-spr_radius = config.get("spr_radius", None)  # Max topological distance for SPR regraft (None = unlimited)
+# Note: YAML "None" is parsed as string; convert to Python None
+_spr_radius_raw = config.get("spr_radius", None)
+spr_radius = None if _spr_radius_raw in (None, "None", "null", "") else _spr_radius_raw
 spr_target_non_mp_proportion = config.get("spr_target_non_mp_proportion", 0.1)  # Target non-MP edge proportion
 max_spr_attempts = config.get("max_spr_attempts", 100)  # Max SPR attempts before stopping
 

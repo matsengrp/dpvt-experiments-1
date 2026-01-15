@@ -738,7 +738,8 @@ def perturb_tree_with_spr_target(
 
     # Compute initial edge labels
     edge_labels = assign_edge_labels(modified_tree, original_tree, dag_clades)
-    non_mp_proportion = sum(edge_labels) / len(edge_labels)
+    num_int_edges = len(edge_labels) / 2 - 1
+    non_mp_proportion = sum(edge_labels) / num_int_edges
 
     for attempt in range(max_spr_attempts):
         if non_mp_proportion >= spr_target_non_mp_proportion:
@@ -753,7 +754,8 @@ def perturb_tree_with_spr_target(
 
         # Compute edge labels for candidate tree
         candidate_labels = assign_edge_labels(candidate_tree, original_tree, dag_clades)
-        candidate_proportion = sum(candidate_labels) / len(candidate_labels)
+        num_int_edges_candidate = len(candidate_labels) / 2 - 1
+        candidate_proportion = sum(candidate_labels) / num_int_edges_candidate
 
         # Accept move only if it doesn't exceed target
         if candidate_proportion <= spr_target_non_mp_proportion:
@@ -845,11 +847,11 @@ def perturb_tree_with_subtree_replacement(
             modified_tree = perturbed
 
         edge_labels = assign_edge_labels(modified_tree, original_tree, dag_clades)
-        non_mp_proportion = sum(edge_labels) / len(edge_labels)
+        num_int_edges = len(edge_labels) / 2 - 1
+        non_mp_proportion = sum(edge_labels) / num_int_edges
 
         if non_mp_proportion >= subtree_target_non_mp_proportion:
-            # Target achieved: ~1/6 of edges are non-MP
-            # (len(edge_labels) ≈ 2 * internal edges, so we're aiming for ~1/3 non-MP internal edges)
+            # Target achieved
             break
 
     return modified_tree, edge_labels

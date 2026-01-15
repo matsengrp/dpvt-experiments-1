@@ -16,7 +16,12 @@ Usage:
     2. Run the pipeline:
        snakemake --snakefile run_all_on_simulated.snakefile \\
            --configfile configs/<dataset_name>_prepare.yaml \\
-           --cores 8
+           --cores 8 \\
+           --resources generate_dpvt=1
+
+    Note: The --resources generate_dpvt=1 flag ensures that Phase 3 jobs run
+    sequentially when multiple edge distributions are configured, avoiding
+    .snakemake directory lock conflicts from parallel snakemake subprocesses.
 
 Note: This snakefile uses the _prepare.yaml config which contains all necessary
 parameters for all three phases. The _generate.yaml config is only needed if
@@ -139,7 +144,11 @@ rule generate_dpvt_data:
         dpvt_data=f"{output_data}/{final_dataset_name}{{edge_suffix}}" + dup_sites_suffix + ".p",
     wildcard_constraints:
         edge_suffix="|".join(EDGE_DIST_TO_SUFFIX.values())
-    threads: num_cores  # Claim all cores to prevent parallel execution (avoids directory lock conflicts)
+    threads: num_cores
+    resources:
+        # Limit to one generate_dpvt_data job at a time to avoid .snakemake directory lock conflicts
+        # when multiple edge distributions spawn separate snakemake subprocesses
+        generate_dpvt=1
     params:
         snakefile=generate_dpvt_snakefile,
         # Use absolute paths for shell command

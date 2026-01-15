@@ -54,7 +54,7 @@ DEFAULT_NUM_CORES = 8
 DEFAULT_MAX_TREES = 200  # Max trees to extract per alignment
 
 # SPR parameters
-DEFAULT_SPR_RADIUS = None  # Max topological distance for SPR regraft (None = unlimited)
+DEFAULT_SPR_RADIUS = 2  # Max topological distance for SPR regraft (None = unlimited)
 DEFAULT_SPR_TARGET_NON_MP_PROPORTION = 0.1  # Target non-MP edge proportion (10%)
 DEFAULT_MAX_SPR_ATTEMPTS = 100  # Max SPR attempts before stopping
 

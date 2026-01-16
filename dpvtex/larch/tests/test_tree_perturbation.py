@@ -334,9 +334,13 @@ def test_make_worse_spr_with_radius():
 
     # With 1 SPR, RF distance should be at most 2
     result_tight = make_worse_spr(tree, max_sprs=1, efficient=True, spr_radius=1)
-    assert result_tight is not None, "Should return a tree with tight radius (efficient=True)"
+    assert (
+        result_tight is not None
+    ), "Should return a tree with tight radius (efficient=True)"
     rf_dist_tight = tree.robinson_foulds(result_tight)[0]
-    assert 0 <= rf_dist_tight <= 2, f"RF distance with 1 SPR should be 0-2, got {rf_dist_tight}"
+    assert (
+        0 <= rf_dist_tight <= 2
+    ), f"RF distance with 1 SPR should be 0-2, got {rf_dist_tight}"
 
 
 def test_try_single_spr_basic():

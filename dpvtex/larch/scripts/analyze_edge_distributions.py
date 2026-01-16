@@ -67,7 +67,9 @@ def extract_method_label_from_filename(filename, method):
         return f"{base_name} (t={target})"
 
     # Try to extract uniform/treesearch_mimic parameters
-    other_match = re.search(r"_(uniform|treesearch_mimic)_r([^_]+)_t([\d.]+)\.p$", basename)
+    other_match = re.search(
+        r"_(uniform|treesearch_mimic)_r([^_]+)_t([\d.]+)\.p$", basename
+    )
     if other_match:
         _, radius, target = other_match.groups()
         return f"{base_name} (r={radius}, t={target})"
@@ -761,7 +763,8 @@ It generates violin plots comparing non-MP edge distributions across datasets.
             matching_files = [
                 f
                 for f in all_pickle_files
-                if dataset_name in os.path.basename(f) and re.search(pattern, os.path.basename(f))
+                if dataset_name in os.path.basename(f)
+                and re.search(pattern, os.path.basename(f))
             ]
 
             if matching_files:
@@ -773,7 +776,9 @@ It generates violin plots comparing non-MP edge distributions across datasets.
                 data = load_tree_label_data(pickle_file)
 
                 if data:
-                    analysis = analyze_edge_distributions(data, method_label, dataset_name)
+                    analysis = analyze_edge_distributions(
+                        data, method_label, dataset_name
+                    )
                     analysis["pickle_file"] = pickle_file
                     analysis_results.append(analysis)
                 else:

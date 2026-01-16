@@ -506,6 +506,55 @@ def spr_move(tree, node1, node2):
     return new_tree
 
 
+def _get_valid_prune_nodes(tree):
+    """Get nodes valid for SPR pruning.
+
+    Valid nodes are internal nodes that are not children or grandchildren
+    of the root (to prevent invalid tree structure after pruning), and
+    not leaf nodes (since moving leaves doesn't change MP edges).
+
+    Args:
+        tree: ete3 Tree to find valid prune nodes in.
+
+    Returns:
+        list: Nodes that can be pruned in SPR operations.
+    """
+    return [
+        node
+        for node in tree.iter_descendants()
+        if not (
+            node.up.is_root() or node.up in tree.children or node in tree.get_leaves()
+        )
+    ]
+
+
+def _get_valid_insertion_nodes(tree, prune_node, spr_radius=None):
+    """Get nodes valid for SPR regrafting given a prune node.
+
+    Valid insertion nodes must:
+    - Not be in the pruned subtree
+    - Not be the parent of the pruned node
+    - Not be siblings of the pruned node
+    - Be within spr_radius if specified
+
+    Args:
+        tree: ete3 Tree to find valid insertion nodes in.
+        prune_node: The node being pruned.
+        spr_radius: Maximum topological distance for regraft. None means no limit.
+
+    Returns:
+        list: Nodes where the pruned subtree can be reattached.
+    """
+    return [
+        node
+        for node in tree.iter_descendants()
+        if node not in list(prune_node.traverse())
+        and not node.up == prune_node.up
+        and not node == prune_node.up
+        and (spr_radius is None or tree_distance(prune_node, node) <= spr_radius)
+    ]
+
+
 def make_worse_spr(input_tree, max_sprs, efficient=True, spr_radius=None):
     """
     Perform at least max_sprs random SPR moves on input tree to create tree
@@ -530,34 +579,12 @@ def make_worse_spr(input_tree, max_sprs, efficient=True, spr_radius=None):
     any(node.add_feature("random_tree", False) for node in tree.traverse())
     for i in range(max_sprs):
         random.seed()
-        # we cannot prune children or grandchildren of root
-        # also avoid moving leaves, as that doesn't change MP edge to non-MP edge
-        node_list = list(
-            [
-                node
-                for node in tree.iter_descendants()
-                if not (
-                    node.up.is_root()
-                    or node.up in tree.children
-                    or node in tree.get_leaves()
-                )
-            ]
-        )
-        # prune edge above randomly chosen node prune_node
+        node_list = _get_valid_prune_nodes(tree)
         if len(node_list) == 0:
             # No valid nodes to prune, skip this iteration
             continue
         prune_node = random.choice(node_list)
-        # pick random edge to insert -- cannot be in pruned subtree
-        # and must be within spr_radius if specified
-        allowed_edges = [
-            node
-            for node in tree.iter_descendants()
-            if node not in list(prune_node.traverse())
-            and not node.up == prune_node.up
-            and not node == prune_node.up
-            and (spr_radius is None or tree_distance(prune_node, node) <= spr_radius)
-        ]
+        allowed_edges = _get_valid_insertion_nodes(tree, prune_node, spr_radius)
         if len(allowed_edges) > 0:
             insertion_node = random.choice(allowed_edges)
             perturbed_tree = spr_move(tree, prune_node, insertion_node)
@@ -779,32 +806,12 @@ def _try_single_spr(tree, spr_radius):
     """
     tree_copy = copy.deepcopy(tree)
 
-    # Find valid prune nodes (not children/grandchildren of root, not leaves)
-    node_list = [
-        node
-        for node in tree_copy.iter_descendants()
-        if not (
-            node.up.is_root()
-            or node.up in tree_copy.children
-            or node in tree_copy.get_leaves()
-        )
-    ]
-
+    node_list = _get_valid_prune_nodes(tree_copy)
     if len(node_list) == 0:
         return None
 
     prune_node = random.choice(node_list)
-
-    # Find valid insertion nodes within radius
-    allowed_edges = [
-        node
-        for node in tree_copy.iter_descendants()
-        if node not in list(prune_node.traverse())
-        and not node.up == prune_node.up
-        and not node == prune_node.up
-        and (spr_radius is None or tree_distance(prune_node, node) <= spr_radius)
-    ]
-
+    allowed_edges = _get_valid_insertion_nodes(tree_copy, prune_node, spr_radius)
     if len(allowed_edges) == 0:
         return None
 

@@ -75,9 +75,29 @@ def get_subtree_param_suffix(subtree_target_proportion):
     return f"_t{subtree_target_proportion}"
 
 
-def get_full_edge_suffix(edge_distribution, spr_radius=None, spr_target_proportion=None,
-                         subtree_target_proportion=None):
-    """Generate full suffix including params for each method."""
+def get_full_edge_suffix(
+    edge_distribution,
+    spr_radius=None,
+    spr_target_proportion=None,
+    subtree_target_proportion=None,
+):
+    """Generate full suffix including params for each edge distribution method.
+
+    Combines the base edge distribution suffix with method-specific parameter
+    suffixes to create unique identifiers for output files.
+
+    Args:
+        edge_distribution: Name of the edge distribution method (e.g., 'constant',
+            'uniform', 'treesearch_mimic', 'random_subtree').
+        spr_radius: SPR radius parameter for SPR-based methods. If None, no radius
+            suffix is added.
+        spr_target_proportion: Target non-MP proportion for SPR-based methods.
+        subtree_target_proportion: Target non-MP proportion for random_subtree method.
+
+    Returns:
+        A string suffix combining the method abbreviation and relevant parameters.
+        For example: '_C_r2_t0.1' for constant with radius 2 and target 0.1.
+    """
     base_suffix = EDGE_DIST_TO_SUFFIX.get(edge_distribution, "")
 
     if edge_distribution in ("constant", "uniform", "treesearch_mimic"):

@@ -65,7 +65,14 @@ DEFAULT_SUBTREE_DEPTH = 3  # Subtree depth for replacement (None = tree_depth //
 
 
 def format_edge_distributions(edge_distributions):
-    """Format edge distributions as YAML list."""
+    """Format edge distributions as YAML list.
+
+    Args:
+        edge_distributions: List of edge distribution method names.
+
+    Returns:
+        YAML-formatted string for the edge_distributions config key.
+    """
     if len(edge_distributions) == 1:
         return f'edge_distributions: ["{edge_distributions[0]}"]'
     lines = ["edge_distributions:"]
@@ -201,7 +208,7 @@ max_spr_attempts: {DEFAULT_MAX_SPR_ATTEMPTS}                   # Max SPR attempt
 # Subtree replacement parameters
 subtree_max_attempts: {DEFAULT_SUBTREE_MAX_ATTEMPTS}                # Max attempts for subtree replacement
 subtree_target_non_mp_proportion: {DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION}  # Target non-MP edge proportion
-subtree_depth: DEFAULT_SUBTREE_DEPTH                        # Subtree depth for replacement (null = tree_depth // 2)
+subtree_depth: {DEFAULT_SUBTREE_DEPTH}                        # Subtree depth for replacement (null = tree_depth // 2)
 """
 
 

@@ -28,7 +28,7 @@ scaling_factor=2
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 config_dir="${script_dir}/../configs"
-larch_path="~/work/git/larch/build/bin/larch-usher"
+larch_path="../../../larch/build/bin/larch-usher"
 
 # Check if simulated_alignments directory exists, create it if not
 simulated_alignments_dir="${script_dir}/../../../data/simulated_alignments"

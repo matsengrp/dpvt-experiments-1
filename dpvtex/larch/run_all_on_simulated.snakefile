@@ -196,5 +196,6 @@ rule generate_dpvt_data:
                 subtree_max_attempts={params.subtree_max_attempts} \
                 subtree_target_non_mp_proportion={params.subtree_target_non_mp_proportion} \
                 subtree_depth={subtree_depth_str} \
-            --rerun-incomplete
+            --rerun-incomplete \
+            --nolock
         """)

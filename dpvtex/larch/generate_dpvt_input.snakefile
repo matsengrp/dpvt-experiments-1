@@ -128,8 +128,7 @@ rule preprocessing:
     shell:
         """
         cd {snakefile_dir}/setup_larch_inputs
-        snakemake --snakefile convert_fasta_to_larch_input.snakefile -d {params.input_dir} --cores 1 --config dup_sites_suffix="{params.dup_sites_suffix}" --rerun-incomplete --unlock
-        snakemake --snakefile convert_fasta_to_larch_input.snakefile -d {params.input_dir} --cores 1 --config dup_sites_suffix="{params.dup_sites_suffix}" --rerun-incomplete
+        snakemake --snakefile convert_fasta_to_larch_input.snakefile -d {params.input_dir} --cores 1 --config dup_sites_suffix="{params.dup_sites_suffix}" --rerun-incomplete --nolock
         cd {snakefile_dir}
         """
 

@@ -30,6 +30,13 @@ def get_pickle_pattern(method):
 
     Matches both old-style suffixes (e.g., _spr.p) and new-style with parameters
     (e.g., _spr_r2_t0.1.p, _subtree_t0.167.p).
+
+    Args:
+        method: Edge distribution method name ('constant', 'random_subtree',
+            'uniform', 'treesearch_mimic', or 'mixed').
+
+    Returns:
+        Regex pattern string for matching pickle files of the given method.
     """
     if method == "mixed":
         return r"_spr_subtree_few_sprs\.p$"
@@ -47,8 +54,14 @@ def get_pickle_pattern(method):
 def extract_method_label_from_filename(filename, method):
     """Extract a descriptive method label including parameters from filename.
 
-    E.g., 'dataset_spr_r2_t0.1.p' -> 'SPR (r=2, t=0.1)'
-          'dataset_subtree_t0.167.p' -> 'subtree (t=0.167)'
+    Args:
+        filename: Path or filename of the pickle file.
+        method: Edge distribution method name.
+
+    Returns:
+        Descriptive label string with parameters extracted from filename.
+        E.g., 'dataset_spr_r2_t0.1.p' -> 'SPR (r=2, t=0.1)'
+              'dataset_subtree_t0.167.p' -> 'subtree (t=0.167)'
     """
     basename = os.path.basename(filename)
     base_name = METHOD_NAME_MAP.get(method, method)

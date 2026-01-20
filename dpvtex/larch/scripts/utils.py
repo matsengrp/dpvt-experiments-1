@@ -65,13 +65,28 @@ def get_alignment_name_from_path(filepath):
 
 
 def get_spr_param_suffix(spr_radius, spr_target_proportion):
-    """Generate suffix like '_r2_t0.1' for SPR parameters."""
+    """Generate suffix like '_r2_t0.1' for SPR parameters.
+
+    Args:
+        spr_radius: SPR radius parameter. If None, 'None' is used in suffix.
+        spr_target_proportion: Target non-MP proportion for SPR methods.
+
+    Returns:
+        Parameter suffix string (e.g., '_r2_t0.1' or '_rNone_t0.1').
+    """
     radius_str = "None" if spr_radius is None else str(spr_radius)
     return f"_r{radius_str}_t{spr_target_proportion}"
 
 
 def get_subtree_param_suffix(subtree_target_proportion):
-    """Generate suffix like '_t0.167' for subtree parameters."""
+    """Generate suffix like '_t0.167' for subtree parameters.
+
+    Args:
+        subtree_target_proportion: Target non-MP proportion for subtree method.
+
+    Returns:
+        Parameter suffix string (e.g., '_t0.167').
+    """
     return f"_t{subtree_target_proportion}"
 
 

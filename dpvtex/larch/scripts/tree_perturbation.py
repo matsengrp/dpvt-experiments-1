@@ -556,23 +556,22 @@ def _get_valid_insertion_nodes(tree, prune_node, spr_radius=None):
 
 
 def make_worse_spr(input_tree, max_sprs, efficient=True, spr_radius=None):
-    """
-    Perform at least max_sprs random SPR moves on input tree to create tree
-    with higher parsimony score.
-    If the keyword efficient is set to True, the function will not check
-    parsimony score of the new tree. This is faster, but the resulting tree
-    may not have a higher parsimony score.
+    """Perform random SPR moves on input tree to create tree with higher parsimony.
 
-    Arguments:
-        input_tree: ete3.Tree
-            Input tree to be perturbed
-        max_sprs: int
-            Number of SPR moves to perform
-        efficient: bool
-            If True, perform moves without checking parsimony
-        spr_radius: int or None
-            If set, limits regraft locations to within this topological
+    If efficient is True, the function will not check parsimony score of the
+    new tree. This is faster, but the resulting tree may not have a higher
+    parsimony score.
+
+    Args:
+        input_tree: ete3.Tree to be perturbed.
+        max_sprs: Number of SPR moves to perform.
+        efficient: If True, perform moves without checking parsimony.
+        spr_radius: If set, limits regraft locations to within this topological
             distance from the prune location. None means no limit.
+
+    Returns:
+        ete3.Tree with higher parsimony score, or None if efficient=False and
+        no worse tree was found.
     """
     tree = copy.deepcopy(input_tree)
     sankoff_for_missing_sequences(tree)
@@ -766,6 +765,9 @@ def perturb_tree_with_spr_target(
     # Compute initial edge labels
     edge_labels = assign_edge_labels(modified_tree, original_tree, dag_clades)
     num_int_edges = len(edge_labels) / 2 - 1
+    if num_int_edges <= 0:
+        # Tree too small for SPR perturbation, return as-is
+        return modified_tree, edge_labels
     non_mp_proportion = sum(edge_labels) / num_int_edges
 
     for attempt in range(max_spr_attempts):
@@ -782,6 +784,8 @@ def perturb_tree_with_spr_target(
         # Compute edge labels for candidate tree
         candidate_labels = assign_edge_labels(candidate_tree, original_tree, dag_clades)
         num_int_edges_candidate = len(candidate_labels) / 2 - 1
+        if num_int_edges_candidate <= 0:
+            continue
         candidate_proportion = sum(candidate_labels) / num_int_edges_candidate
 
         # Accept move only if it doesn't exceed target

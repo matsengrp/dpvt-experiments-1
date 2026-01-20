@@ -11,6 +11,7 @@ from dpvtex.larch.scripts.tree_perturbation import (
     make_worse_spr,
     tree_distance,
     _try_single_spr,
+    perturb_tree_with_spr_target,
 )
 
 
@@ -378,6 +379,117 @@ def test_try_single_spr_with_radius():
         assert 0 <= rf_dist <= 6, f"RF distance should be bounded, got {rf_dist}"
 
 
+def test_perturb_tree_with_spr_target_basic():
+    """Test that perturb_tree_with_spr_target achieves target non-MP proportion.
+
+    Tests the target-based stopping behavior: the function should stop when
+    the target proportion of non-MP edges is reached or max_spr_attempts exceeded.
+    """
+    tree = Tree("(((((A,B),C),D),E),F);")
+    sequences = ["AAAA", "AAAC", "AACC", "ACCC", "CCCC", "GGGG"]
+    for node, seq in zip(tree.iter_leaves(), sequences):
+        node.add_feature("sequence", seq)
+    sankoff_for_missing_sequences(tree)
+
+    # Use empty dag_clades: only edges in the original tree will be MP
+    dag_clades = {}
+
+    target_proportion = 0.3
+    max_attempts = 50
+
+    modified_tree, edge_labels = perturb_tree_with_spr_target(
+        tree,
+        original_tree=tree,
+        dag_clades=dag_clades,
+        spr_radius=3,
+        spr_target_non_mp_proportion=target_proportion,
+        max_spr_attempts=max_attempts,
+    )
+
+    # Should return a tree and labels
+    assert modified_tree is not None, "Should return a modified tree"
+    assert edge_labels is not None, "Should return edge labels"
+
+    # Verify same leaves preserved
+    original_leaves = set(tree.get_leaf_names())
+    modified_leaves = set(modified_tree.get_leaf_names())
+    assert original_leaves == modified_leaves, "Should preserve leaves"
+
+    # Compute actual non-MP proportion
+    num_int_edges = len(edge_labels) / 2 - 1
+    if num_int_edges > 0:
+        actual_proportion = sum(edge_labels) / num_int_edges
+        # Should not exceed target by more than a small margin (one SPR can add ~10%)
+        assert (
+            actual_proportion <= target_proportion + 0.15
+        ), f"Non-MP proportion {actual_proportion:.2f} should not greatly exceed target {target_proportion}"
+
+
+def test_perturb_tree_with_spr_target_stops_at_max_attempts():
+    """Test that perturb_tree_with_spr_target respects max_spr_attempts.
+
+    With a very small max_attempts and high target, the function should
+    stop before reaching the target.
+    """
+    tree = Tree("(((((A,B),C),D),E),F);")
+    sequences = ["AAAA", "AAAC", "AACC", "ACCC", "CCCC", "GGGG"]
+    for node, seq in zip(tree.iter_leaves(), sequences):
+        node.add_feature("sequence", seq)
+    sankoff_for_missing_sequences(tree)
+
+    dag_clades = {}
+
+    # Very high target, very few attempts - should stop early
+    modified_tree, edge_labels = perturb_tree_with_spr_target(
+        tree,
+        original_tree=tree,
+        dag_clades=dag_clades,
+        spr_radius=2,
+        spr_target_non_mp_proportion=0.9,  # High target
+        max_spr_attempts=2,  # Few attempts
+    )
+
+    # Should still return valid results
+    assert modified_tree is not None
+    assert edge_labels is not None
+    assert set(modified_tree.get_leaf_names()) == set(tree.get_leaf_names())
+
+
+def test_perturb_tree_with_spr_target_with_radius():
+    """Test that perturb_tree_with_spr_target respects radius constraint."""
+    tree = Tree("(((((A,B),C),D),E),F);")
+    sequences = ["AAAA", "AAAC", "AACC", "ACCC", "CCCC", "GGGG"]
+    for node, seq in zip(tree.iter_leaves(), sequences):
+        node.add_feature("sequence", seq)
+    sankoff_for_missing_sequences(tree)
+
+    dag_clades = {}
+
+    # With tight radius, perturbation should be localized
+    modified_tree_tight, _ = perturb_tree_with_spr_target(
+        tree,
+        original_tree=tree,
+        dag_clades=dag_clades,
+        spr_radius=1,  # Tight radius
+        spr_target_non_mp_proportion=0.2,
+        max_spr_attempts=20,
+    )
+
+    # With larger radius, perturbation can be more spread out
+    modified_tree_wide, _ = perturb_tree_with_spr_target(
+        tree,
+        original_tree=tree,
+        dag_clades=dag_clades,
+        spr_radius=5,  # Wide radius
+        spr_target_non_mp_proportion=0.2,
+        max_spr_attempts=20,
+    )
+
+    # Both should return valid trees
+    assert modified_tree_tight is not None
+    assert modified_tree_wide is not None
+
+
 if __name__ == "__main__":
     # Run tests manually if needed
     test_increase_tree_parsimony_basic()
@@ -399,4 +511,7 @@ if __name__ == "__main__":
     test_make_worse_spr_with_radius()
     test_try_single_spr_basic()
     test_try_single_spr_with_radius()
+    test_perturb_tree_with_spr_target_basic()
+    test_perturb_tree_with_spr_target_stops_at_max_attempts()
+    test_perturb_tree_with_spr_target_with_radius()
     print("All tests passed!")

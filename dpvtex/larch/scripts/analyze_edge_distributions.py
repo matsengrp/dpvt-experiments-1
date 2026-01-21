@@ -168,7 +168,7 @@ def analyze_edge_distributions(data_dict, method_name, dataset_name=None):
 
     for tree, labels in data_dict.items():
         non_mp_count = sum(labels)  # Count of 1s (non-MP edges)
-        total_edges = len(labels) - (len(tree) + 1)  # Total internal edges
+        total_edges = len(labels) - len(tree) - 2  # Total internal edges
 
         non_mp_counts.append(non_mp_count)
         total_edges_per_tree.append(total_edges)

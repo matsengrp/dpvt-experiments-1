@@ -623,7 +623,7 @@ def perturb_tree_with_spr_target(
         dag_clades: Clades extracted from the hDAG
         spr_radius: Maximum topological distance between prune and regraft locations.
             None means no limit.
-        spr_target_non_mp_proportion: Target proportion of non-MP edges (e.g., 0.1)
+        spr_target_non_mp_proportion: Target proportion of non-MP edges
         max_spr_attempts: Maximum number of SPR attempts before stopping
 
     Returns:
@@ -638,7 +638,7 @@ def perturb_tree_with_spr_target(
 
     # Compute initial edge labels
     edge_labels = assign_edge_labels(modified_tree, original_tree, dag_clades)
-    num_int_edges = len(edge_labels) / 2 - 1
+    num_int_edges = len(edge_labels) / 2 - 2
     if num_int_edges <= 0:
         # Tree too small for SPR perturbation, return as-is
         return modified_tree, edge_labels
@@ -657,7 +657,7 @@ def perturb_tree_with_spr_target(
 
         # Compute edge labels for candidate tree
         candidate_labels = assign_edge_labels(candidate_tree, original_tree, dag_clades)
-        num_int_edges_candidate = len(candidate_labels) / 2 - 1
+        num_int_edges_candidate = len(candidate_labels) / 2 - 2
         if num_int_edges_candidate <= 0:
             continue
         candidate_proportion = sum(candidate_labels) / num_int_edges_candidate
@@ -738,7 +738,7 @@ def perturb_tree_with_subtree_replacement(
             modified_tree = perturbed
 
         edge_labels = assign_edge_labels(modified_tree, original_tree, dag_clades)
-        num_int_edges = len(edge_labels) / 2 - 1
+        num_int_edges = len(edge_labels) / 2 - 2
         non_mp_proportion = sum(edge_labels) / num_int_edges
 
         if non_mp_proportion >= subtree_target_non_mp_proportion:

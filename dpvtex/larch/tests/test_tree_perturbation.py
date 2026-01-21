@@ -416,7 +416,7 @@ def test_perturb_tree_with_spr_target_basic():
     assert original_leaves == modified_leaves, "Should preserve leaves"
 
     # Compute actual non-MP proportion
-    num_int_edges = len(edge_labels) / 2 - 1
+    num_int_edges = len(edge_labels) / 2 - 2
     if num_int_edges > 0:
         actual_proportion = sum(edge_labels) / num_int_edges
         # Should not exceed target by more than a small margin (one SPR can add ~10%)

@@ -89,7 +89,7 @@ def _compute_data_properties(alignment_dict):
     num_trees = len(alignment_dict)
     num_leaves = len(list(alignment_dict.keys())[0])
     num_MP_edges = sum(
-        edge_labels.count(0) - (len(edge_labels)) / 2
+        edge_labels.count(0) - (len(edge_labels) / 2 + 2)
         for edge_labels in alignment_dict.values()
     )
     num_non_MP_edges = sum(

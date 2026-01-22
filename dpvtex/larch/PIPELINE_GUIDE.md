@@ -1,5 +1,9 @@
 # DPVT Training Data Generation Workflow
 
+This guide provides step-by-step instructions for running the training data
+generation pipeline. For installation instructions, configuration parameter
+reference, and technical details, see [README.md](README.md).
+
 This workflow processes empirical alignments in three separate phases to
 generate training data for DPVT.
 
@@ -47,8 +51,19 @@ but still be included if it retained enough sites (Phase 2).
 
 ## Configuration
 
-**Unified Config** (`configs/{dataset_name}_prepare.yaml`) - Used for Phases 1 &
-2:
+Config files control the pipeline behavior. Generate them using:
+
+```bash
+python scripts/generate_configs.py -i {input_data} -d {dataset_name} -l {larch_command}
+```
+
+**Config file structure:**
+
+- `configs/{dataset_name}_prepare.yaml` — Used for Phases 1 & 2
+- `configs/{dataset_name}_train.yaml` and `configs/{dataset_name}_test.yaml` —
+  Used for Phase 3 (separate configs for train/test splits)
+
+**Example config** (`configs/{dataset_name}_prepare.yaml`):
 
 ```yaml
 dataset_name: "{dataset_name}"
@@ -64,19 +79,20 @@ min_frac_sites_retained: 0.8 # Exclude alignments that lost >20% of sites
 create_train_test_split: True
 test_fraction: 0.2
 
-# Phase 3 settings (reference only)
-larch_build: "../../../larch/build"
+# Phase 3 settings
+larch_command: "larch"
 larch_output: "../../data"
-edge_distribution: "constant"
+edge_distributions: ["constant"]  # See README for options
 num_cores: 8
 ```
 
-**Phase 3 Configs** (`configs/{dataset_name}_train.yaml` and
-`configs/{dataset_name}_test.yaml`) - Simple split-specific configs
+For the complete list of config parameters (including SPR radius, target
+proportions, etc.), see the [Configuration reference](README.md#configuration-reference)
+in README.md.
 
-**Example**: For the simulated alignments included in this repo, see
-`configs/simulated_15seq_20sites_100algnmnts_prepare.yaml` and the corresponding
-train/test configs.
+For details on edge distribution methods (`constant`, `uniform`,
+`treesearch_mimic`, `random_subtree`), see the
+[Edge Distributions](README.md#edge-distributions) section in README.md.
 
 ## Phase 1: Preprocessing
 

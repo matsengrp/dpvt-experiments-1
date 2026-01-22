@@ -13,7 +13,8 @@ The pipeline consists of three phases:
 3. **Phase 3: Training Data Generation** - Run larch-usher and extract training
    data
 
-For detailed documentation, see [WORKFLOW_GUIDE.md](WORKFLOW_GUIDE.md).
+For step-by-step instructions on running the pipeline, see
+[PIPELINE_GUIDE.md](PIPELINE_GUIDE.md).
 
 ## Install
 
@@ -117,16 +118,30 @@ each combination of number of alignments, sequences, and sequence length, a
 directory will be created in `dpvtex/data/simulated_alignments/` that contains a
 directory for each alignment simulated, which itself contains that alignment.
 
-### Running the three-phase workflow
+### Running the pipeline
 
-The workflow uses separate snakefiles for each phase, with manual checkpoints in
-between.
+For step-by-step instructions on running the three-phase workflow, see
+[PIPELINE_GUIDE.md](PIPELINE_GUIDE.md).
 
-#### Configuration
+### Configuration reference
 
 Create a config file for Phases 1 & 2 (e.g., `configs/{my_dataset}_prepare.yaml`).
-See `configs/simulated_15seq_20sites_100algnmnts_prepare.yaml` for an example
-using simulated alignments. The config file needs to contain the following parameters:
+See `configs/simulated_15seq_20sites_100algnmnts_prepare.yaml` for an example.
+You can generate config files using:
+
+```bash
+cd dpvtex/larch
+python scripts/generate_configs.py -i {input_data} -d {dataset_name} -l {larch_command}
+```
+
+Options:
+
+- `-o, --output-dir`: Directory for config files (default: `configs/`)
+- `--no-split`: Skip train/test splitting (for simulated data, generates
+  `_generate.yaml` instead of `_train.yaml` and `_test.yaml`)
+- `-e, --edge-distributions`: Edge distribution method(s) to use. Can be
+  specified multiple times (e.g., `-e constant -e random_subtree`). Default:
+  `constant`
 
 **Phase 1 & 2 config parameters:**
 
@@ -165,86 +180,21 @@ using simulated alignments. The config file needs to contain the following param
   subsampling alignments with more trees than the median (default: true). This
   helps prevent alignments with many trees from dominating the training data
 - `num_cores`: number of cores for larch-usher and tree extraction
+- `max_trees`: Maximum number of trees to extract per alignment (default: 200)
+- `spr_radius`: Maximum topological distance between prune and regraft locations
+  for SPR moves. SPR moves are allowed at any distance up to and including this
+  value. Set to `None` or omit for no limit (default: `None`)
+- `spr_target_non_mp_proportion`: Target proportion of non-MP edges for SPR-based
+  perturbation methods (default: 0.1)
+- `max_spr_attempts`: Maximum number of SPR attempts before stopping (default: 100)
+- `subtree_max_attempts`: Maximum number of subtree replacement attempts for
+  random_subtree method (default: 100)
+- `subtree_target_non_mp_proportion`: Target proportion of non-MP edges for
+  random_subtree method (default: 1/6 ≈ 0.167)
+- `subtree_depth`: Depth of subtrees to replace. If `None` or greater than
+  tree_depth/2, uses tree_depth/2 (default: `None`)
 
-You can generate config files with default values by running:
-
-```bash
-cd dpvtex/larch
-python scripts/generate_configs.py -i {input_data} -d {dataset_name} -l {larch_command}
-```
-
-Options:
-
-- `-o, --output-dir`: Directory for config files (default: `configs/`)
-- `--no-split`: Skip train/test splitting (for simulated data, generates
-  `_generate.yaml` instead of `_train.yaml` and `_test.yaml`)
-- `-e, --edge-distributions`: Edge distribution method(s) to use. Can be
-  specified multiple times (e.g., `-e constant -e random_subtree`). Default:
-  `constant`
-
-#### Phase 1: Preprocessing
-
-```bash
-cd dpvtex/larch
-snakemake --snakefile preprocess_alignments.snakefile \
-  --configfile configs/{my_dataset}.yaml \
-  --cores 4
-```
-
-**Output**: Cleaned alignments and `alignment_size_stats.csv` with quality
-metrics
-
-**Manual Checkpoint**: Review statistics to decide `min_frac_sites_retained`
-threshold
-
-#### Phase 2: Dataset Preparation
-
-```bash
-snakemake --snakefile prepare_datasets.snakefile \
-  --configfile configs/{my_dataset}.yaml \
-  --cores 1
-```
-
-**Output**: Filtered datasets with train/test splits (symlinks to preprocessed
-data)
-
-**Manual Checkpoint**: Review manifest files to verify filtering results
-
-#### Phase 3: Training Data Generation
-
-Create simple configs for train and test sets (see
-`configs/simulated_15seq_20sites_100algnmnts_train.yaml` and
-`configs/simulated_15seq_20sites_100algnmnts_test.yaml` for examples).
-
-Run for training set:
-
-```bash
-snakemake --snakefile generate_dpvt_input.snakefile \
-  --configfile configs/{my_dataset}_train.yaml \
-  --cores 8
-```
-
-Run for test set:
-
-```bash
-snakemake --snakefile generate_dpvt_input.snakefile \
-  --configfile configs/{my_dataset}_test.yaml \
-  --cores 8
-```
-
-**Note**: If the config specifies multiple `edge_distributions`, all will be
-processed in a single pipeline run, generating separate output files for each.
-
-**Output**:
-
-- Pickled files with ete3 trees as keys and edge label lists as values (0 = MP
-  edge, 1 = non-MP edge)
-- `larch_timeout_alignments.txt`: List of alignments that timed out during larch
-  processing (automatically excluded)
-- Pipeline log file: `pipeline_log_{dataset_name}.jsonl` containing structured
-  logs of all operations
-
-### Automatic Filtering and Error Handling
+### Automatic filtering and error handling
 
 The pipeline automatically handles and filters out problematic alignments:
 
@@ -278,20 +228,21 @@ specified with the corresponding keyword in the config file
 (`edge_distribution`):
 
 - `constant`: Perform iterative SPR moves until target non-MP proportion is
-  reached. Each SPR move is bounded by `spr_radius` (max topological distance
-  between prune and regraft locations). Moves that would exceed the target
-  proportion are rejected. Controlled by config parameters: `spr_radius`,
+  reached. Each SPR move is bounded by `spr_radius` (SPR moves are allowed at
+  any topological distance up to and including this value; `None` means no
+  limit). Moves that would exceed the target proportion are rejected.
+  Controlled by config parameters: `spr_radius` (default: `None`),
   `spr_target_non_mp_proportion` (default: 0.1), `max_spr_attempts` (default: 100).
 - `uniform`: Same as `constant` - uses target-based SPR with radius control.
-- `treesearch_mimic`: Generate as many random trees as there are MP trees
-  sampled (these have most edges non-MP). Of the MP trees, the first half uses
-  `spr_target_non_mp_proportion` as target, and the second half draws the
-  target uniformly from [0, `spr_target_non_mp_proportion`]. Uses the same
-  target-based SPR with radius control as `constant`/`uniform`.
+- `treesearch_mimic`: Produces a mix of trees: 1/2 are random trees (most edges
+  non-MP), 1/4 are MP trees perturbed with full `spr_target_non_mp_proportion`
+  as target, and 1/4 are MP trees perturbed with target drawn uniformly from
+  [0, `spr_target_non_mp_proportion`]. Uses the same target-based SPR with
+  radius control as `constant`/`uniform`.
 - `random_subtree`: Replace random subtree of depth $\frac{d}{2}$, where d is
   depth of entire tree, by random tree and repeat until at least
   `subtree_target_non_mp_proportion` (default: 1/6) of all edges are non-MP
-  or max attempts reached.
+  or `subtree_max_attempts` (default: 100) is reached.
 
 ### Running on simulated data
 
@@ -412,12 +363,13 @@ following steps are executed by this script:
 - trim the hDAG to only contain MP trees
 - convert the hDAG to a sequence dag
 - unlabel hDAG and sample from it without replacement -- currently samples as
-  many trees as there are in the hDAG
-- perturbs the sampled trees by (i) performing `len(tree)/1` SPR moves on the
-  tree (if `use_spr` is True) or (ii) replacing a subtree with depth
-  `tree_depth/3` by a random tree
-- labels edges by whether they are MP edges are not
-- pickle trees and edge labels and safe to `/path/to/dpvt/training/data`
+  many trees as there are in the hDAG (up to `max_trees`)
+- perturbs the sampled trees using functions from
+  `dpvtex/larch/scripts/tree_perturbation.py`: either `perturb_tree_with_spr_target`
+  (for constant, uniform, treesearch_mimic) or `perturb_tree_with_subtree_replacement`
+  (for random_subtree)
+- labels edges by whether they are MP edges or not
+- pickle trees and edge labels and save to `/path/to/dpvt/training/data`
 
 ## Plotting edge distributions
 
@@ -505,25 +457,28 @@ In `dpvtex/larch/scripts`:
   - `pipeline_logger.py`: Provides structured logging functionality for tracking
     pipeline operations, errors, and data transformations. Creates JSONL log
     files for transparency and debugging.
+  - `tree_perturbation.py`: Contains tree perturbation utilities for generating
+    non-MP trees, including SPR moves (`perturb_tree_with_spr_target`) and
+    subtree replacement (`perturb_tree_with_subtree_replacement`).
   - `extract_data_from_hdag.py`: Reads hDAGs produced by larch and extracts MP
     trees:
     - read hDAG from larch output and trim to only contain MP trees + unlabel
       hDAG (i.e. remove internal sequences)
     - MP trees are sampled uniformly from hDAG without replacement -- we sample
       from trees, not histories, to not sample the same tree multiple times with
-      different ancestral sequences
+      different ancestral sequences (up to `max_trees` limit)
     - chooses random leaf of MP tree as root leaf
     - randomly resolve polytomies (using `resolve_polytomy()` function from
       ete3) **Note:** this function resolves multifurcations to a ladder tree
     - runs Sankoff to get sequences for internal nodes
-    - use either `make_worse_spr()` ors `make_worse_tree()` function from
-      `dpvtex/perfect_phylogenies/perturb_phylogeny.py` to create non-MP edges
-      by performing SPR moves or replacing a subtree by a random tree
+    - uses perturbation functions from `tree_perturbation.py` to create non-MP
+      edges: `perturb_tree_with_spr_target` for SPR-based methods (constant,
+      uniform, treesearch_mimic) or `perturb_tree_with_subtree_replacement` for
+      the random_subtree method
     - assigns `0`/`1` labels to edges of tree depending on whether the split
       represented by that edge is in the larch hDAG or not
-    - if more than $\frac{1}{6}$ of the edges are non-MP or we tried more than
-      100 times to create non-MP edges, stop and add tree and edge labels to
-      dictionary
+    - stops perturbation when target non-MP proportion is reached or max
+      attempts exceeded, then adds tree and edge labels to dictionary
   - `aggregate_training_data.py`: Aggregate all training data saved separately
     for each input alignment in one dictionary. If
     `balance_by_median_num_MP_trees` is enabled (default), subsamples alignments

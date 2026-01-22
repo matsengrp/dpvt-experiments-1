@@ -781,23 +781,23 @@ It generates violin plots comparing non-MP edge distributions across datasets.
             ]
 
             if matching_files:
-                # Use the first matching file (or you could handle multiple matches differently)
-                pickle_file = matching_files[0]
-                method_label = extract_method_label_from_filename(pickle_file, method)
-                print(f"Found file for {method_label}: {pickle_file}")
+                # Process all matching files to include different parameter variants
+                for pickle_file in matching_files:
+                    method_label = extract_method_label_from_filename(pickle_file, method)
+                    print(f"Found file for {method_label}: {pickle_file}")
 
-                data = load_tree_label_data(pickle_file)
+                    data = load_tree_label_data(pickle_file)
 
-                if data:
-                    analysis = analyze_edge_distributions(
-                        data, method_label, dataset_name
-                    )
-                    analysis["pickle_file"] = pickle_file
-                    analysis_results.append(analysis)
-                else:
-                    analysis_results.append(
-                        analyze_edge_distributions({}, method_label, dataset_name)
-                    )
+                    if data:
+                        analysis = analyze_edge_distributions(
+                            data, method_label, dataset_name
+                        )
+                        analysis["pickle_file"] = pickle_file
+                        analysis_results.append(analysis)
+                    else:
+                        analysis_results.append(
+                            analyze_edge_distributions({}, method_label, dataset_name)
+                        )
             else:
                 print(
                     f"No file found for dataset '{dataset_name}' with method '{method}'"

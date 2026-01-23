@@ -53,6 +53,19 @@ def _get_distance(target, target2, topology_only=False):
     return dist
 
 
+def tree_distance(node1, node2):
+    """Compute topological distance (number of edges) between two nodes.
+
+    Args:
+        node1: First node in an ete3 Tree
+        node2: Second node in the same ete3 Tree
+
+    Returns:
+        int: Number of edges on the path between node1 and node2
+    """
+    return int(_get_distance(node1, node2, topology_only=True))
+
+
 def populate(
     tree,
     size,
@@ -493,52 +506,84 @@ def spr_move(tree, node1, node2):
     return new_tree
 
 
-def make_worse_spr(input_tree, max_sprs, efficient=True):
+def _get_valid_prune_nodes(tree):
+    """Get nodes valid for SPR pruning.
+
+    Valid nodes are internal nodes that are not children or grandchildren
+    of the root (to prevent invalid tree structure after pruning), and
+    not leaf nodes (since moving leaves doesn't change MP edges).
+
+    Args:
+        tree: ete3 Tree to find valid prune nodes in.
+
+    Returns:
+        list: Nodes that can be pruned in SPR operations.
     """
-    Peform at least max_sprs random SPR moves on input tree to create tree
-    with higher parsimony score.
-    If the keyword efficient is set to True, the function will not check
-    parsimony score of the new tree. This is faster, but the resulting tree
-    may not have a higher parsimony score.
-    Arguments:
-        tree: ete3.Tree
-            Input tree to be perturbed
-        max_sprs: int
-            Number of SPR moves to perform
-        efficient: bool
-            If True, perform moves without checking parsimony
+    return [
+        node
+        for node in tree.iter_descendants()
+        if not (
+            node.up.is_root() or node.up in tree.children or node in tree.get_leaves()
+        )
+    ]
+
+
+def _get_valid_insertion_nodes(tree, prune_node, spr_radius=None):
+    """Get nodes valid for SPR regrafting given a prune node.
+
+    Valid insertion nodes must:
+    - Not be in the pruned subtree
+    - Not be the parent of the pruned node
+    - Not be siblings of the pruned node
+    - Be within spr_radius if specified
+
+    Args:
+        tree: ete3 Tree to find valid insertion nodes in.
+        prune_node: The node being pruned.
+        spr_radius: Maximum topological distance for regraft. None means no limit.
+
+    Returns:
+        list: Nodes where the pruned subtree can be reattached.
+    """
+    return [
+        node
+        for node in tree.iter_descendants()
+        if node not in list(prune_node.traverse())
+        and not node.up == prune_node.up
+        and not node == prune_node.up
+        and (spr_radius is None or tree_distance(prune_node, node) <= spr_radius)
+    ]
+
+
+def make_worse_spr(input_tree, max_sprs, efficient=True, spr_radius=None):
+    """Perform random SPR moves on input tree to create tree with higher parsimony.
+
+    If efficient is True, the function will not check parsimony score of the
+    new tree. This is faster, but the resulting tree may not have a higher
+    parsimony score.
+
+    Args:
+        input_tree: ete3.Tree to be perturbed.
+        max_sprs: Number of SPR moves to perform.
+        efficient: If True, perform moves without checking parsimony.
+        spr_radius: If set, limits regraft locations to within this topological
+            distance from the prune location. None means no limit.
+
+    Returns:
+        ete3.Tree with higher parsimony score, or None if efficient=False and
+        no worse tree was found.
     """
     tree = copy.deepcopy(input_tree)
     sankoff_for_missing_sequences(tree)
     any(node.add_feature("random_tree", False) for node in tree.traverse())
     for i in range(max_sprs):
         random.seed()
-        # we cannot prune children or grandchildren of root
-        # also avoid moving leaves, as that doesn't change MP edge to non-MP edge
-        node_list = list(
-            [
-                node
-                for node in tree.iter_descendants()
-                if not (
-                    node.up.is_root()
-                    or node.up in tree.children
-                    or node in tree.get_leaves()
-                )
-            ]
-        )
-        # prune edge above randomly chosen node prune_node
+        node_list = _get_valid_prune_nodes(tree)
         if len(node_list) == 0:
             # No valid nodes to prune, skip this iteration
             continue
         prune_node = random.choice(node_list)
-        # pick random edge to insert -- cannot be in pruned subtree
-        allowed_edges = [
-            node
-            for node in tree.iter_descendants()
-            if node not in list(prune_node.traverse())
-            and not node.up == prune_node.up
-            and not node == prune_node.up
-        ]
+        allowed_edges = _get_valid_insertion_nodes(tree, prune_node, spr_radius)
         if len(allowed_edges) > 0:
             insertion_node = random.choice(allowed_edges)
             perturbed_tree = spr_move(tree, prune_node, insertion_node)
@@ -555,132 +600,102 @@ def make_worse_spr(input_tree, max_sprs, efficient=True):
 
 
 # =============================================================================
-# Perturbation strategy configuration
+# Target-based SPR perturbation
 # =============================================================================
 
 
-def calculate_spr_count_uniform(num_leaves, max_spr_moves):
-    """Calculate number of SPR moves for uniform distribution strategy.
-
-    Args:
-        num_leaves: Number of leaves in the tree
-        max_spr_moves: Maximum number of SPR moves
-
-    Returns:
-        int: Number of SPR moves drawn from uniform distribution [0, min(num_leaves, max_spr_moves)]
-    """
-    max_num_spr_moves = min(num_leaves, max_spr_moves)
-    return random.randint(0, max_num_spr_moves)
-
-
-def calculate_spr_count_constant(num_leaves, max_spr_moves, spr_move_divisor):
-    """Calculate number of SPR moves for constant distribution strategy.
-
-    Args:
-        num_leaves: Number of leaves in the tree
-        max_spr_moves: Maximum number of SPR moves
-        spr_move_divisor: Divisor for calculating SPR moves
-
-    Returns:
-        int: Number of SPR moves (num_leaves // spr_move_divisor, capped at max_spr_moves)
-    """
-    return min(num_leaves // spr_move_divisor, max_spr_moves)
-
-
-def calculate_spr_count_treesearch_mimic(
-    num_leaves, tree_index, total_trees, max_spr_moves
+def perturb_tree_with_spr_target(
+    tree,
+    original_tree,
+    dag_clades,
+    spr_radius,
+    spr_target_non_mp_proportion,
+    max_spr_attempts,
 ):
-    """Calculate number of SPR moves for treesearch_mimic distribution strategy.
+    """Perturb a tree using SPR moves until target proportion of non-MP edges is reached.
 
-    For the first half of trees, uses min(num_leaves, max_spr_moves) SPR moves.
-    For the second half, draws from uniform distribution.
-
-    Args:
-        num_leaves: Number of leaves in the tree
-        tree_index: Index of current tree being processed
-        total_trees: Total number of MP trees
-        max_spr_moves: Maximum number of SPR moves
-
-    Returns:
-        int: Number of SPR moves
-    """
-    if tree_index < total_trees // 2:
-        return min(num_leaves, max_spr_moves)
-    else:
-        return calculate_spr_count_uniform(num_leaves, max_spr_moves)
-
-
-def determine_spr_count(
-    edge_distribution,
-    num_leaves,
-    tree_index,
-    total_trees,
-    max_spr_moves,
-    spr_move_divisor,
-):
-    """Determine the number of SPR moves based on edge distribution strategy.
-
-    Args:
-        edge_distribution: Strategy name ("uniform", "constant", or "treesearch_mimic")
-        num_leaves: Number of leaves in the tree
-        tree_index: Index of current tree being processed (for treesearch_mimic)
-        total_trees: Total number of MP trees (for treesearch_mimic)
-        max_spr_moves: Maximum number of SPR moves
-        spr_move_divisor: Divisor for constant distribution
-
-    Returns:
-        int: Number of SPR moves to perform
-    """
-    if edge_distribution == "uniform":
-        return calculate_spr_count_uniform(num_leaves, max_spr_moves)
-    elif edge_distribution == "constant":
-        return calculate_spr_count_constant(num_leaves, max_spr_moves, spr_move_divisor)
-    elif edge_distribution == "treesearch_mimic":
-        return calculate_spr_count_treesearch_mimic(
-            num_leaves, tree_index, total_trees, max_spr_moves
-        )
-    else:
-        raise ValueError(f"Unknown edge distribution: {edge_distribution}")
-
-
-def perturb_tree_with_spr(
-    tree, edge_distribution, tree_index, total_trees, max_spr_moves, spr_move_divisor
-):
-    """Perturb a tree using SPR moves to introduce non-MP edges.
+    Performs radius-bounded SPR moves one at a time, rejecting moves that would
+    exceed the target proportion. Stops when target is reached or max attempts exceeded.
 
     Args:
         tree: ete3 Tree to perturb
-        edge_distribution: Strategy for determining number of SPR moves
-        tree_index: Index of current tree being processed
-        total_trees: Total number of MP trees
-        max_spr_moves: Maximum number of SPR moves
-        spr_move_divisor: Divisor for constant distribution
+        original_tree: Original unperturbed tree for edge label comparison
+        dag_clades: Clades extracted from the hDAG
+        spr_radius: Maximum topological distance between prune and regraft locations.
+            None means no limit.
+        spr_target_non_mp_proportion: Target proportion of non-MP edges
+        max_spr_attempts: Maximum number of SPR attempts before stopping
 
     Returns:
-        ete3.Tree: Perturbed tree, or original tree if perturbation fails
+        tuple: (perturbed_tree, edge_labels)
     """
-    num_leaves = len(tree.get_leaves())
-    num_spr_moves = determine_spr_count(
-        edge_distribution,
-        num_leaves,
-        tree_index,
-        total_trees,
-        max_spr_moves,
-        spr_move_divisor,
-    )
+    # Import here to avoid circular dependency
+    from dpvtex.larch.scripts.extract_data_from_hdag import assign_edge_labels
 
-    print(f"Number of SPR moves: {num_spr_moves}")
+    modified_tree = tree.copy()
+    sankoff_for_missing_sequences(modified_tree)
+    any(node.add_feature("random_tree", False) for node in modified_tree.traverse())
 
-    # Use efficient SPRs (without parsimony checking) for large numbers of moves
-    efficient_sprs = num_spr_moves >= max_spr_moves
-    if efficient_sprs:
-        print("Using efficient SPRs")
+    # Compute initial edge labels
+    edge_labels = assign_edge_labels(modified_tree, original_tree, dag_clades)
+    num_int_edges = len(edge_labels) / 2 - 2
+    if num_int_edges <= 0:
+        # Tree too small for SPR perturbation, return as-is
+        return modified_tree, edge_labels
+    non_mp_proportion = sum(edge_labels) / num_int_edges
 
-    perturbed_tree = make_worse_spr(tree, num_spr_moves, efficient_sprs)
+    for attempt in range(max_spr_attempts):
+        if non_mp_proportion >= spr_target_non_mp_proportion:
+            # Target achieved
+            break
 
-    if perturbed_tree is None:
-        print("Cannot get non-MP edges, keeping original tree")
-        return tree
+        # Try a single SPR move
+        candidate_tree = _try_single_spr(modified_tree, spr_radius)
+        if candidate_tree is None:
+            # No valid SPR move possible, continue trying
+            continue
+
+        # Compute edge labels for candidate tree
+        candidate_labels = assign_edge_labels(candidate_tree, original_tree, dag_clades)
+        num_int_edges_candidate = len(candidate_labels) / 2 - 2
+        if num_int_edges_candidate <= 0:
+            continue
+        candidate_proportion = sum(candidate_labels) / num_int_edges_candidate
+
+        # Accept move only if it doesn't exceed target
+        if candidate_proportion <= spr_target_non_mp_proportion:
+            modified_tree = candidate_tree
+            edge_labels = candidate_labels
+            non_mp_proportion = candidate_proportion
+        # else: reject move and try again
+
+    return modified_tree, edge_labels
+
+
+def _try_single_spr(tree, spr_radius):
+    """Try a single SPR move on the tree.
+
+    Args:
+        tree: ete3 Tree to perturb
+        spr_radius: Maximum topological distance for regraft. None means no limit.
+
+    Returns:
+        ete3.Tree: Perturbed tree, or None if no valid move possible
+    """
+    tree_copy = copy.deepcopy(tree)
+
+    node_list = _get_valid_prune_nodes(tree_copy)
+    if len(node_list) == 0:
+        return None
+
+    prune_node = random.choice(node_list)
+    allowed_edges = _get_valid_insertion_nodes(tree_copy, prune_node, spr_radius)
+    if len(allowed_edges) == 0:
+        return None
+
+    insertion_node = random.choice(allowed_edges)
+    perturbed_tree = spr_move(tree_copy, prune_node, insertion_node)
+    sankoff_for_missing_sequences(perturbed_tree)
 
     return perturbed_tree
 
@@ -691,6 +706,7 @@ def perturb_tree_with_subtree_replacement(
     dag_clades,
     subtree_max_attempts,
     subtree_target_non_mp_proportion,
+    subtree_depth=None,
 ):
     """Perturb a tree by replacing random subtrees until target proportion of non-MP edges.
 
@@ -700,6 +716,7 @@ def perturb_tree_with_subtree_replacement(
         dag_clades: Clades extracted from the hDAG
         subtree_max_attempts: Maximum number of subtree replacement attempts
         subtree_target_non_mp_proportion: Target proportion of non-MP edges
+        subtree_depth: Depth of subtrees to replace. If None or > tree_depth/2, uses tree_depth/2.
 
     Returns:
         tuple: (perturbed_tree, edge_labels)
@@ -708,7 +725,11 @@ def perturb_tree_with_subtree_replacement(
     from dpvtex.larch.scripts.extract_data_from_hdag import assign_edge_labels
 
     tree_d = tree_depth(tree)
-    depth = int(tree_d // 2)
+    max_depth = int(tree_d // 2)
+    if subtree_depth is None or subtree_depth > max_depth:
+        depth = max_depth
+    else:
+        depth = subtree_depth
     modified_tree = tree.copy()
 
     for attempt in range(subtree_max_attempts):
@@ -717,11 +738,11 @@ def perturb_tree_with_subtree_replacement(
             modified_tree = perturbed
 
         edge_labels = assign_edge_labels(modified_tree, original_tree, dag_clades)
-        non_mp_proportion = sum(edge_labels) / len(edge_labels)
+        num_int_edges = len(edge_labels) / 2 - 2
+        non_mp_proportion = sum(edge_labels) / num_int_edges
 
         if non_mp_proportion >= subtree_target_non_mp_proportion:
-            # Target achieved: ~1/6 of edges are non-MP
-            # (len(edge_labels) ≈ 2 * internal edges, so we're aiming for ~1/3 non-MP internal edges)
+            # Target achieved
             break
 
     return modified_tree, edge_labels

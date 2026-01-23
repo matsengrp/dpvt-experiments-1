@@ -18,7 +18,7 @@ from dpvtex.larch.scripts.tree_perturbation import (
     populate,
     root_and_outgroup_leaf,
     create_random_tree_on_same_leaf_set,
-    perturb_tree_with_spr,
+    perturb_tree_with_spr_target,
     perturb_tree_with_subtree_replacement,
     prepare_tree_for_perturbation,
     generate_random_trees_for_treesearch,
@@ -252,10 +252,14 @@ def generate_perturbed_trees_with_labels(
     num_children_file,
     max_trees=0,
     edge_distribution="constant",
-    max_spr_moves=100,
+    # SPR parameters
+    spr_radius=None,
+    spr_target_non_mp_proportion=0.1,
+    max_spr_attempts=100,
+    # Subtree parameters
     subtree_max_attempts=100,
-    spr_move_divisor=4,
     subtree_target_non_mp_proportion=1 / 6,
+    subtree_depth=None,
 ):
     """
     Generate perturbed trees with MP/non-MP edge labels from a history DAG.
@@ -267,16 +271,19 @@ def generate_perturbed_trees_with_labels(
             the DAG contains fewer topologies. If 0, returns as many trees as
             there are MP trees in the DAG (capped by available topologies).
         edge_distribution: Strategy for introducing non-MP edges:
-            - "constant": perform num_leaves/spr_move_divisor (max max_spr_moves) SPR moves
-            - "uniform": draw number of SPR moves from [0, min(num_leaves, max_spr_moves)]
+            - "constant": target-based SPR with radius control
+            - "uniform": target-based SPR with radius control
             - "treesearch_mimic": mimic tree search distribution:
               * 1/2 random trees (most edges non-MP)
-              * 1/4 trees with min(num_leaves, max_spr_moves) SPR moves
-              * 1/4 trees with uniform SPR moves
+              * 1/4 trees with full target proportion
+              * 1/4 trees with uniform target in [0, target proportion]
             - "random_subtree": replace random subtree of depth d/2
-        max_spr_moves: Maximum number of SPR moves to perform (default: 100)
+        spr_radius: Maximum topological distance between prune and regraft locations.
+            None means no limit. (default: None)
+        spr_target_non_mp_proportion: Target proportion of non-MP edges for SPR
+            perturbation (default: 0.1)
+        max_spr_attempts: Maximum SPR attempts before stopping (default: 100)
         subtree_max_attempts: Maximum attempts for random_subtree perturbation (default: 100)
-        spr_move_divisor: Divisor for constant edge distribution (default: 4)
         subtree_target_non_mp_proportion: Target proportion of non-MP edges for random_subtree (default: 1/6)
 
     Returns:
@@ -315,18 +322,36 @@ def generate_perturbed_trees_with_labels(
                     dag_clades,
                     subtree_max_attempts,
                     subtree_target_non_mp_proportion,
+                    subtree_depth,
+                )
+            elif edge_distribution in ("constant", "uniform"):
+                # Use target-based SPR perturbation with radius control
+                modified_tree, edge_labels = perturb_tree_with_spr_target(
+                    tree,
+                    tree,
+                    dag_clades,
+                    spr_radius,
+                    spr_target_non_mp_proportion,
+                    max_spr_attempts,
+                )
+            elif edge_distribution == "treesearch_mimic":
+                # treesearch_mimic: use target-based SPR with variable target
+                # First half: use full target proportion
+                # Second half: draw uniformly from [0, target proportion]
+                if index < len(mp_trees) // 2:
+                    target_proportion = spr_target_non_mp_proportion
+                else:
+                    target_proportion = random.uniform(0, spr_target_non_mp_proportion)
+                modified_tree, edge_labels = perturb_tree_with_spr_target(
+                    tree,
+                    tree,
+                    dag_clades,
+                    spr_radius,
+                    target_proportion,
+                    max_spr_attempts,
                 )
             else:
-                # Use SPR-based perturbation
-                modified_tree = perturb_tree_with_spr(
-                    tree,
-                    edge_distribution,
-                    index,
-                    len(mp_trees),
-                    max_spr_moves,
-                    spr_move_divisor,
-                )
-                edge_labels = assign_edge_labels(modified_tree, tree, dag_clades)
+                raise ValueError(f"Unknown edge distribution: {edge_distribution}")
 
             tree_to_label_dict[modified_tree] = edge_labels
 
@@ -390,10 +415,14 @@ def extract_data_from_hdag(
     edge_distribution="constant",
     logger=None,
     max_trees=200,
-    max_spr_moves=100,
-    spr_move_divisor=10,
+    # SPR parameters
+    spr_radius=None,
+    spr_target_non_mp_proportion=0.1,
+    max_spr_attempts=100,
+    # Subtree parameters
     subtree_max_attempts=100,
     subtree_target_non_mp_proportion=1 / 6,
+    subtree_depth=None,
 ):
     """
     Extracts dpvt data from a history DAG and saves it to a file.
@@ -406,8 +435,11 @@ def extract_data_from_hdag(
             "constant", "uniform", "treesearch_mimic", "random_subtree"
         logger (PipelineLogger): Logger for tracking operations
         max_trees (int): Maximum number of trees to extract from DAG (default: 200)
-        max_spr_moves (int): Maximum SPR moves per tree (default: 100)
-        spr_move_divisor (int): Divisor for constant SPR distribution (default: 10)
+        spr_radius (int or None): Maximum topological distance between prune and
+            regraft locations. None means no limit. (default: None)
+        spr_target_non_mp_proportion (float): Target proportion of non-MP edges
+            for SPR perturbation (default: 0.1)
+        max_spr_attempts (int): Maximum SPR attempts before stopping (default: 100)
         subtree_max_attempts (int): Max attempts for subtree replacement (default: 100)
         subtree_target_non_mp_proportion (float): Target non-MP edge proportion for
             subtree replacement (default: 1/6)
@@ -462,10 +494,12 @@ def extract_data_from_hdag(
         num_children_file,
         max_trees=num_topologies,
         edge_distribution=edge_distribution,
-        max_spr_moves=max_spr_moves,
-        spr_move_divisor=spr_move_divisor,
+        spr_radius=spr_radius,
+        spr_target_non_mp_proportion=spr_target_non_mp_proportion,
+        max_spr_attempts=max_spr_attempts,
         subtree_max_attempts=subtree_max_attempts,
         subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
+        subtree_depth=subtree_depth,
     )
 
     logger.log("EXTRACTION", f"Generated {len(tree_label_dict)} trees with edge labels")

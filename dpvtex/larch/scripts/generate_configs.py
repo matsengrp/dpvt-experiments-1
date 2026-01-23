@@ -52,14 +52,27 @@ DEFAULT_TEST_FRACTION = 0.2  # Fraction of alignments for test set
 # Phase 3: Training data generation
 DEFAULT_NUM_CORES = 8
 DEFAULT_MAX_TREES = 200  # Max trees to extract per alignment
-DEFAULT_MAX_SPR_MOVES = 100  # Max SPR moves per tree
-DEFAULT_SPR_MOVE_DIVISOR = 10  # Divisor for constant SPR distribution
+
+# SPR parameters
+DEFAULT_SPR_RADIUS = 2  # Max topological distance for SPR regraft (None = unlimited)
+DEFAULT_SPR_TARGET_NON_MP_PROPORTION = 0.1  # Target non-MP edge proportion (10%)
+DEFAULT_MAX_SPR_ATTEMPTS = 100  # Max SPR attempts before stopping
+
+# Subtree replacement parameters
 DEFAULT_SUBTREE_MAX_ATTEMPTS = 100  # Max attempts for subtree replacement
-DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION = 0.167  # Target non-MP edge proportion (~1/6)
+DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION = 0.1  # Target non-MP edge proportion
+DEFAULT_SUBTREE_DEPTH = 3  # Subtree depth for replacement (None = tree_depth // 2)
 
 
 def format_edge_distributions(edge_distributions):
-    """Format edge distributions as YAML list."""
+    """Format edge distributions as YAML list.
+
+    Args:
+        edge_distributions: List of edge distribution method names.
+
+    Returns:
+        YAML-formatted string for the edge_distributions config key.
+    """
     if len(edge_distributions) == 1:
         return f'edge_distributions: ["{edge_distributions[0]}"]'
     lines = ["edge_distributions:"]
@@ -125,10 +138,16 @@ num_cores: {DEFAULT_NUM_CORES}
 
 # Tree extraction parameters
 max_trees: {DEFAULT_MAX_TREES}                           # Max trees to extract per alignment
-max_spr_moves: {DEFAULT_MAX_SPR_MOVES}                       # Max SPR moves per tree
-spr_move_divisor: {DEFAULT_SPR_MOVE_DIVISOR}                     # Divisor for constant SPR distribution
+
+# SPR parameters (for constant/uniform edge distributions)
+spr_radius: {DEFAULT_SPR_RADIUS}                          # Max topological distance for SPR regraft (null = unlimited)
+spr_target_non_mp_proportion: {DEFAULT_SPR_TARGET_NON_MP_PROPORTION}   # Target non-MP edge proportion
+max_spr_attempts: {DEFAULT_MAX_SPR_ATTEMPTS}                   # Max SPR attempts before stopping
+
+# Subtree replacement parameters
 subtree_max_attempts: {DEFAULT_SUBTREE_MAX_ATTEMPTS}                # Max attempts for subtree replacement
-subtree_target_non_mp_proportion: {DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION}  # Target non-MP edge proportion (~1/6)
+subtree_target_non_mp_proportion: {DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION}  # Target non-MP edge proportion
+subtree_depth: {DEFAULT_SUBTREE_DEPTH}                        # Subtree depth for replacement (null = tree_depth // 2)
 """
 
 
@@ -180,10 +199,16 @@ remove_duplicate_site_patterns: False
 
 # Tree extraction parameters
 max_trees: {DEFAULT_MAX_TREES}                           # Max trees to extract per alignment
-max_spr_moves: {DEFAULT_MAX_SPR_MOVES}                       # Max SPR moves per tree
-spr_move_divisor: {DEFAULT_SPR_MOVE_DIVISOR}                     # Divisor for constant SPR distribution
+
+# SPR parameters (for constant/uniform edge distributions)
+spr_radius: {DEFAULT_SPR_RADIUS}                          # Max topological distance for SPR regraft (null = unlimited)
+spr_target_non_mp_proportion: {DEFAULT_SPR_TARGET_NON_MP_PROPORTION}   # Target non-MP edge proportion
+max_spr_attempts: {DEFAULT_MAX_SPR_ATTEMPTS}                   # Max SPR attempts before stopping
+
+# Subtree replacement parameters
 subtree_max_attempts: {DEFAULT_SUBTREE_MAX_ATTEMPTS}                # Max attempts for subtree replacement
-subtree_target_non_mp_proportion: {DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION}  # Target non-MP edge proportion (~1/6)
+subtree_target_non_mp_proportion: {DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION}  # Target non-MP edge proportion
+subtree_depth: {DEFAULT_SUBTREE_DEPTH}                        # Subtree depth for replacement (null = tree_depth // 2)
 """
 
 

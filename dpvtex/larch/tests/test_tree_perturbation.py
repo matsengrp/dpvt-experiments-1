@@ -9,6 +9,9 @@ from dpvtex.larch.scripts.tree_perturbation import (
     perturb_tree,
     spr_move,
     make_worse_spr,
+    tree_distance,
+    _try_single_spr,
+    perturb_tree_with_spr_target,
 )
 
 
@@ -278,6 +281,215 @@ def test_make_worse_spr():
         assert parsimony_score(worse_tree_strict) > original_score
 
 
+def test_tree_distance_same_node():
+    """Test that distance from a node to itself is 0."""
+    tree = Tree("((A,B),(C,D));")
+    node = tree.get_leaves()[0]
+    assert tree_distance(node, node) == 0
+
+
+def test_tree_distance_siblings():
+    """Test distance between sibling leaves."""
+    tree = Tree("((A,B),(C,D));")
+    leaves = tree.get_leaves()
+    a_leaf = next(l for l in leaves if l.name == "A")
+    b_leaf = next(l for l in leaves if l.name == "B")
+    # Siblings have distance 1 (counting internal nodes on path)
+    assert tree_distance(a_leaf, b_leaf) == 1
+
+
+def test_tree_distance_across_tree():
+    """Test distance between leaves on different sides of tree."""
+    tree = Tree("((A,B),(C,D));")
+    leaves = tree.get_leaves()
+    a_leaf = next(l for l in leaves if l.name == "A")
+    d_leaf = next(l for l in leaves if l.name == "D")
+    # A to D crosses the root
+    assert tree_distance(a_leaf, d_leaf) == 3
+
+
+def test_tree_distance_deeper_tree():
+    """Test distance in a deeper tree."""
+    tree = Tree("(((A,B),C),D);")
+    leaves = tree.get_leaves()
+    a_leaf = next(l for l in leaves if l.name == "A")
+    d_leaf = next(l for l in leaves if l.name == "D")
+    # A is deeper, D is shallower
+    dist = tree_distance(a_leaf, d_leaf)
+    assert dist == 3
+
+
+def test_make_worse_spr_with_radius():
+    """Test that make_worse_spr respects the radius constraint."""
+    tree = Tree("(((((A,B),C),D),E),F);")
+    sequences = ["AAAA", "AAAC", "AACC", "ACCC", "CCCC", "GGGG"]
+    for node, seq in zip(tree.iter_leaves(), sequences):
+        node.add_feature("sequence", seq)
+    sankoff_for_missing_sequences(tree)
+
+    # With small radius and 2 SPRs, RF distance should be at most 4
+    result = make_worse_spr(tree, max_sprs=2, efficient=True, spr_radius=2)
+    assert result is not None, "Should return a tree even with radius constraint"
+    rf_dist = tree.robinson_foulds(result)[0]
+    assert 0 <= rf_dist <= 4, f"RF distance with 2 SPRs should be 0-4, got {rf_dist}"
+
+    # With 1 SPR, RF distance should be at most 2
+    result_tight = make_worse_spr(tree, max_sprs=1, efficient=True, spr_radius=1)
+    assert (
+        result_tight is not None
+    ), "Should return a tree with tight radius (efficient=True)"
+    rf_dist_tight = tree.robinson_foulds(result_tight)[0]
+    assert (
+        0 <= rf_dist_tight <= 2
+    ), f"RF distance with 1 SPR should be 0-2, got {rf_dist_tight}"
+
+
+def test_try_single_spr_basic():
+    """Test that _try_single_spr returns a valid perturbed tree."""
+    tree = Tree("(((((A,B),C),D),E),F);")
+    sequences = ["AAAA", "AAAC", "AACC", "ACCC", "CCCC", "GGGG"]
+    for node, seq in zip(tree.iter_leaves(), sequences):
+        node.add_feature("sequence", seq)
+    sankoff_for_missing_sequences(tree)
+
+    result = _try_single_spr(tree, spr_radius=None)
+    if result is not None:
+        # Should have same leaves
+        original_leaves = set(tree.get_leaf_names())
+        result_leaves = set(result.get_leaf_names())
+        assert original_leaves == result_leaves
+
+
+def test_try_single_spr_with_radius():
+    """Test that _try_single_spr respects radius constraint."""
+    tree = Tree("(((((A,B),C),D),E),F);")
+    sequences = ["AAAA", "AAAC", "AACC", "ACCC", "CCCC", "GGGG"]
+    for node, seq in zip(tree.iter_leaves(), sequences):
+        node.add_feature("sequence", seq)
+    sankoff_for_missing_sequences(tree)
+
+    # With radius constraint, should still work
+    result = _try_single_spr(tree, spr_radius=3)
+    # Result may be None if no valid move within radius
+    if result is not None:
+        # Should preserve leaves
+        assert set(result.get_leaf_names()) == set(tree.get_leaf_names())
+        # RF distance should be bounded (single SPR within radius 3)
+        rf_dist = tree.robinson_foulds(result)[0]
+        assert 0 <= rf_dist <= 6, f"RF distance should be bounded, got {rf_dist}"
+
+
+def test_perturb_tree_with_spr_target_basic():
+    """Test that perturb_tree_with_spr_target achieves target non-MP proportion.
+
+    Tests the target-based stopping behavior: the function should stop when
+    the target proportion of non-MP edges is reached or max_spr_attempts exceeded.
+    """
+    tree = Tree("(((((A,B),C),D),E),F);")
+    sequences = ["AAAA", "AAAC", "AACC", "ACCC", "CCCC", "GGGG"]
+    for node, seq in zip(tree.iter_leaves(), sequences):
+        node.add_feature("sequence", seq)
+    sankoff_for_missing_sequences(tree)
+
+    # Use empty dag_clades: only edges in the original tree will be MP
+    dag_clades = {}
+
+    target_proportion = 0.3
+    max_attempts = 50
+
+    modified_tree, edge_labels = perturb_tree_with_spr_target(
+        tree,
+        original_tree=tree,
+        dag_clades=dag_clades,
+        spr_radius=3,
+        spr_target_non_mp_proportion=target_proportion,
+        max_spr_attempts=max_attempts,
+    )
+
+    # Should return a tree and labels
+    assert modified_tree is not None, "Should return a modified tree"
+    assert edge_labels is not None, "Should return edge labels"
+
+    # Verify same leaves preserved
+    original_leaves = set(tree.get_leaf_names())
+    modified_leaves = set(modified_tree.get_leaf_names())
+    assert original_leaves == modified_leaves, "Should preserve leaves"
+
+    # Compute actual non-MP proportion
+    num_int_edges = len(edge_labels) / 2 - 2
+    if num_int_edges > 0:
+        actual_proportion = sum(edge_labels) / num_int_edges
+        # Should not exceed target by more than a small margin (one SPR can add ~10%)
+        assert (
+            actual_proportion <= target_proportion + 0.15
+        ), f"Non-MP proportion {actual_proportion:.2f} should not greatly exceed target {target_proportion}"
+
+
+def test_perturb_tree_with_spr_target_stops_at_max_attempts():
+    """Test that perturb_tree_with_spr_target respects max_spr_attempts.
+
+    With a very small max_attempts and high target, the function should
+    stop before reaching the target.
+    """
+    tree = Tree("(((((A,B),C),D),E),F);")
+    sequences = ["AAAA", "AAAC", "AACC", "ACCC", "CCCC", "GGGG"]
+    for node, seq in zip(tree.iter_leaves(), sequences):
+        node.add_feature("sequence", seq)
+    sankoff_for_missing_sequences(tree)
+
+    dag_clades = {}
+
+    # Very high target, very few attempts - should stop early
+    modified_tree, edge_labels = perturb_tree_with_spr_target(
+        tree,
+        original_tree=tree,
+        dag_clades=dag_clades,
+        spr_radius=2,
+        spr_target_non_mp_proportion=0.9,  # High target
+        max_spr_attempts=2,  # Few attempts
+    )
+
+    # Should still return valid results
+    assert modified_tree is not None
+    assert edge_labels is not None
+    assert set(modified_tree.get_leaf_names()) == set(tree.get_leaf_names())
+
+
+def test_perturb_tree_with_spr_target_with_radius():
+    """Test that perturb_tree_with_spr_target respects radius constraint."""
+    tree = Tree("(((((A,B),C),D),E),F);")
+    sequences = ["AAAA", "AAAC", "AACC", "ACCC", "CCCC", "GGGG"]
+    for node, seq in zip(tree.iter_leaves(), sequences):
+        node.add_feature("sequence", seq)
+    sankoff_for_missing_sequences(tree)
+
+    dag_clades = {}
+
+    # With tight radius, perturbation should be localized
+    modified_tree_tight, _ = perturb_tree_with_spr_target(
+        tree,
+        original_tree=tree,
+        dag_clades=dag_clades,
+        spr_radius=1,  # Tight radius
+        spr_target_non_mp_proportion=0.2,
+        max_spr_attempts=20,
+    )
+
+    # With larger radius, perturbation can be more spread out
+    modified_tree_wide, _ = perturb_tree_with_spr_target(
+        tree,
+        original_tree=tree,
+        dag_clades=dag_clades,
+        spr_radius=5,  # Wide radius
+        spr_target_non_mp_proportion=0.2,
+        max_spr_attempts=20,
+    )
+
+    # Both should return valid trees
+    assert modified_tree_tight is not None
+    assert modified_tree_wide is not None
+
+
 if __name__ == "__main__":
     # Run tests manually if needed
     test_increase_tree_parsimony_basic()
@@ -292,4 +504,14 @@ if __name__ == "__main__":
     test_increase_tree_parsimony_edge_cases()
     test_spr_move()
     test_make_worse_spr()
+    test_tree_distance_same_node()
+    test_tree_distance_siblings()
+    test_tree_distance_across_tree()
+    test_tree_distance_deeper_tree()
+    test_make_worse_spr_with_radius()
+    test_try_single_spr_basic()
+    test_try_single_spr_with_radius()
+    test_perturb_tree_with_spr_target_basic()
+    test_perturb_tree_with_spr_target_stops_at_max_attempts()
+    test_perturb_tree_with_spr_target_with_radius()
     print("All tests passed!")

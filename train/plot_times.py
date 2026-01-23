@@ -95,12 +95,20 @@ class PlotConfig:
 
 
 def _parse_time_to_seconds(time_str: str) -> float:
-    """Parse HH:MM:SS time string to seconds."""
+    """Parse time string to seconds. Supports 'HH:MM:SS' and 'X day(s), HH:MM:SS' formats."""
     try:
-        h, m, s = time_str.split(":")
-        return int(h) * 3600 + int(m) * 60 + float(s)
+        days = 0
+        time_part = time_str
+
+        # Handle "X day(s), HH:MM:SS" format
+        if "day" in time_str:
+            day_part, time_part = time_str.split(", ", 1)
+            days = int(day_part.split()[0])
+
+        h, m, s = time_part.split(":")
+        return days * 86400 + int(h) * 3600 + int(m) * 60 + float(s)
     except (ValueError, AttributeError) as e:
-        raise ValueError(f"Expected time format 'HH:MM:SS', got '{time_str}'") from e
+        raise ValueError(f"Expected time format 'HH:MM:SS' or 'X day(s), HH:MM:SS', got '{time_str}'") from e
 
 
 def _is_simulated(name: str) -> bool:

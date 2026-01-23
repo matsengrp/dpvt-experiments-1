@@ -8,6 +8,7 @@ from dpvtex.larch.scripts.utils import (
     EDGE_DIST_TO_SUFFIX,
     SUFFIX_TO_EDGE_DIST,
     get_dup_sites_suffix,
+    get_full_edge_suffix,
 )
 
 snakefile_dir = workflow.basedir
@@ -30,13 +31,30 @@ if isinstance(edge_distributions, str):
 
 # Tree extraction parameters
 max_trees = config.get("max_trees", 200)  # Max trees to extract per alignment
-max_spr_moves = config.get("max_spr_moves", 100)  # Max SPR moves per tree
-spr_move_divisor = config.get("spr_move_divisor", 10)  # Divisor for constant SPR distribution
+
+# SPR parameters
+# Note: YAML "None" is parsed as string; convert to Python None
+_spr_radius_raw = config.get("spr_radius", None)
+spr_radius = None if _spr_radius_raw in (None, "None", "null", "") else _spr_radius_raw
+spr_target_non_mp_proportion = config.get("spr_target_non_mp_proportion", 0.1)  # Target non-MP edge proportion
+max_spr_attempts = config.get("max_spr_attempts", 100)  # Max SPR attempts before stopping
+
+# Subtree replacement parameters
 subtree_max_attempts = config.get("subtree_max_attempts", 100)  # Max attempts for subtree replacement
 subtree_target_non_mp_proportion = config.get("subtree_target_non_mp_proportion", 1/6)  # Target non-MP edge proportion
+_subtree_depth_raw = config.get("subtree_depth", None)
+subtree_depth = None if _subtree_depth_raw in (None, "None", "null", "") else int(_subtree_depth_raw)
 
 
 dup_sites_suffix = get_dup_sites_suffix(remove_site_patterns)
+
+# Build full edge suffixes including SPR/subtree parameters
+FULL_EDGE_SUFFIX = {
+    ed: get_full_edge_suffix(ed, spr_radius, spr_target_non_mp_proportion,
+                             subtree_target_non_mp_proportion)
+    for ed in edge_distributions
+}
+FULL_SUFFIX_TO_EDGE_DIST = {v: k for k, v in FULL_EDGE_SUFFIX.items()}
 
 
 def get_subdirs(data_dir):
@@ -92,9 +110,9 @@ def get_subdirs(data_dir):
 rule all:
     input:
         expand(input_data+"/data_properties_"+dataset_name+"{edge_suffix}" + dup_sites_suffix + ".csv",
-               edge_suffix=[EDGE_DIST_TO_SUFFIX[ed] for ed in edge_distributions]),
+               edge_suffix=FULL_EDGE_SUFFIX.values()),
         expand(output_data+"/"+dataset_name+"{edge_suffix}" + dup_sites_suffix + ".p",
-               edge_suffix=[EDGE_DIST_TO_SUFFIX[ed] for ed in edge_distributions]),
+               edge_suffix=FULL_EDGE_SUFFIX.values()),
 
 
 rule preprocessing:
@@ -110,8 +128,7 @@ rule preprocessing:
     shell:
         """
         cd {snakefile_dir}/setup_larch_inputs
-        snakemake --snakefile convert_fasta_to_larch_input.snakefile -d {params.input_dir} --cores 1 --config dup_sites_suffix="{params.dup_sites_suffix}" --rerun-incomplete --unlock
-        snakemake --snakefile convert_fasta_to_larch_input.snakefile -d {params.input_dir} --cores 1 --config dup_sites_suffix="{params.dup_sites_suffix}" --rerun-incomplete
+        snakemake --snakefile convert_fasta_to_larch_input.snakefile -d {params.input_dir} --cores 1 --config dup_sites_suffix="{params.dup_sites_suffix}" --nolock
         cd {snakefile_dir}
         """
 
@@ -189,10 +206,10 @@ rule extract_dpvt_data:
         data=input_data+"/{subdir}/{subdir}{edge_suffix}" + dup_sites_suffix + ".p",
         num_children_file=input_data+"/{subdir}/num_children_dag_trees{edge_suffix}" + dup_sites_suffix + ".csv"
     wildcard_constraints:
-        edge_suffix="|".join(EDGE_DIST_TO_SUFFIX.values())
+        edge_suffix="|".join(FULL_EDGE_SUFFIX.values())
     run:
         logger = get_logger(input_data)
-        edge_dist = SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
+        edge_dist = FULL_SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
         extract_data_from_hdag(
             input.pb,
             output.data,
@@ -200,10 +217,12 @@ rule extract_dpvt_data:
             edge_distribution=edge_dist,
             logger=logger,
             max_trees=max_trees,
-            max_spr_moves=max_spr_moves,
-            spr_move_divisor=spr_move_divisor,
+            spr_radius=spr_radius,
+            spr_target_non_mp_proportion=spr_target_non_mp_proportion,
+            max_spr_attempts=max_spr_attempts,
             subtree_max_attempts=subtree_max_attempts,
             subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
+            subtree_depth=subtree_depth,
         )
 
 
@@ -224,8 +243,8 @@ rule aggregate_training_data:
         data_props=input_data+"/data_properties_"+dataset_name+"{edge_suffix}" + dup_sites_suffix + ".csv",
         dpvt_data=output_data+"/"+dataset_name+"{edge_suffix}" + dup_sites_suffix + ".p",
     wildcard_constraints:
-        edge_suffix="|".join(EDGE_DIST_TO_SUFFIX.values())
+        edge_suffix="|".join(FULL_EDGE_SUFFIX.values())
     run:
-        edge_dist = SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
+        edge_dist = FULL_SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
         aggregate_data(data_dir=input_data, data_props_file=output.data_props, dpvt_train_data=output.dpvt_data, edge_distribution=edge_dist, dpvt_test_data=None, balance_by_median_num_MP_trees=balance_by_median_num_MP_trees)
 

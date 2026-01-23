@@ -16,7 +16,12 @@ Usage:
     2. Run the pipeline:
        snakemake --snakefile run_all_on_simulated.snakefile \\
            --configfile configs/<dataset_name>_prepare.yaml \\
-           --cores 8
+           --cores 8 \\
+           --resources generate_dpvt=1
+
+    Note: The --resources generate_dpvt=1 flag ensures that Phase 3 jobs run
+    sequentially when multiple edge distributions are configured, avoiding
+    .snakemake directory lock conflicts from parallel snakemake subprocesses.
 
 Note: This snakefile uses the _prepare.yaml config which contains all necessary
 parameters for all three phases. The _generate.yaml config is only needed if
@@ -31,7 +36,7 @@ scripts_dir = os.path.join(snakefile_dir, "scripts")
 if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
-from utils import EDGE_DIST_TO_SUFFIX, SUFFIX_TO_EDGE_DIST, get_dup_sites_suffix
+from utils import EDGE_DIST_TO_SUFFIX, SUFFIX_TO_EDGE_DIST, get_dup_sites_suffix, get_full_edge_suffix
 
 # Config file can be specified via --configfile on command line
 default_config_path = os.path.join(snakefile_dir, "config.yaml")
@@ -58,6 +63,16 @@ edge_distributions = config.get("edge_distributions", config.get("edge_distribut
 if isinstance(edge_distributions, str):
     edge_distributions = [edge_distributions]
 
+# SPR parameters
+spr_radius = config.get("spr_radius", None)  # None means unlimited
+spr_target_non_mp_proportion = config.get("spr_target_non_mp_proportion", 0.1)
+max_spr_attempts = config.get("max_spr_attempts", 100)
+
+# Subtree replacement parameters
+subtree_max_attempts = config.get("subtree_max_attempts", 100)
+subtree_target_non_mp_proportion = config.get("subtree_target_non_mp_proportion", 1/6)
+subtree_depth = config.get("subtree_depth", None)
+
 # Derived paths - use relative paths to match what prepare_datasets.snakefile produces
 filtered_dir = f"{output_datasets}/{dataset_name}_filtered_{min_frac_sites_retained}"
 # Absolute path for shell command in Phase 3
@@ -65,6 +80,14 @@ filtered_dir_abs = os.path.realpath(os.path.join(snakefile_dir, filtered_dir))
 output_data_abs = os.path.realpath(os.path.join(snakefile_dir, output_data))
 
 dup_sites_suffix = get_dup_sites_suffix(remove_site_patterns)
+
+# Build full edge suffixes including SPR/subtree parameters
+FULL_EDGE_SUFFIX = {
+    ed: get_full_edge_suffix(ed, spr_radius, spr_target_non_mp_proportion,
+                             subtree_target_non_mp_proportion)
+    for ed in edge_distributions
+}
+FULL_SUFFIX_TO_EDGE_DIST = {v: k for k, v in FULL_EDGE_SUFFIX.items()}
 
 # Final output dataset name (matches what generate_dpvt_input.snakefile expects)
 final_dataset_name = f"{dataset_name}_filtered_{min_frac_sites_retained}"
@@ -82,9 +105,9 @@ rule all:
     input:
         # Phase 3 outputs for all edge distributions
         expand(f"{filtered_dir}/data_properties_{final_dataset_name}{{edge_suffix}}" + dup_sites_suffix + ".csv",
-               edge_suffix=[EDGE_DIST_TO_SUFFIX[ed] for ed in edge_distributions]),
+               edge_suffix=FULL_EDGE_SUFFIX.values()),
         expand(f"{output_data}/{final_dataset_name}{{edge_suffix}}" + dup_sites_suffix + ".p",
-               edge_suffix=[EDGE_DIST_TO_SUFFIX[ed] for ed in edge_distributions]),
+               edge_suffix=FULL_EDGE_SUFFIX.values()),
 
 
 # =============================================================================
@@ -129,8 +152,12 @@ rule generate_dpvt_data:
         data_props=f"{filtered_dir}/data_properties_{final_dataset_name}{{edge_suffix}}" + dup_sites_suffix + ".csv",
         dpvt_data=f"{output_data}/{final_dataset_name}{{edge_suffix}}" + dup_sites_suffix + ".p",
     wildcard_constraints:
-        edge_suffix="|".join(EDGE_DIST_TO_SUFFIX.values())
-    threads: num_cores  # Claim all cores to prevent parallel execution (avoids directory lock conflicts)
+        edge_suffix="|".join(FULL_EDGE_SUFFIX.values())
+    threads: num_cores
+    resources:
+        # Limit to one generate_dpvt_data job at a time to avoid .snakemake directory lock conflicts
+        # when multiple edge distributions spawn separate snakemake subprocesses
+        generate_dpvt=1
     params:
         snakefile=generate_dpvt_snakefile,
         # Use absolute paths for shell command
@@ -139,9 +166,20 @@ rule generate_dpvt_data:
         dataset_name=final_dataset_name,
         num_cores=num_cores,
         remove_dup_sites=remove_site_patterns,
-        larch_command=larch_command
+        larch_command=larch_command,
+        # SPR parameters
+        spr_radius=spr_radius,
+        spr_target_non_mp_proportion=spr_target_non_mp_proportion,
+        max_spr_attempts=max_spr_attempts,
+        # Subtree parameters
+        subtree_max_attempts=subtree_max_attempts,
+        subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
+        subtree_depth=subtree_depth,
     run:
-        edge_dist = SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
+        edge_dist = FULL_SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
+        # Handle None values (convert to "null" for YAML)
+        spr_radius_str = "null" if params.spr_radius is None else params.spr_radius
+        subtree_depth_str = "null" if params.subtree_depth is None else params.subtree_depth
         shell(f"""
         snakemake --snakefile {params.snakefile} \
             --cores {params.num_cores} \
@@ -152,5 +190,12 @@ rule generate_dpvt_data:
                 edge_distribution="{edge_dist}" \
                 remove_duplicate_site_patterns={params.remove_dup_sites} \
                 larch_command="{params.larch_command}" \
-            --rerun-incomplete
+                spr_radius={spr_radius_str} \
+                spr_target_non_mp_proportion={params.spr_target_non_mp_proportion} \
+                max_spr_attempts={params.max_spr_attempts} \
+                subtree_max_attempts={params.subtree_max_attempts} \
+                subtree_target_non_mp_proportion={params.subtree_target_non_mp_proportion} \
+                subtree_depth={subtree_depth_str} \
+            --rerun-incomplete \
+            --nolock
         """)

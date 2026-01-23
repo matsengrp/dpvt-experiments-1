@@ -1,6 +1,7 @@
 import os
 from glob import glob
 from aggregate_treesearch_data import aggregate_treesearch_data
+from dpvtex.larch.scripts.clean_data import clean_alignment
 
 # get config from command line or use default
 snakefile_dir = workflow.basedir
@@ -47,13 +48,13 @@ wildcard_constraints:
 
 
 treesearch_data_paths = expand(
-    os.path.join(dpvt_data_dir, "{basename}/{basename}_rep{replicate}_tree_search.p"),
+    input_dir+"/{basename}/{basename}_rep{replicate}_tree_search.p",
     basename=VALID_BASENAMES,
     replicate=range(1, num_replicates + 1),
 )
 
 aggregated_treesearch_data_paths = expand(
-    os.path.join(dpvt_data_dir, "{basename}_tree_search.p"),
+    dpvt_data_dir+"/{basename}_tree_search.p",
     basename=VALID_BASENAMES,
 )
 
@@ -81,8 +82,8 @@ rule prepare_larch_input:
         fasta=input_dir + "/{basename}/{basename}.fasta",
     output:
         input_fasta=input_dir + "/{basename}/input.fasta",
-    shell:
-        "cp {input.fasta} {output.input_fasta}"
+    run:
+        clean_alignment(input.fasta, output.input_fasta)
 
 
 rule preprocess_larch:
@@ -126,17 +127,19 @@ rule compute_labels:
         fasta=input_dir + "/{basename}/input.fasta",
     output:
         test_p=os.path.join(
-            dpvt_data_dir, "{basename}/{basename}_rep{replicate}_tree_search.p"
+            input_dir, "{basename}/{basename}_rep{replicate}_tree_search.p"
         ),
     shell:
-        "python create_testing_data.py {input.larch_output} "
-        "{output.test_p} {input.tree_log} {input.fasta}"
+        """
+        echo {output.test_p}
+        python create_testing_data.py {input.larch_output} {output.test_p} {input.tree_log} {input.fasta}
+        """
 
 
 rule aggregate_all_treesearch_data:
     input:
         filenames = expand(
-            os.path.join(dpvt_data_dir, "{{basename}}/{{basename}}_rep{replicate}_tree_search.p"),
+            os.path.join(input_dir, "{{basename}}/{{basename}}_rep{replicate}_tree_search.p"),
             replicate=range(1, num_replicates + 1)
         )
     output:

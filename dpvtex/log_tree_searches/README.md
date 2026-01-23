@@ -1,45 +1,97 @@
-# README
+# Log Tree Searches Pipeline
 
-This directory contains code to run a Maximum Parsimony tree search for a set of input alignments, saves intermediate trees during this tree search, runs larch-usher to get a collection of maximum parsimony trees, and extracts the intermediate trees and MP edge labelling for them in the correct format to be used as dpvt testing input.
-
-The pipeline can easily be executed by running the bash script `run_tree_searches.sh`, providing as command line arguments: (i) a path to the directory containing all input alignments, (ii) a path to a build of `larch-usher`, (iii) a path to the directory in which to store the output, and (iv) a path to a json file containing nicknames for training/testing data of dpvt:
-
-```bash
-./run_tree_searches.sh <path_to_alignment_dir> <path_to_larch_usher> <path_to_output_dir> <path_to_nickname_json?
-```
+This directory contains a Snakemake pipeline to:
+1. Run Maximum Parsimony tree searches for a set of input alignments
+2. Save intermediate trees during the tree search
+3. Run larch-usher to get a collection of maximum parsimony trees
+4. Extract intermediate trees and label edges as MP or non-MP for use as DPVT testing input
 
 ## Prerequisites
 
-To run the entire pipeline, the `dpvtex` package from the base directory of this repo needs to be installed.
-Also needed is the software `R` and its packages `optparse` and `remotes`.
-Within the R script, a slightly modified version of the `phangorn` package (version 2.12.1) is installed from [this](https://github.com/lenacoll/phangorn/tree/log-mp-search-trees) github repo, which allows logging trees along a maximum parsimony tree search.  
+- The `dpvtex` package from the base directory of this repo must be installed
+- R with packages `optparse` and `remotes`
+- A modified version of the `phangorn` package (version 2.12.1) from [this GitHub repo](https://github.com/lenacoll/phangorn/tree/log-mp-search-trees), which allows logging trees along a maximum parsimony tree search
+- The `larch-usher` software ([installation guide](https://github.com/matsengrp/larch))
 
-Additionally, the installation of the `larch-usher` software is required.
-An installation guide can be found in their [github repo](https://github.com/matsengrp/larch).
+## Running the Pipeline
 
+### Configuration
 
-## Details
+Create or modify `config.yaml` with the following settings:
 
-The scripts that are executed in this bash script are (in this order):
+```yaml
+input_dir: "path/to/alignment/directory"    # Directory containing input alignments
+dpvt_data_dir: "path/to/output/directory"   # Directory for output pickle files
+larch_build: "path/to/larch-usher"          # Path to larch-usher binary
+nicknames: "path/to/data_nicknames.json"    # Path to dataset nicknames file
+num_replicates: 3                           # Number of tree search replicates (default: 3)
+```
 
-### 1. Clean_data
+### Input Directory Structure
 
-The `clean_data` script from `dpvtex.larch.scripts` is called to remove all sites containing gaps, ambiguous charaters, or uninformative sites.
-Additionally, it ensures that the alignment is saved as FASTA, even if a NEXUS file is given as input.
+Input alignments must be organized as:
+```
+input_dir/
+├── dataset1/
+│   └── dataset1.fasta
+├── dataset2/
+│   └── dataset2.fasta
+└── ...
+```
 
-### 2. MP tree search
+Each alignment must be in a subdirectory with the same name as the FASTA file (without extension).
 
-The R script `log_mp_tree_search.R` is using the modified version of the *phangorn* library that allows logging intermediate trees on the tree search to an optimal tree.
-This modified version can be found on [github](https://github.com/lenacoll/phangorn/tree/log-mp-search-trees).
-These trees are saved in the same directory as the input alignment, replacing the suffix `.fasta` by `_log.trees`.
+### Running
 
-### 3. Larch-usher
+From this directory, run:
 
-We run `larch-usher` to generate a collection of all maximum parsimony trees.
-This requires one pre-processing step of the alignment to get the correct input files for larch-usher and then running larch-usher.
-With the resulting collection of MP trees we can ensure that we label the edges of trees found in the MP tree search correctly as MP or non-MP edges in the next step.
+```bash
+# Using default config.yaml
+snakemake -c4
 
-### 4. Label edges in trees found in MP tree search (step 2.)
+# Using a custom config file
+snakemake -c4 --configfile my_config.yaml
 
-We use the collection of MP trees found in step 3 to label all edges in the trees in step 2 as MP or non-MP edges.
-The resulting trees and edge labels are saved in the format required by dpvt and nicknames are added to the provided nickname file.
+# Dry run to see what will be executed
+snakemake -n
+```
+
+## Pipeline Steps
+
+### 1. Prepare Larch Input (`prepare_larch_input`)
+
+Copies the input FASTA file to `input.fasta` in the alignment directory.
+
+### 2. Preprocess for Larch (`preprocess_larch`)
+
+Converts the FASTA alignment to larch-usher input format, producing:
+- `output.pb` - Protocol buffer file
+- `output.txt` - Reference sequence
+- `output.vcf` - VCF file
+
+### 3. Run Larch-Usher (`run_larch_usher`)
+
+Runs `larch-usher` to generate a collection of all maximum parsimony trees, saved as `larch-output.pb`.
+
+### 4. MP Tree Search (`log_mp_tree_search`)
+
+Uses the modified `phangorn` R package to perform maximum parsimony tree searches, logging intermediate trees to `{basename}_rep{N}_log.trees`. Multiple replicates are run with different random seeds.
+
+### 5. Compute Labels (`compute_labels`)
+
+Labels edges in the intermediate trees as MP or non-MP using the collection of MP trees from larch-usher. Outputs pickle files in DPVT format.
+
+### 6. Aggregate Data (`aggregate_all_treesearch_data`)
+
+Combines data from all replicates into a single pickle file per dataset.
+
+### 7. Add Nicknames (`add_to_dataset_nicknames`)
+
+Adds the generated datasets to the nicknames JSON file for use in DPVT training/testing.
+
+## Output
+
+The pipeline produces:
+- `{dpvt_data_dir}/{basename}/{basename}_rep{N}_tree_search.p` - Per-replicate pickle files
+- `{dpvt_data_dir}/{basename}_tree_search.p` - Aggregated pickle files
+- Updated nicknames JSON file with new dataset entries

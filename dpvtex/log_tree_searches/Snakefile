@@ -67,7 +67,7 @@ rule all:
 
 rule log_mp_tree_search:
     input:
-        fasta=input_dir + "/{basename}/{basename}.fasta",
+        fasta=input_dir + "/{basename}/input.fasta",
     output:
         tree_log=input_dir + "/{basename}/{basename}_rep{replicate}_log.trees",
     params:
@@ -119,11 +119,11 @@ rule run_larch_usher:
 rule compute_labels:
     input:
         larch_output=os.path.join(
-            os.path.dirname(input_dir + "/{basename}/{basename}.fasta"),
+            os.path.dirname(input_dir + "/{basename}/input.fasta"),
             "larch-output.pb",
         ),
         tree_log=input_dir + "/{basename}/{basename}_rep{replicate}_log.trees",
-        fasta=input_dir + "/{basename}/{basename}.fasta",
+        fasta=input_dir + "/{basename}/input.fasta",
     output:
         test_p=os.path.join(
             dpvt_data_dir, "{basename}/{basename}_rep{replicate}_tree_search.p"

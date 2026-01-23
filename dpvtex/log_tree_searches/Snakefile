@@ -37,15 +37,24 @@ def get_input_files():
     return input_files
 
 
+# Compute valid basenames once and constrain wildcards
+VALID_BASENAMES = [os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()]
+
+
+wildcard_constraints:
+    basename="|".join(VALID_BASENAMES) if VALID_BASENAMES else "NONE",
+    replicate="[0-9]+"
+
+
 treesearch_data_paths = expand(
-    os.path.join(dpvt_data_dir, "{basename}/{basename}_rep{replicate}_tree_search_test.p"),
-    basename=[os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()],
+    os.path.join(dpvt_data_dir, "{basename}/{basename}_rep{replicate}_tree_search.p"),
+    basename=VALID_BASENAMES,
     replicate=range(1, num_replicates + 1),
 )
 
 aggregated_treesearch_data_paths = expand(
     os.path.join(dpvt_data_dir, "{basename}_tree_search.p"),
-    basename=[os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()],
+    basename=VALID_BASENAMES,
 )
 
 
@@ -58,9 +67,9 @@ rule all:
 
 rule log_mp_tree_search:
     input:
-        fasta="{file}.fasta",
+        fasta=input_dir + "/{basename}/{basename}.fasta",
     output:
-        tree_log="{file}_rep{replicate}_log.trees",
+        tree_log=input_dir + "/{basename}/{basename}_rep{replicate}_log.trees",
     params:
         seed=lambda wildcards: int(wildcards.replicate) * 100,  # Different seed for each replicate
     shell:
@@ -69,20 +78,22 @@ rule log_mp_tree_search:
 
 rule prepare_larch_input:
     input:
-        fasta="{file}.fasta",
+        fasta=input_dir + "/{basename}/{basename}.fasta",
     output:
-        input_fasta=os.path.join(os.path.dirname("{file}"), "input.fasta"),
+        input_fasta=input_dir + "/{basename}/input.fasta",
     shell:
         "cp {input.fasta} {output.input_fasta}"
 
 
 rule preprocess_larch:
     input:
-        input_fasta=os.path.join(os.path.dirname("{file}"), "input.fasta"),
+        input_fasta=input_dir + "/{basename}/input.fasta",
     output:
-        pb=os.path.join(os.path.dirname("{file}"), "output.pb"),
+        pb=input_dir + "/{basename}/output.pb",
+        txt=input_dir + "/{basename}/output.txt",
+        vcf=input_dir + "/{basename}/output.vcf",
     params:
-        output_dir=lambda wildcards, input: os.path.dirname(input.input_fasta),
+        output_dir=lambda wildcards: input_dir + "/" + wildcards.basename,
     shell:
         """
         snakemake --snakefile ../larch/setup_larch_inputs/convert_fasta_to_larch_input.snakefile --configfile ../larch/setup_larch_inputs/config.yaml -d {params.output_dir} -c1
@@ -90,20 +101,18 @@ rule preprocess_larch:
 
 rule run_larch_usher:
     input:
-        pb=os.path.join(os.path.dirname("{file}"), "output.pb"),
-        txt=os.path.join(os.path.dirname("{file}"), "output.txt"),
-        vcf=os.path.join(os.path.dirname("{file}"), "output.vcf"),
+        pb=input_dir + "/{basename}/output.pb",
+        txt=input_dir + "/{basename}/output.txt",
+        vcf=input_dir + "/{basename}/output.vcf",
     output:
-        larch_output=os.path.join(os.path.dirname("{file}"), "larch-output.pb"),
-        log=os.path.join(os.path.dirname("{file}"), "log"),
+        pb=input_dir + "/{basename}/larch-output.pb",
     params:
         larch_build=larch_build,
-        output_dir=lambda wildcards, input: os.path.dirname(input.pb),
+        output_dir=lambda wildcards: input_dir + "/" + wildcards.basename,
+        log=input_dir + "/{basename}/log/",
     shell:
         """
-        cd {params.larch_build} && 
-        ./larch-usher -i {input.pb} -r {input.txt} -v {input.vcf} 
-        -o {output.larch_output} -l {output.log} -c 200
+        {larch_build} -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
         """
 
 
@@ -117,7 +126,7 @@ rule compute_labels:
         fasta=input_dir + "/{basename}/{basename}.fasta",
     output:
         test_p=os.path.join(
-            config["dpvt_data_dir"], "{basename}_rep{replicate}_tree_search.p"
+            dpvt_data_dir, "{basename}/{basename}_rep{replicate}_tree_search.p"
         ),
     shell:
         "python create_testing_data.py {input.larch_output} "
@@ -127,7 +136,7 @@ rule compute_labels:
 rule aggregate_all_treesearch_data:
     input:
         filenames = expand(
-            os.path.join(dpvt_data_dir, "{{basename}}/{{basename}}_rep{replicate}_tree_search_test.p"),
+            os.path.join(dpvt_data_dir, "{{basename}}/{{basename}}_rep{replicate}_tree_search.p"),
             replicate=range(1, num_replicates + 1)
         )
     output:

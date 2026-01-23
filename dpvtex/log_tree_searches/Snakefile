@@ -54,7 +54,7 @@ treesearch_data_paths = expand(
 )
 
 aggregated_treesearch_data_paths = expand(
-    dpvt_data_dir+"/{basename}_tree_search.p",
+    dpvt_data_dir+"/treesearch/{basename}_tree_search.p",
     basename=VALID_BASENAMES,
 )
 
@@ -143,19 +143,17 @@ rule aggregate_all_treesearch_data:
             replicate=range(1, num_replicates + 1)
         )
     output:
-        filepath = os.path.join(dpvt_data_dir, "{basename}_tree_search.p")
+        filepath = os.path.join(dpvt_data_dir, "treesearch/{basename}_tree_search.p")
     run:
         aggregate_treesearch_data(input.filenames, output.filepath)
 
 
 rule add_to_dataset_nicknames:
     input:
-        treesearch_data_paths,
-        aggregated_treesearch_data_paths
+        aggregated_files=aggregated_treesearch_data_paths
     output:
         touch("nicknames_added.flag"),
     params:
-        dpvt_data_dir=dpvt_data_dir,
         nicknames=nicknames,
     shell:
-        "python add_to_dataset_nicknames.py {params.dpvt_data_dir} {params.nicknames}"
+        "python add_to_dataset_nicknames.py {params.nicknames} {input.aggregated_files}"

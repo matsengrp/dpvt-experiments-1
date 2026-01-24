@@ -22,6 +22,9 @@ nicknames = config["nicknames"]
 num_replicates = config.get(
     "num_replicates", 3
 )  # Default to 3 replicates if not specified
+start_tree_type = config.get(
+    "start_tree_type", "random"
+)  # "random" or "default" (phangorn's random addition)
 
 
 # Get input files
@@ -73,8 +76,9 @@ rule log_mp_tree_search:
         tree_log=input_dir + "/{basename}/{basename}_rep{replicate}_log.trees",
     params:
         seed=lambda wildcards: int(wildcards.replicate) * 100,  # Different seed for each replicate
+        start_tree=start_tree_type,
     shell:
-        "Rscript log_mp_tree_search.R -f {input.fasta} -o {output.tree_log} --seed {params.seed}"
+        "Rscript log_mp_tree_search.R -f {input.fasta} -o {output.tree_log} --seed {params.seed} --start-tree {params.start_tree}"
 
 
 rule prepare_larch_input:

@@ -260,7 +260,6 @@ def evaluate_individual_trees(
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
     output_file=None,
-    use_preprocessed=False,
 ):
     """
     Evaluates model performance on individual trees from the test dataset,
@@ -274,17 +273,12 @@ def evaluate_individual_trees(
         (str): Path to the hyperparameters file. output_dir (str): Output
         directory. data_nicknames_path (str): Path to the dataset nicknames
         file. output_file (str): Optional path to save the evaluation results.
-        use_preprocessed (bool): Whether to use preprocessed data if available.
 
     Returns:
         pandas.DataFrame: DataFrame containing evaluation metrics for each tree.
     """
-    # Load the test data - use preprocessed if available and requested
-    if use_preprocessed:
-        from dpvtex.dpvt_data import data_of_nicknames_from_preprocessing
-        test_data = data_of_nicknames_from_preprocessing(test_data_name, device, data_nicknames_path)
-    else:
-        test_data = data_of_nicknames(test_data_name, device, data_nicknames_path)
+    # Load the test data
+    test_data = data_of_nicknames(test_data_name, device, data_nicknames_path)
 
     # Load model and move to appropriate device
     model, device = load_model(
@@ -543,9 +537,7 @@ def plot_treesearch_evaluation(
 
     # Process each test dataset to get parsimony scores and non-MP edges
     for test_data in test_data_names:
-        test_data_path = os.path.join(
-            dataset_dict["data_dir"], dataset_dict[test_data]
-        )
+        test_data_path = os.path.join(dataset_dict["data_dir"], dataset_dict[test_data])
         with open(test_data_path, "rb") as f:
             data_dict = pickle.load(f)
 
@@ -553,9 +545,8 @@ def plot_treesearch_evaluation(
         data_basename = dataset_dict[test_data].split("_tree_search")[0]
         if "_rep" in data_basename:
             data_basename = data_basename.split("_rep")[0]
-        fasta_path = (
-            fasta_dir + "/" + data_basename + "/" + data_basename + ".fasta"
-        )
+        data_basename = data_basename.replace("treesearch/", "")
+        fasta_path = fasta_dir + "/" + data_basename + "/" + "input.fasta"
 
         parsimony_scores = get_parsimony_scores(list(data_dict.keys()), fasta_path)
         num_int_edges = len(list(data_dict.keys())[0]) - 2

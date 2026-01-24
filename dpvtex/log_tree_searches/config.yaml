@@ -3,3 +3,4 @@ dpvt_data_dir: "../../data"
 larch_build: "../../../larch/build/bin/larch-usher"
 nicknames: "../../train/data_nicknames.json"
 num_replicates: 3
+start_tree_type: "random"  # "random" (rtree) or "nj" (neighbor joining)

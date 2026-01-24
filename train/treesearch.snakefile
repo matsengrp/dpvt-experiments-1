@@ -15,11 +15,7 @@ from dpvtex.dpvt_zoo import (
     get_baseline_result_path,
 )
 
-from dpvtex.dpvt_data import (
-    get_traversal_data_path,
-    preprocess_and_save_traversal_data,
-    load_nicknames_dict,
-)
+from dpvtex.dpvt_data import load_nicknames_dict
 
 from dpvtex.evaluate_individual_trees import (
     evaluate_individual_trees, 
@@ -55,11 +51,7 @@ num_replicates = config["replicates"]
 use_hyperparameter_optimize = bool(config["use_hyperparameter_optimize"])
 hyperparameters = config["hyperparameters"]
 
-# Preprocessing configuration
-use_preprocessing = config.get("use_preprocessing", True)  # Enable TraversalDataset preprocessing by default
-force_repreprocess = config.get("force_repreprocess", False)  # Don't force reprocessing by default
-
-# Get data directory from nicknames file for preprocessing paths
+# Get data directory from nicknames file
 with open(data_nicknames_path, "r") as f:
     dataset_dict = json.load(f)
     data_dir = dataset_dict["data_dir"]
@@ -322,44 +314,6 @@ rule all:
         comparison_plot_paths
 
 
-rule preprocess_data:
-    output:
-        data_path=f"{data_dir}/TraversalDataset/{{data_name}}_traversal.p",
-    run:
-        import pickle
-        
-        # Load original data
-        dataset_dict = load_nicknames_dict(data_nicknames_path)
-        file_path = dataset_dict[wildcards.data_name]
-        file_path = os.path.realpath(file_path)
-        
-        # Get the correct output path (in the data directory, not working directory)
-        actual_output_path = get_traversal_data_path(wildcards.data_name, data_nicknames_path)
-        
-        # Check if preprocessed data already exists and force_repreprocess is False
-        if not force_repreprocess and os.path.exists(actual_output_path):
-            print(f"Preprocessed data already exists for {wildcards.data_name}. Skipping.")
-            # Create symlink to satisfy Snakemake output requirements
-            os.makedirs(os.path.dirname(output.data_path), exist_ok=True)
-            if not os.path.exists(output.data_path):
-                os.symlink(actual_output_path, output.data_path)
-            return
-            
-        with open(file_path, "rb") as f:
-            data_dict = pickle.load(f)
-
-        labels = list(data_dict.values())
-        trees = list(data_dict.keys())
-        
-        # Preprocess and save data to actual path
-        preprocess_and_save_traversal_data(trees, labels, actual_output_path, device)
-        
-        # Create symlink to satisfy Snakemake output requirements
-        os.makedirs(os.path.dirname(output.data_path), exist_ok=True)
-        if not os.path.exists(output.data_path):
-            os.symlink(actual_output_path, output.data_path)
-
-
 rule optimize_hyperparameters_step:
     output:
         hyperparameter_path=get_model_params_json(
@@ -399,7 +353,6 @@ rule train_model_step:
             timestamp=timestamp,
             output_dir=output_dir,
         ),
-        preprocessing=lambda wildcards: f"{data_dir}/TraversalDataset/{wildcards.train_data_name}_traversal.p" if use_preprocessing and device != "cpu-tree-dataset" else [],
     output:
         trained_model=get_trained_model_ckpt(
             model="{model_name}",
@@ -421,7 +374,6 @@ rule train_model_step:
             param_id=wildcards.param_id,
             output_dir=output_dir,
             data_nicknames_path=data_nicknames_path,
-            use_preprocessed=use_preprocessing,
         )
 
 
@@ -443,8 +395,6 @@ rule evaluate_individual_trees:
             timestamp=timestamp,
             output_dir=output_dir,
         ),
-        # Add preprocessing dependency for test data
-        test_preprocessing=lambda wildcards: f"{data_dir}/TraversalDataset/{wildcards.test_data_name}_traversal.p" if use_preprocessing and device != "cpu-tree-dataset" else [],
     output:
         eval_path=get_individual_tree_eval_path(
             model_name="{model_name}",
@@ -469,7 +419,6 @@ rule evaluate_individual_trees:
             output_dir=output_dir,
             data_nicknames_path=data_nicknames_path,
             output_file=output.eval_path,
-            use_preprocessed=use_preprocessing,  # Pass the preprocessing flag
         )
 
 

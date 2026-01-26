@@ -542,11 +542,13 @@ def plot_treesearch_evaluation(
             data_dict = pickle.load(f)
 
         # Calculate parsimony scores and non-MP edges for this replicate
-        # Extract alignment name from path like "treesearch/PF05299-dna/PF05299-dna_rep1_tree_search.p"
-        filename = os.path.basename(dataset_dict[test_data])  # "PF05299-dna_rep1_tree_search.p"
-        data_basename = filename.split("_tree_search")[0]  # "PF05299-dna_rep1"
+        # Extract alignment name from path like "treesearch/{basename}/{basename}_rep1_tree_search.p"
+        filename = os.path.basename(
+            dataset_dict[test_data]
+        )  # "{basename}_rep1_tree_search.p"
+        data_basename = filename.split("_tree_search")[0]  # "{basename}_rep1"
         if "_rep" in data_basename:
-            data_basename = data_basename.split("_rep")[0]  # "PF05299-dna"
+            data_basename = data_basename.split("_rep")[0]  # "{basename}"
         fasta_path = fasta_dir + "/" + data_basename + "/" + "input.fasta"
 
         parsimony_scores = get_parsimony_scores(list(data_dict.keys()), fasta_path)

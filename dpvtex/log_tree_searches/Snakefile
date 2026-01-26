@@ -1,7 +1,9 @@
 import os
 from glob import glob
-from aggregate_treesearch_data import aggregate_treesearch_data
 from dpvtex.larch.scripts.clean_data import clean_alignment
+from Bio import AlignIO
+from Bio.SeqRecord import SeqRecord
+from Bio.Align import MultipleSeqAlignment
 
 # get config from command line or use default
 snakefile_dir = workflow.basedir
@@ -41,6 +43,29 @@ def get_input_files():
     return input_files
 
 
+def transform_fasta_names_for_larch(fasta_path):
+    """Transform sequence names in FASTA in-place to match larch naming convention.
+
+    The larch preprocessing (convert_fasta_to_larch_input.snakefile) applies
+    sed transformations that affect sequence names:
+        s/-/N/g; s/?/N/g; s/|/_/g
+
+    This function applies the same transformations to sequence NAMES only,
+    so the FASTA can be used for tree search while maintaining compatibility
+    with larch-built DAGs.
+
+    Args:
+        fasta_path: Path to FASTA file to transform in-place
+    """
+    alignment = AlignIO.read(fasta_path, "fasta")
+    transformed_records = []
+    for record in alignment:
+        new_id = record.id.replace("-", "N").replace("?", "N").replace("|", "_")
+        new_record = SeqRecord(record.seq, id=new_id, description="")
+        transformed_records.append(new_record)
+    AlignIO.write(MultipleSeqAlignment(transformed_records), fasta_path, "fasta")
+
+
 # Compute valid basenames once and constrain wildcards
 VALID_BASENAMES = [os.path.basename(f).rsplit(".", 1)[0] for f in get_input_files()]
 
@@ -51,21 +76,15 @@ wildcard_constraints:
 
 
 treesearch_data_paths = expand(
-    input_dir+"/{basename}/{basename}_rep{replicate}_tree_search.p",
+    dpvt_data_dir+"/treesearch/{basename}/{basename}_rep{replicate}_tree_search.p",
     basename=VALID_BASENAMES,
     replicate=range(1, num_replicates + 1),
-)
-
-aggregated_treesearch_data_paths = expand(
-    dpvt_data_dir+"/treesearch/{basename}_tree_search.p",
-    basename=VALID_BASENAMES,
 )
 
 
 rule all:
     input:
         treesearch_data_paths,
-        aggregated_treesearch_data_paths,
         "nicknames_added.flag",
 
 
@@ -78,16 +97,23 @@ rule log_mp_tree_search:
         seed=lambda wildcards: int(wildcards.replicate) * 100,  # Different seed for each replicate
         start_tree=start_tree_type,
     shell:
+        # Remove existing log file first since phangorn appends to it
+        "rm -f {output.tree_log} && "
         "Rscript log_mp_tree_search.R -f {input.fasta} -o {output.tree_log} --seed {params.seed} --start-tree {params.start_tree}"
 
 
 rule prepare_larch_input:
+    """Clean alignment and transform sequence names for larch compatibility.
+
+    This ensures phangorn tree search uses the same leaf names as larch DAGs.
+    """
     input:
         fasta=input_dir + "/{basename}/{basename}.fasta",
     output:
         input_fasta=input_dir + "/{basename}/input.fasta",
     run:
         clean_alignment(input.fasta, output.input_fasta)
+        transform_fasta_names_for_larch(output.input_fasta)
 
 
 rule preprocess_larch:
@@ -123,41 +149,24 @@ rule run_larch_usher:
 
 rule compute_labels:
     input:
-        larch_output=os.path.join(
-            os.path.dirname(input_dir + "/{basename}/input.fasta"),
-            "larch-output.pb",
-        ),
+        larch_output=input_dir + "/{basename}/larch-output.pb",
         tree_log=input_dir + "/{basename}/{basename}_rep{replicate}_log.trees",
         fasta=input_dir + "/{basename}/input.fasta",
     output:
-        test_p=os.path.join(
-            input_dir, "{basename}/{basename}_rep{replicate}_tree_search.p"
-        ),
+        test_p=dpvt_data_dir + "/treesearch/{basename}/{basename}_rep{replicate}_tree_search.p",
     shell:
         """
-        echo {output.test_p}
+        mkdir -p $(dirname {output.test_p})
         python create_testing_data.py {input.larch_output} {output.test_p} {input.tree_log} {input.fasta}
         """
 
 
-rule aggregate_all_treesearch_data:
-    input:
-        filenames = expand(
-            os.path.join(input_dir, "{{basename}}/{{basename}}_rep{replicate}_tree_search.p"),
-            replicate=range(1, num_replicates + 1)
-        )
-    output:
-        filepath = os.path.join(dpvt_data_dir, "treesearch/{basename}_tree_search.p")
-    run:
-        aggregate_treesearch_data(input.filenames, output.filepath)
-
-
 rule add_to_dataset_nicknames:
     input:
-        aggregated_files=aggregated_treesearch_data_paths
+        treesearch_files=treesearch_data_paths
     output:
         touch("nicknames_added.flag"),
     params:
         nicknames=nicknames,
     shell:
-        "python add_to_dataset_nicknames.py {params.nicknames} {input.aggregated_files}"
+        "python add_to_dataset_nicknames.py {params.nicknames} {input.treesearch_files}"

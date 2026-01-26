@@ -63,13 +63,18 @@ regular_models = [model for model in model_names if "Baseline" not in model]
 # Find all test data sets with replicates
 test_data_names_with_reps = []
 for test_data_name in test_data_names:
-    # Check if we have replicate datasets (test_data_name_rep1, test_data_name_rep2, etc.)
-    base_name = test_data_name.split("_rep")[0]
+    # Extract alignment base name
+    # Handle both old format (alignment_tree_search) and new format (alignment_rep1_tree_search)
+    if "_tree_search" in test_data_name:
+        alignment_base = test_data_name.replace("_tree_search", "").split("_rep")[0]
+    else:
+        alignment_base = test_data_name.split("_rep")[0]
 
     # Find all matching replicate datasets
-    all_test_datasets = [name for name in dataset_dict.keys() 
-                        if name == test_data_name or 
-                        (name.startswith(base_name) and "_rep" in name)]
+    # Matches: exact name, or {alignment_base}_rep{i}_tree_search pattern
+    all_test_datasets = [name for name in dataset_dict.keys()
+                        if name == test_data_name or
+                        (name.startswith(alignment_base) and "_rep" in name and "_tree_search" in name)]
     test_data_names_with_reps += all_test_datasets
 
 
@@ -475,28 +480,26 @@ rule plot_treesearch_evaluation:
     output:
         plot_model_path="{output_dir}/run.{timestamp}/tree_eval_logs/model_comparison-{test_data_name}-{compare_by}-{fixed_value}.pdf",
     run:
+        # Extract alignment base for matching
+        if "_tree_search" in wildcards.test_data_name:
+            alignment_base = wildcards.test_data_name.replace("_tree_search", "").split("_rep")[0]
+        else:
+            alignment_base = wildcards.test_data_name.split("_rep")[0]
+
+        # Find matching test datasets (including replicates)
+        matching_test_data = [name for name in test_data_names_with_reps
+                             if name.startswith(alignment_base) and "_tree_search" in name]
+
+        if len(matching_test_data) == 0:
+            matching_test_data = [wildcards.test_data_name]
+
         # Determine what we're fixing based on compare_by
         if wildcards.compare_by == "model":
             fixed_model = None
             fixed_training_data = wildcards.fixed_value
-            
-            # Find matching test datasets (including replicates)
-            matching_test_data = [name for name in test_data_names_with_reps 
-                                 if wildcards.test_data_name in name]
-            
-            if len(matching_test_data) == 0:
-                matching_test_data = [wildcards.test_data_name]
-                
         else:  # compare_by == "training_data"
             fixed_model = wildcards.fixed_value
             fixed_training_data = None
-            
-            # Find matching test datasets
-            matching_test_data = [name for name in test_data_names_with_reps 
-                                 if wildcards.test_data_name in name]
-            
-            if len(matching_test_data) == 0:
-                matching_test_data = [wildcards.test_data_name]
 
         plot_treesearch_evaluation(
             csv_file=input.summary_csv,

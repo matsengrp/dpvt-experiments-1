@@ -137,11 +137,16 @@ python scripts/generate_configs.py -i {input_data} -d {dataset_name} -l {larch_c
 Options:
 
 - `-o, --output-dir`: Directory for config files (default: `configs/`)
+- `-dp, --dataset-path`: Directory where datasets will be created (default: `../../data`)
 - `--no-split`: Skip train/test splitting (for simulated data, generates
   `_generate.yaml` instead of `_train.yaml` and `_test.yaml`)
 - `-e, --edge-distributions`: Edge distribution method(s) to use. Can be
   specified multiple times (e.g., `-e constant -e random_subtree`). Default:
   `constant`
+- `-p, --proportions`: Target non-MP edge proportion(s). Can specify multiple
+  (e.g., `-p 0.1 -p 0.2`) to generate one config per proportion.
+- `--p3-input-dir`: Override the Phase 3 input directory path (for pre-existing
+  data that doesn't follow the standard naming convention)
 
 **Phase 1 & 2 config parameters:**
 

@@ -246,5 +246,5 @@ rule aggregate_training_data:
         edge_suffix="|".join(FULL_EDGE_SUFFIX.values())
     run:
         edge_dist = FULL_SUFFIX_TO_EDGE_DIST[wildcards.edge_suffix]
-        aggregate_data(data_dir=input_data, data_props_file=output.data_props, dpvt_train_data=output.dpvt_data, edge_distribution=edge_dist, dpvt_test_data=None, balance_by_median_num_MP_trees=balance_by_median_num_MP_trees)
+        aggregate_data(data_dir=input_data, data_props_file=output.data_props, dpvt_train_data=output.dpvt_data, edge_distribution=edge_dist, dpvt_test_data=None, balance_by_median_num_MP_trees=balance_by_median_num_MP_trees, full_suffix=wildcards.edge_suffix)
 

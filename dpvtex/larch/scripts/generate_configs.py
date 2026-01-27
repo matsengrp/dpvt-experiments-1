@@ -14,6 +14,8 @@ Options:
     -o, --output-dir: Directory where config files will be created (default: "configs")
     --no-split: Skip train/test splitting (for simulated data)
     -e, --edge-distributions: Methods for introducing non-MP edges (can specify multiple)
+    -p, --proportions: Target non-MP edge proportions (can specify multiple, generates
+                       one Phase 3 config per proportion)
 
 Examples:
     # For empirical data (with train/test split):
@@ -23,6 +25,10 @@ Examples:
     python scripts/generate_configs.py -i ../../data/simulated -d sim_15seq -l larch \\
         -e constant -e random_subtree --no-split
 
+    # Generate multiple configs with different non-MP proportions:
+    python scripts/generate_configs.py -i ../../data/empirical -d my_dataset -l larch \\
+        -p 0.1 -p 0.2 -p 0.3 -p 0.5
+
     This will generate:
         With split (default):
             - configs/my_dataset_prepare.yaml
@@ -31,6 +37,13 @@ Examples:
         With --no-split:
             - configs/sim_15seq_prepare.yaml
             - configs/sim_15seq_generate.yaml
+        With --proportions (one config per proportion per split):
+            - configs/my_dataset_prepare.yaml
+            - configs/my_dataset_train_t0.1.yaml
+            - configs/my_dataset_train_t0.2.yaml
+            - configs/my_dataset_test_t0.1.yaml
+            - configs/my_dataset_test_t0.2.yaml
+            - ...
 """
 
 import argparse
@@ -157,6 +170,8 @@ def generate_phase3_config(
     larch_command,
     min_frac_sites_retained=DEFAULT_MIN_FRAC_SITES_RETAINED,
     edge_distributions=None,
+    spr_target_non_mp_proportion=None,
+    subtree_target_non_mp_proportion=None,
 ):
     """Generate Phase 3 config for train, test, or filtered (no-split) data.
 
@@ -166,9 +181,25 @@ def generate_phase3_config(
         larch_command: Command to run larch
         min_frac_sites_retained: Minimum fraction of sites retained (default: 0.8)
         edge_distributions: List of methods for introducing non-MP edges
+        spr_target_non_mp_proportion: Target proportion of non-MP edges for SPR methods.
+            If None, uses DEFAULT_SPR_TARGET_NON_MP_PROPORTION.
+        subtree_target_non_mp_proportion: Target proportion of non-MP edges for subtree
+            replacement. If None, uses DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION.
     """
     if edge_distributions is None:
         edge_distributions = ["constant"]
+
+    # Use defaults if not specified
+    spr_proportion = (
+        spr_target_non_mp_proportion
+        if spr_target_non_mp_proportion is not None
+        else DEFAULT_SPR_TARGET_NON_MP_PROPORTION
+    )
+    subtree_proportion = (
+        subtree_target_non_mp_proportion
+        if subtree_target_non_mp_proportion is not None
+        else DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION
+    )
 
     if split_type == "filtered":
         split_name = "All Data (no train/test split)"
@@ -202,12 +233,12 @@ max_trees: {DEFAULT_MAX_TREES}                           # Max trees to extract 
 
 # SPR parameters (for constant/uniform edge distributions)
 spr_radius: {DEFAULT_SPR_RADIUS}                          # Max topological distance for SPR regraft (null = unlimited)
-spr_target_non_mp_proportion: {DEFAULT_SPR_TARGET_NON_MP_PROPORTION}   # Target non-MP edge proportion
+spr_target_non_mp_proportion: {spr_proportion}   # Target non-MP edge proportion
 max_spr_attempts: {DEFAULT_MAX_SPR_ATTEMPTS}                   # Max SPR attempts before stopping
 
 # Subtree replacement parameters
 subtree_max_attempts: {DEFAULT_SUBTREE_MAX_ATTEMPTS}                # Max attempts for subtree replacement
-subtree_target_non_mp_proportion: {DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION}  # Target non-MP edge proportion
+subtree_target_non_mp_proportion: {subtree_proportion}  # Target non-MP edge proportion
 subtree_depth: {DEFAULT_SUBTREE_DEPTH}                        # Subtree depth for replacement (null = tree_depth // 2)
 """
 
@@ -217,6 +248,7 @@ def generate_train_config(
     larch_command,
     min_frac_sites_retained=DEFAULT_MIN_FRAC_SITES_RETAINED,
     edge_distributions=None,
+    target_non_mp_proportion=None,
 ):
     """Generate Phase 3 train config."""
     return generate_phase3_config(
@@ -225,6 +257,8 @@ def generate_train_config(
         larch_command,
         min_frac_sites_retained,
         edge_distributions,
+        spr_target_non_mp_proportion=target_non_mp_proportion,
+        subtree_target_non_mp_proportion=target_non_mp_proportion,
     )
 
 
@@ -233,10 +267,17 @@ def generate_test_config(
     larch_command,
     min_frac_sites_retained=DEFAULT_MIN_FRAC_SITES_RETAINED,
     edge_distributions=None,
+    target_non_mp_proportion=None,
 ):
     """Generate Phase 3 test config."""
     return generate_phase3_config(
-        dataset_name, "test", larch_command, min_frac_sites_retained, edge_distributions
+        dataset_name,
+        "test",
+        larch_command,
+        min_frac_sites_retained,
+        edge_distributions,
+        spr_target_non_mp_proportion=target_non_mp_proportion,
+        subtree_target_non_mp_proportion=target_non_mp_proportion,
     )
 
 
@@ -245,6 +286,7 @@ def generate_no_split_config(
     larch_command,
     min_frac_sites_retained=DEFAULT_MIN_FRAC_SITES_RETAINED,
     edge_distributions=None,
+    target_non_mp_proportion=None,
 ):
     """Generate Phase 3 config for filtered data (no train/test split)."""
     return generate_phase3_config(
@@ -253,6 +295,8 @@ def generate_no_split_config(
         larch_command,
         min_frac_sites_retained,
         edge_distributions,
+        spr_target_non_mp_proportion=target_non_mp_proportion,
+        subtree_target_non_mp_proportion=target_non_mp_proportion,
     )
 
 
@@ -268,6 +312,10 @@ Examples:
     # For simulated data with multiple edge distributions:
     python scripts/generate_configs.py -i ../../data/simulated -d sim_data -l larch \\
         -e constant -e random_subtree --no-split
+
+    # Generate multiple configs with different non-MP proportions:
+    python scripts/generate_configs.py -i ../../data/empirical -d my_dataset -l larch \\
+        -p 0.1 -p 0.2 -p 0.3
         """,
     )
     parser.add_argument(
@@ -306,11 +354,21 @@ Examples:
         choices=["constant", "uniform", "treesearch_mimic", "random_subtree"],
         help="Method(s) for introducing non-MP edges (can specify multiple, default: constant)",
     )
+    parser.add_argument(
+        "-p",
+        "--proportions",
+        action="append",
+        type=float,
+        help="Target non-MP edge proportion(s) (can specify multiple, e.g., -p 0.1 -p 0.2)",
+    )
 
     args = parser.parse_args()
 
     # Default to ["constant"] if no edge distributions specified
     edge_distributions = args.edge_distributions or ["constant"]
+
+    # Default to [None] if no proportions specified (uses defaults in config)
+    proportions = args.proportions or [None]
 
     # Create output directory if needed
     os.makedirs(args.output_dir, exist_ok=True)
@@ -333,41 +391,57 @@ Examples:
     print(f"  {prepare_path}")
 
     if args.no_split:
-        # Generate single generate config for filtered data
-        generate_config = generate_no_split_config(
-            args.dataset_name,
-            args.larch_command,
-            edge_distributions=edge_distributions,
-        )
-        generate_path = os.path.join(
-            args.output_dir, f"{args.dataset_name}_generate.yaml"
-        )
-        with open(generate_path, "w") as f:
-            f.write(generate_config)
-        print(f"  {generate_path}")
+        # Generate config(s) for filtered data (no train/test split)
+        for proportion in proportions:
+            generate_config = generate_no_split_config(
+                args.dataset_name,
+                args.larch_command,
+                edge_distributions=edge_distributions,
+                target_non_mp_proportion=proportion,
+            )
+            # Include proportion in filename if specified
+            if proportion is not None:
+                filename = f"{args.dataset_name}_generate_t{proportion}.yaml"
+            else:
+                filename = f"{args.dataset_name}_generate.yaml"
+            generate_path = os.path.join(args.output_dir, filename)
+            with open(generate_path, "w") as f:
+                f.write(generate_config)
+            print(f"  {generate_path}")
     else:
-        # Generate train and test configs
-        train_config = generate_train_config(
-            args.dataset_name,
-            args.larch_command,
-            edge_distributions=edge_distributions,
-        )
-        test_config = generate_test_config(
-            args.dataset_name,
-            args.larch_command,
-            edge_distributions=edge_distributions,
-        )
+        # Generate train and test configs for each proportion
+        for proportion in proportions:
+            train_config = generate_train_config(
+                args.dataset_name,
+                args.larch_command,
+                edge_distributions=edge_distributions,
+                target_non_mp_proportion=proportion,
+            )
+            test_config = generate_test_config(
+                args.dataset_name,
+                args.larch_command,
+                edge_distributions=edge_distributions,
+                target_non_mp_proportion=proportion,
+            )
 
-        train_path = os.path.join(args.output_dir, f"{args.dataset_name}_train.yaml")
-        test_path = os.path.join(args.output_dir, f"{args.dataset_name}_test.yaml")
+            # Include proportion in filename if specified
+            if proportion is not None:
+                train_filename = f"{args.dataset_name}_train_t{proportion}.yaml"
+                test_filename = f"{args.dataset_name}_test_t{proportion}.yaml"
+            else:
+                train_filename = f"{args.dataset_name}_train.yaml"
+                test_filename = f"{args.dataset_name}_test.yaml"
 
-        with open(train_path, "w") as f:
-            f.write(train_config)
-        with open(test_path, "w") as f:
-            f.write(test_config)
+            train_path = os.path.join(args.output_dir, train_filename)
+            test_path = os.path.join(args.output_dir, test_filename)
 
-        print(f"  {train_path}")
-        print(f"  {test_path}")
+            with open(train_path, "w") as f:
+                f.write(train_config)
+            with open(test_path, "w") as f:
+                f.write(test_config)
+
+            print(f"  {train_path}")
+            print(f"  {test_path}")
 
 
 if __name__ == "__main__":

@@ -12,10 +12,13 @@ Arguments:
 
 Options:
     -o, --output-dir: Directory where config files will be created (default: "configs")
+    -dp, --dataset-path: Directory where datasets will be created (default: "../../data")
     --no-split: Skip train/test splitting (for simulated data)
     -e, --edge-distributions: Methods for introducing non-MP edges (can specify multiple)
     -p, --proportions: Target non-MP edge proportions (can specify multiple, generates
                        one Phase 3 config per proportion)
+    --p3-input-dir: Override the Phase 3 input directory path (for pre-existing data
+                    that doesn't follow the standard naming convention)
 
 Examples:
     # For empirical data (with train/test split):
@@ -23,11 +26,15 @@ Examples:
 
     # For simulated data with multiple edge distributions:
     python scripts/generate_configs.py -i ../../data/simulated -d sim_15seq -l larch \\
-        -e constant -e random_subtree -dp ../../data --no-split
+        -e constant -e random_subtree --no-split
 
     # Generate multiple configs with different non-MP proportions:
     python scripts/generate_configs.py -i ../../data/empirical -d my_dataset -l larch \\
         -p 0.1 -p 0.2 -p 0.3 -p 0.5
+
+    # For pre-existing data that doesn't follow naming convention:
+    python scripts/generate_configs.py -i ../../data/original -d pandit_test -l larch \\
+        --no-split -p 0.1 --p3-input-dir "../../data/pandit_test_0.8"
 
     This will generate:
         With split (default):
@@ -174,6 +181,7 @@ def generate_phase3_config(
     edge_distributions=None,
     spr_target_non_mp_proportion=None,
     subtree_target_non_mp_proportion=None,
+    input_dir_override=None,
 ):
     """Generate Phase 3 config for train, test, or filtered (no-split) data.
 
@@ -187,6 +195,8 @@ def generate_phase3_config(
             If None, uses DEFAULT_SPR_TARGET_NON_MP_PROPORTION.
         subtree_target_non_mp_proportion: Target proportion of non-MP edges for subtree
             replacement. If None, uses DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION.
+        input_dir_override: If provided, use this path for input_data instead of
+            constructing it from dataset_name and split_type.
     """
     if edge_distributions is None:
         edge_distributions = ["constant"]
@@ -212,17 +222,29 @@ def generate_phase3_config(
 
     edge_dist_yaml = format_edge_distributions(edge_distributions)
 
+    # Determine input path, output path, and dataset name
+    if input_dir_override is not None:
+        input_data_path = input_dir_override
+        # Output goes to parent directory of input
+        output_data_path = os.path.dirname(input_dir_override.rstrip("/"))
+        # Extract dataset name from the override path for output naming
+        output_dataset_name = os.path.basename(input_dir_override.rstrip("/"))
+    else:
+        input_data_path = f"{dataset_path}/{dataset_name}_{split_type}_{min_frac_sites_retained}"
+        output_data_path = dataset_path
+        output_dataset_name = f"{dataset_name}_{split_type}_{min_frac_sites_retained}"
+
     return f"""# Phase 3 Config: {split_name} for {dataset_name}
 # This config points to the {comment}
 
 # Input: {split_name} from Phase 2 (must match Phase 2 output naming)
-input_data: "{dataset_path}/{dataset_name}_{split_type}_{min_frac_sites_retained}"
+input_data: "{input_data_path}"
 
 # Output directory for training data
-output_data: "{dataset_path}"
+output_data: "{output_data_path}"
 
 # Dataset name for output files
-dataset_name: "{dataset_name}_{split_type}_{min_frac_sites_retained}"
+dataset_name: "{output_dataset_name}"
 
 # Larch settings (should match unified config)
 larch_command: "{larch_command}"
@@ -294,6 +316,7 @@ def generate_no_split_config(
     min_frac_sites_retained=DEFAULT_MIN_FRAC_SITES_RETAINED,
     edge_distributions=None,
     target_non_mp_proportion=None,
+    input_dir_override=None,
 ):
     """Generate Phase 3 config for filtered data (no train/test split)."""
     return generate_phase3_config(
@@ -305,6 +328,7 @@ def generate_no_split_config(
         edge_distributions,
         spr_target_non_mp_proportion=target_non_mp_proportion,
         subtree_target_non_mp_proportion=target_non_mp_proportion,
+        input_dir_override=input_dir_override,
     )
 
 
@@ -375,6 +399,10 @@ Examples:
         type=float,
         help="Target non-MP edge proportion(s) (can specify multiple, e.g., -p 0.1 -p 0.2)",
     )
+    parser.add_argument(
+        "--p3-input-dir",
+        help="Override the Phase 3 input directory path (for pre-existing data that doesn't follow naming convention)",
+    )
 
     args = parser.parse_args()
 
@@ -414,6 +442,7 @@ Examples:
                 args.dataset_path,
                 edge_distributions=edge_distributions,
                 target_non_mp_proportion=proportion,
+                input_dir_override=args.p3_input_dir,
             )
             # Include proportion in filename if specified
             if proportion is not None:

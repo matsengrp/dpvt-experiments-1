@@ -39,23 +39,6 @@ def _get_dict(file_path):
 # =============================================================================
 
 
-def _get_expected_suffix(edge_distribution, full_suffix=None):
-    """Map edge distribution type to expected file suffix.
-
-    Args:
-        edge_distribution: The edge distribution type (e.g., "constant", "uniform")
-        full_suffix: If provided, use this exact suffix instead of mapping from
-            edge_distribution. This allows matching files with parameter suffixes
-            like "_spr_r2_t0.1" instead of just "_spr".
-
-    Returns:
-        The suffix to use for matching pickle files.
-    """
-    if full_suffix is not None:
-        return full_suffix
-    return EDGE_DIST_TO_SUFFIX.get(edge_distribution, "")
-
-
 def _collect_pickle_files(data_dir, expected_suffix):
     """Collect all pickle files matching the edge distribution suffix.
 
@@ -207,7 +190,7 @@ def extract_trees_and_labels(
             - data_props (dict): Dictionary containing properties of datasets.
     """
     # Collect all pickle files
-    expected_suffix = _get_expected_suffix(edge_distribution, full_suffix)
+    expected_suffix = full_suffix if full_suffix is not None else EDGE_DIST_TO_SUFFIX.get(edge_distribution, "")
     pickle_files = _collect_pickle_files(data_dir, expected_suffix)
 
     logger.log("AGGREGATION", f"Found {len(pickle_files)} pickle files to process")

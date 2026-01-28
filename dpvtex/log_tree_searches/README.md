@@ -9,8 +9,8 @@ This directory contains a Snakemake pipeline to:
 ## Prerequisites
 
 - The `dpvtex` package from the base directory of this repo must be installed
-- R with packages `optparse` and `remotes`
-- A modified version of the `phangorn` package (version 2.12.1) from [this GitHub repo](https://github.com/lenacoll/phangorn/tree/log-mp-search-trees), which allows logging trees along a maximum parsimony tree search
+- R with packages `optparse` and `remotes` (included in pixi environment)
+- A modified version of the `phangorn` package (version 2.12.1) from [this GitHub repo](https://github.com/lenacoll/phangorn/tree/log-mp-search-trees), which allows logging trees along a maximum parsimony tree search. **Install it by running `pixi run install-phangorn` once after setting up the pixi environment.**
 - The `larch-usher` software ([installation guide](https://github.com/matsengrp/larch))
 
 ## Running the Pipeline

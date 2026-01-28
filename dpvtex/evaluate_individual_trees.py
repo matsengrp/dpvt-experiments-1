@@ -935,8 +935,8 @@ def plot_treesearch_evaluation(
         first_legend = fig.legend(
             unique_handles,
             unique_labels,
-            loc="upper center",
-            bbox_to_anchor=(0.5, 0.95),  # Position at top center
+            loc="lower center",
+            bbox_to_anchor=(0.5, 1.01),  # Position above figure, anchored at bottom of legend
             title=comparison_column.replace("_", " ").title(),
             title_fontsize=14,
             fontsize=12,
@@ -950,8 +950,8 @@ def plot_treesearch_evaluation(
         bottom_legend = fig.legend(
             all_handles,
             all_labels,
-            loc="lower center",
-            bbox_to_anchor=(0.5, 0.07),  # Position at bottom center
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.01),  # Position below figure, anchored at top of legend
             fontsize=12,
             ncol=2,  # Use two columns for better spacing
         )
@@ -963,8 +963,8 @@ def plot_treesearch_evaluation(
     plt.rcParams.update({"font.size": 14})  # Set default font size globally
 
     # Adjust figure to make room for legends on top and bottom
-    plt.tight_layout()
-    fig.subplots_adjust(top=0.88, bottom=0.12)  # Adjust top and bottom margins
+    # plt.tight_layout()
+    fig.subplots_adjust(top=0.90, bottom=0.08)  # Adjust top and bottom margins for legends
 
     # Save figure
     plt.savefig(output_file, bbox_inches="tight")

@@ -26,7 +26,10 @@ num_replicates = config.get(
 )  # Default to 3 replicates if not specified
 start_tree_type = config.get(
     "start_tree_type", "random"
-)  # "random" or "default" (phangorn's random addition)
+)  # "random" or "nj" (neighbor joining)
+
+# Map start_tree_type to directory name
+start_tree_dir = "random_starting" if start_tree_type == "random" else "nj_starting"
 
 
 # Get input files
@@ -76,7 +79,7 @@ wildcard_constraints:
 
 
 treesearch_data_paths = expand(
-    dpvt_data_dir+"/treesearch/{basename}/{basename}_rep{replicate}_tree_search.p",
+    dpvt_data_dir+"/treesearch/"+start_tree_dir+"/{basename}/{basename}_rep{replicate}_tree_search.p",
     basename=VALID_BASENAMES,
     replicate=range(1, num_replicates + 1),
 )
@@ -153,7 +156,7 @@ rule compute_labels:
         tree_log=input_dir + "/{basename}/{basename}_rep{replicate}_log.trees",
         fasta=input_dir + "/{basename}/input.fasta",
     output:
-        test_p=dpvt_data_dir + "/treesearch/{basename}/{basename}_rep{replicate}_tree_search.p",
+        test_p=dpvt_data_dir + "/treesearch/" + start_tree_dir + "/{basename}/{basename}_rep{replicate}_tree_search.p",
     shell:
         """
         mkdir -p $(dirname {output.test_p})

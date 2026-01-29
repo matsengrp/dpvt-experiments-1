@@ -230,7 +230,9 @@ def generate_phase3_config(
         # Extract dataset name from the override path for output naming
         output_dataset_name = os.path.basename(input_dir_override.rstrip("/"))
     else:
-        input_data_path = f"{dataset_path}/{dataset_name}_{split_type}_{min_frac_sites_retained}"
+        input_data_path = (
+            f"{dataset_path}/{dataset_name}_{split_type}_{min_frac_sites_retained}"
+        )
         output_data_path = dataset_path
         output_dataset_name = f"{dataset_name}_{split_type}_{min_frac_sites_retained}"
 
@@ -267,50 +269,9 @@ subtree_depth: {DEFAULT_SUBTREE_DEPTH}                        # Subtree depth fo
 """
 
 
-def generate_train_config(
+def generate_split_config(
     dataset_name,
-    larch_command,
-    dataset_path,
-    min_frac_sites_retained=DEFAULT_MIN_FRAC_SITES_RETAINED,
-    edge_distributions=None,
-    target_non_mp_proportion=None,
-):
-    """Generate Phase 3 train config."""
-    return generate_phase3_config(
-        dataset_name,
-        "train",
-        larch_command,
-        dataset_path,
-        min_frac_sites_retained,
-        edge_distributions,
-        spr_target_non_mp_proportion=target_non_mp_proportion,
-        subtree_target_non_mp_proportion=target_non_mp_proportion,
-    )
-
-
-def generate_test_config(
-    dataset_name,
-    larch_command,
-    dataset_path,
-    min_frac_sites_retained=DEFAULT_MIN_FRAC_SITES_RETAINED,
-    edge_distributions=None,
-    target_non_mp_proportion=None,
-):
-    """Generate Phase 3 test config."""
-    return generate_phase3_config(
-        dataset_name,
-        "test",
-        larch_command,
-        dataset_path,
-        min_frac_sites_retained,
-        edge_distributions,
-        spr_target_non_mp_proportion=target_non_mp_proportion,
-        subtree_target_non_mp_proportion=target_non_mp_proportion,
-    )
-
-
-def generate_no_split_config(
-    dataset_name,
+    split_type,
     larch_command,
     dataset_path,
     min_frac_sites_retained=DEFAULT_MIN_FRAC_SITES_RETAINED,
@@ -318,10 +279,30 @@ def generate_no_split_config(
     target_non_mp_proportion=None,
     input_dir_override=None,
 ):
-    """Generate Phase 3 config for filtered data (no train/test split)."""
+    """Generate Phase 3 config for train, test, or filtered (no-split) data.
+
+    This function consolidates the common pattern for generating Phase 3 configs
+    across different split types. It maps the single target_non_mp_proportion
+    to both SPR and subtree parameters.
+
+    Args:
+        dataset_name: Name of the dataset.
+        split_type: Either "train", "test", or "filtered".
+        larch_command: Command to run larch.
+        dataset_path: Directory where datasets are stored.
+        min_frac_sites_retained: Minimum fraction of sites retained (default: 0.8).
+        edge_distributions: List of methods for introducing non-MP edges.
+        target_non_mp_proportion: Target proportion of non-MP edges. Applied to
+            both SPR and subtree methods. If None, uses defaults.
+        input_dir_override: If provided, use this path for input_data instead of
+            constructing it from dataset_name and split_type.
+
+    Returns:
+        YAML config string for the specified split type.
+    """
     return generate_phase3_config(
         dataset_name,
-        "filtered",
+        split_type,
         larch_command,
         dataset_path,
         min_frac_sites_retained,
@@ -433,62 +414,35 @@ Examples:
     print("Generated config files:")
     print(f"  {prepare_path}")
 
-    if args.no_split:
-        # Generate config(s) for filtered data (no train/test split)
-        for proportion in proportions:
-            generate_config = generate_no_split_config(
+    # Determine which split types to generate configs for
+    split_types = ["filtered"] if args.no_split else ["train", "test"]
+
+    # Generate Phase 3 configs for each split type and proportion
+    for proportion in proportions:
+        for split_type in split_types:
+            config = generate_split_config(
                 args.dataset_name,
+                split_type,
                 args.larch_command,
                 args.dataset_path,
                 edge_distributions=edge_distributions,
                 target_non_mp_proportion=proportion,
-                input_dir_override=args.p3_input_dir,
+                input_dir_override=(
+                    args.p3_input_dir if split_type == "filtered" else None
+                ),
             )
-            # Include proportion in filename if specified
+
+            # Build filename with appropriate config type name
+            config_type = "generate" if split_type == "filtered" else split_type
             if proportion is not None:
-                filename = f"{args.dataset_name}_generate_t{proportion}.yaml"
+                filename = f"{args.dataset_name}_{config_type}_t{proportion}.yaml"
             else:
-                filename = f"{args.dataset_name}_generate.yaml"
-            generate_path = os.path.join(args.output_dir, filename)
-            with open(generate_path, "w") as f:
-                f.write(generate_config)
-            print(f"  {generate_path}")
-    else:
-        # Generate train and test configs for each proportion
-        for proportion in proportions:
-            train_config = generate_train_config(
-                args.dataset_name,
-                args.larch_command,
-                args.dataset_path,
-                edge_distributions=edge_distributions,
-                target_non_mp_proportion=proportion,
-            )
-            test_config = generate_test_config(
-                args.dataset_name,
-                args.larch_command,
-                args.dataset_path,
-                edge_distributions=edge_distributions,
-                target_non_mp_proportion=proportion,
-            )
+                filename = f"{args.dataset_name}_{config_type}.yaml"
 
-            # Include proportion in filename if specified
-            if proportion is not None:
-                train_filename = f"{args.dataset_name}_train_t{proportion}.yaml"
-                test_filename = f"{args.dataset_name}_test_t{proportion}.yaml"
-            else:
-                train_filename = f"{args.dataset_name}_train.yaml"
-                test_filename = f"{args.dataset_name}_test.yaml"
-
-            train_path = os.path.join(args.output_dir, train_filename)
-            test_path = os.path.join(args.output_dir, test_filename)
-
-            with open(train_path, "w") as f:
-                f.write(train_config)
-            with open(test_path, "w") as f:
-                f.write(test_config)
-
-            print(f"  {train_path}")
-            print(f"  {test_path}")
+            config_path = os.path.join(args.output_dir, filename)
+            with open(config_path, "w") as f:
+                f.write(config)
+            print(f"  {config_path}")
 
 
 if __name__ == "__main__":

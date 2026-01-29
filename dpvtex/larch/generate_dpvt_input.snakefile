@@ -320,5 +320,5 @@ rule aggregate_training_data:
             edge_distribution=edge_dist,
             dpvt_test_data=None,
             balance_by_median_num_MP_trees=balance_by_median_num_MP_trees,
-            full_suffix=wildcards.edge_suffix,
+            file_suffix_override=wildcards.edge_suffix,
         )

@@ -39,11 +39,6 @@ def _get_dict(file_path):
 # =============================================================================
 
 
-def _get_expected_suffix(edge_distribution):
-    """Map edge distribution type to expected file suffix."""
-    return EDGE_DIST_TO_SUFFIX.get(edge_distribution, "")
-
-
 def _collect_pickle_files(data_dir, expected_suffix):
     """Collect all pickle files matching the edge distribution suffix.
 
@@ -174,6 +169,7 @@ def extract_trees_and_labels(
     edge_distribution="constant",
     balance_by_median_num_MP_trees=True,
     logger=None,
+    file_suffix_override=None,
 ):
     """Extracts trees and labels from .p files in the given directory.
 
@@ -182,6 +178,9 @@ def extract_trees_and_labels(
         edge_distribution (str): Type of edge distribution ("constant", "uniform", "treesearch_mimic", "random_subtree")
         balance_by_median_num_MP_trees (bool): If True, subsample alignments with more than median trees to balance dataset.
         logger (PipelineLogger): Logger for tracking operations.
+        file_suffix_override (str): If provided, use this exact suffix for matching files
+            instead of deriving it from edge_distribution. This allows matching
+            files with parameter suffixes like "_spr_r2_t0.1".
 
     Returns:
         tuple: A tuple containing:
@@ -191,7 +190,11 @@ def extract_trees_and_labels(
             - data_props (dict): Dictionary containing properties of datasets.
     """
     # Collect all pickle files
-    expected_suffix = _get_expected_suffix(edge_distribution)
+    expected_suffix = (
+        file_suffix_override
+        if file_suffix_override is not None
+        else EDGE_DIST_TO_SUFFIX.get(edge_distribution, "")
+    )
     pickle_files = _collect_pickle_files(data_dir, expected_suffix)
 
     logger.log("AGGREGATION", f"Found {len(pickle_files)} pickle files to process")
@@ -360,6 +363,7 @@ def aggregate_data(
     edge_distribution="constant",
     dpvt_test_data=None,
     balance_by_median_num_MP_trees=True,
+    file_suffix_override=None,
 ):
     """
     Aggregate data from the specified directory and save it to a pickle file.
@@ -371,6 +375,10 @@ def aggregate_data(
         edge_distribution (str): Type of edge distribution ("constant", "uniform", "treesearch_mimic", "random_subtree")
         dpvt_test_data (str): Path to save the testing data.
         balance_by_median_num_MP_trees (bool): If True (default), subsample alignments with more than median trees to balance dataset.
+        file_suffix_override (str): If provided, use this exact suffix for matching files
+            instead of deriving it from edge_distribution. This allows matching
+            files with parameter suffixes like "_spr_r2_t0.1" to avoid mixing
+            files from different parameter settings.
     """
     # Initialize logger
     logger = get_logger(data_dir)
@@ -382,7 +390,11 @@ def aggregate_data(
     )
 
     trees, labels, all_trees_dict, data_props = extract_trees_and_labels(
-        data_dir, edge_distribution, balance_by_median_num_MP_trees, logger
+        data_dir,
+        edge_distribution,
+        balance_by_median_num_MP_trees,
+        logger,
+        file_suffix_override,
     )
     pickle_and_save_data(dpvt_train_data, dpvt_test_data, all_trees_dict, trees, labels)
     save_data_properties(data_props, data_props_file, data_dir)

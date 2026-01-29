@@ -313,6 +313,35 @@ done
 # - data/my_dataset_filtered_0.9/
 ```
 
+## Creating Datasets with Different Non-MP Proportions
+
+Use the `-p` flag to generate configs with different target non-MP edge proportions:
+
+```bash
+# Generate configs for multiple proportions at once
+python scripts/generate_configs.py -i ../../data/my_alignments -d my_dataset -l larch \
+    -p 0.1 -p 0.2 -p 0.5
+
+# This creates:
+# - configs/my_dataset_train_t0.1.yaml
+# - configs/my_dataset_train_t0.2.yaml
+# - configs/my_dataset_train_t0.5.yaml
+# - configs/my_dataset_test_t0.1.yaml
+# - etc.
+```
+
+## Using Pre-existing Data
+
+If you have data that doesn't follow the standard naming convention (e.g.,
+`{dataset_name}_filtered_0.8`), use `--p3-input-dir` to override the input path:
+
+```bash
+python scripts/generate_configs.py -i ../../data/original -d pandit_test -l larch \
+    --no-split -p 0.1 --p3-input-dir "../../data/pandit_test_0.8"
+```
+
+This generates a config pointing directly to your existing data directory.
+
 ## Benefits of This Workflow
 
 1. **Manual checkpoints**: Review quality stats and filter results before

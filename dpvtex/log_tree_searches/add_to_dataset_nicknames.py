@@ -13,6 +13,10 @@ def main():
         python add_to_dataset_nicknames.py <nicknames_json> <file1.p> [file2.p ...]
 
     The files should be paths relative to the data_dir specified in the nicknames JSON.
+
+    For files in the treesearch directory structure with starting tree type
+    subdirectories (random_starting/ or nj_starting/), the nickname will include
+    the starting tree type prefix (e.g., 'random_PF05036-dna_rep1_tree_search').
     """
     if len(sys.argv) < 3:
         print(
@@ -21,11 +25,16 @@ def main():
         sys.exit(1)
 
     json_file = sys.argv[1]
-    files_to_add = sys.argv[2:]
+    start_tree_type = sys.argv[2]
+    files_to_add = sys.argv[3:]
 
-    # Load existing JSON data
-    with open(json_file, "r") as f:
-        data = json.load(f)
+    # Load existing JSON data or create new file with default structure
+    if os.path.exists(json_file):
+        with open(json_file, "r") as f:
+            data = json.load(f)
+    else:
+        print(f"Creating new nicknames file: {json_file}")
+        data = {"data_dir": "../data"}
 
     data_dir = data.get("data_dir", ".")
 
@@ -39,10 +48,24 @@ def main():
             rel_path = os.path.relpath(abs_filepath, abs_data_dir)
         else:
             # If not under data_dir, use the filename with treesearch/ prefix
-            rel_path = os.path.join("treesearch", os.path.basename(filepath))
+            filename = os.path.basename(filepath)
+            rel_path = os.path.join(
+                "treesearch",
+                start_tree_type + "_starting",
+                filename.split("_rep")[0],
+                filename,
+            )
 
         # Create nickname from filename (without .p extension)
-        nickname = os.path.basename(filepath).replace(".p", "")
+        base_nickname = os.path.basename(filepath).replace(".p", "")
+
+        # Add starting tree type prefix if present in path
+        if "random_starting" in filepath:
+            nickname = f"random_{base_nickname}"
+        elif "nj_starting" in filepath:
+            nickname = f"nj_{base_nickname}"
+        else:
+            nickname = base_nickname
 
         data[nickname] = rel_path
         print(f"  Added: {nickname} -> {rel_path}")

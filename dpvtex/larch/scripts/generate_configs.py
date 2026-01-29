@@ -269,50 +269,6 @@ subtree_depth: {DEFAULT_SUBTREE_DEPTH}                        # Subtree depth fo
 """
 
 
-def generate_split_config(
-    dataset_name,
-    split_type,
-    larch_command,
-    dataset_path,
-    min_frac_sites_retained=DEFAULT_MIN_FRAC_SITES_RETAINED,
-    edge_distributions=None,
-    target_non_mp_proportion=None,
-    input_dir_override=None,
-):
-    """Generate Phase 3 config for train, test, or filtered (no-split) data.
-
-    This function consolidates the common pattern for generating Phase 3 configs
-    across different split types. It maps the single target_non_mp_proportion
-    to both SPR and subtree parameters.
-
-    Args:
-        dataset_name: Name of the dataset.
-        split_type: Either "train", "test", or "filtered".
-        larch_command: Command to run larch.
-        dataset_path: Directory where datasets are stored.
-        min_frac_sites_retained: Minimum fraction of sites retained (default: 0.8).
-        edge_distributions: List of methods for introducing non-MP edges.
-        target_non_mp_proportion: Target proportion of non-MP edges. Applied to
-            both SPR and subtree methods. If None, uses defaults.
-        input_dir_override: If provided, use this path for input_data instead of
-            constructing it from dataset_name and split_type.
-
-    Returns:
-        YAML config string for the specified split type.
-    """
-    return generate_phase3_config(
-        dataset_name,
-        split_type,
-        larch_command,
-        dataset_path,
-        min_frac_sites_retained,
-        edge_distributions,
-        spr_target_non_mp_proportion=target_non_mp_proportion,
-        subtree_target_non_mp_proportion=target_non_mp_proportion,
-        input_dir_override=input_dir_override,
-    )
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="Generate config files for the DPVT pipeline.",
@@ -420,13 +376,14 @@ Examples:
     # Generate Phase 3 configs for each split type and proportion
     for proportion in proportions:
         for split_type in split_types:
-            config = generate_split_config(
+            config = generate_phase3_config(
                 args.dataset_name,
                 split_type,
                 args.larch_command,
                 args.dataset_path,
                 edge_distributions=edge_distributions,
-                target_non_mp_proportion=proportion,
+                spr_target_non_mp_proportion=proportion,
+                subtree_target_non_mp_proportion=proportion,
                 input_dir_override=(
                     args.p3_input_dir if split_type == "filtered" else None
                 ),

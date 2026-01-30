@@ -21,10 +21,11 @@ Create or modify `config.yaml` with the following settings:
 
 ```yaml
 input_dir: "path/to/alignment/directory"    # Directory containing input alignments
-dpvt_data_dir: "path/to/output/directory"   # Directory for output pickle files
+output_dir: "path/to/output/directory"      # Directory for output pickle files
 larch_build: "path/to/larch-usher"          # Path to larch-usher binary
 nicknames: "path/to/data_nicknames.json"    # Path to dataset nicknames file
 num_replicates: 3                           # Number of tree search replicates (default: 3)
+start_tree_type: "random"                   # Starting tree type: "random" or "nj" (default: "random")
 ```
 
 ### Input Directory Structure
@@ -81,17 +82,12 @@ Uses the modified `phangorn` R package to perform maximum parsimony tree searche
 
 Labels edges in the intermediate trees as MP or non-MP using the collection of MP trees from larch-usher. Outputs pickle files in DPVT format.
 
-### 6. Aggregate Data (`aggregate_all_treesearch_data`)
-
-Combines data from all replicates into a single pickle file per dataset.
-
-### 7. Add Nicknames (`add_to_dataset_nicknames`)
+### 6. Add Nicknames (`add_to_dataset_nicknames`)
 
 Adds the generated datasets to the nicknames JSON file for use in DPVT training/testing.
 
 ## Output
 
 The pipeline produces:
-- `{dpvt_data_dir}/{basename}/{basename}_rep{N}_tree_search.p` - Per-replicate pickle files
-- `{dpvt_data_dir}/{basename}_tree_search.p` - Aggregated pickle files
+- `{output_dir}/{start_tree_type}_starting/{basename}/{basename}_rep{N}_tree_search.p` - Per-replicate pickle files
 - Updated nicknames JSON file with new dataset entries

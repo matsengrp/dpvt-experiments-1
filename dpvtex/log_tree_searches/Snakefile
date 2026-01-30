@@ -1,4 +1,5 @@
 import os
+import sys
 from glob import glob
 from dpvtex.larch.scripts.clean_data import clean_alignment
 from Bio import AlignIO
@@ -21,7 +22,7 @@ LARCH_NAME_REPLACEMENTS = {"-": "N", "?": "N", "|": "_"}
 snakefile_dir = workflow.basedir
 default_config_path = os.path.join(snakefile_dir, "config.yaml")
 try:
-    config_path = os.path.join(snakefile_dir, args[args.index("--configfile") + 1])
+    config_path = os.path.join(snakefile_dir, sys.argv[sys.argv.index("--configfile") + 1])
 except (ValueError, IndexError):
     # ValueError: --configfile not in args; IndexError: no value after --configfile
     config_path = default_config_path
@@ -32,7 +33,7 @@ configfile: config_path
 
 # Required config parameters
 input_dir = config["input_dir"]
-dpvt_data_dir = config["dpvt_data_dir"]
+output_dir = config["output_dir"]
 larch_build = config["larch_build"]
 nicknames = config["nicknames"]
 
@@ -91,8 +92,8 @@ wildcard_constraints:
 
 
 treesearch_data_paths = expand(
-    dpvt_data_dir
-    + "/treesearch/"
+    output_dir
+    + "/"
     + start_tree_dir
     + "/{basename}/{basename}_rep{replicate}_tree_search.p",
     basename=VALID_BASENAMES,
@@ -172,8 +173,8 @@ rule compute_labels:
         tree_log=input_dir + "/{basename}/{basename}_rep{replicate}_log.trees",
         fasta=input_dir + "/{basename}/input.fasta",
     output:
-        test_p=dpvt_data_dir
-        + "/treesearch/"
+        test_p=output_dir
+        + "/"
         + start_tree_dir
         + "/{basename}/{basename}_rep{replicate}_tree_search.p",
     shell:

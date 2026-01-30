@@ -1,5 +1,5 @@
 input_dir: "../../data/simulated_15_seq_20_sites_100_algnmnts_filtered_0.8"
-dpvt_data_dir: "../../data"
+output_dir: "../../data"
 larch_build: "../../../larch/build/bin/larch-usher"
 nicknames: "../../train/data_nicknames.json"
 num_replicates: 3

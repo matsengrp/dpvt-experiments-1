@@ -18,43 +18,84 @@ from dpvt import models
 
 torch.set_num_threads(1)
 
+# =============================================================================
+# Plotting Constants
+# =============================================================================
+FIGURE_WIDTH = 12
+FIGURE_HEIGHT_PER_ROW = 5
+FONT_SIZE_LABEL = 14
+FONT_SIZE_TITLE = 14
+FONT_SIZE_LEGEND = 12
+FONT_SIZE_TICK = 14
+LINE_WIDTH_MAIN = 2.0
+LINE_WIDTH_SECONDARY = 1.5
+LINE_ALPHA = 0.9
+FILL_ALPHA = 0.2
+GRID_ALPHA = 0.7
+MARKER_SIZE = 3
 
-def get_rep_tested_model_str(
-    model_name, train_data_name, test_data_name, param_id, rep_id
-):
-    # get model strings for replicates
-    model = f"{model_name}-{train_data_name}-ON-{test_data_name}-{param_id}"
-    return model
+METRIC_LABELS = {
+    "auroc": "AUROC",
+    "accuracy": "Accuracy",
+    "precision": "Precision",
+    "recall": "Recall",
+    "f1": "F1 Score",
+    "tp": "True Positives",
+    "fp": "False Positives",
+    "tn": "True Negatives",
+    "fn": "False Negatives",
+}
 
 
-def get_model_str(model_name, train_data_name, test_data_name=None, param_id=None):
-    if test_data_name:
-        path = get_tested_model_str(
-            model_name, train_data_name, test_data_name, param_id
+# =============================================================================
+# Interpolation Helper (DRY fix)
+# =============================================================================
+def interpolate_to_common_grid(values_list, max_length):
+    """
+    Interpolate multiple value arrays to a common normalized grid.
+
+    Args:
+        values_list: List of arrays, each containing values from one replicate.
+        max_length: Length of the common grid to interpolate onto.
+
+    Returns:
+        tuple: (common_x, interpolated_array) where common_x is the normalized
+               x-axis [0, 1] and interpolated_array is a 2D numpy array with
+               each row being one interpolated replicate.
+    """
+    common_x = np.linspace(0, 1, max_length)
+    interpolated = []
+
+    for values in values_list:
+        if len(values) == 0:
+            continue
+        dataset_x = np.linspace(0, 1, len(values))
+        interp_values = np.interp(
+            common_x, dataset_x, values, left=np.nan, right=np.nan
         )
-    else:
-        path = get_trained_model_str(model_name, train_data_name, param_id)
-    return path
+        interpolated.append(interp_values)
+
+    if not interpolated:
+        return common_x, np.array([])
+
+    return common_x, np.array(interpolated)
 
 
-def build_replicates_log_paths(
-    model_name,
-    train_data_name,
-    test_data_name,
-    param_id,
-    device,
-    timestamp,
-    log_name,
-    step_name,
-    output_dir=".",
-):
-    paths = []
-    while True:
-        model_str = get_model_str(model_name, train_data_name, test_data_name, param_id)
-        path = f"run.{timestamp}/{log_name}/{step_name}/{model_str}"
-        path = prepend_dir_to_path(path, output_dir)
-        path = f"{os.getcwd()}/{path}"
-    return paths
+def calculate_percentile_bands(values_array, percentiles):
+    """
+    Calculate median and percentile bands from an array of replicate values.
+
+    Args:
+        values_array: 2D numpy array with replicates as rows.
+        percentiles: List of [lower, upper] percentile values (e.g., [2.5, 97.5]).
+
+    Returns:
+        tuple: (median, lower_band, upper_band) arrays.
+    """
+    median = np.nanmedian(values_array, axis=0)
+    lower = np.nanpercentile(values_array, percentiles[0], axis=0)
+    upper = np.nanpercentile(values_array, percentiles[1], axis=0)
+    return median, lower, upper
 
 
 def get_parsimony_scores(tree_list, fasta_path):
@@ -578,9 +619,8 @@ def plot_treesearch_evaluation(
     )
 
     # Filter data based on comparison type
-    no_training = (
-        False  # Flag to indicate if we are comparing models without training data
-    )
+    # Baseline models don't have training data, so skip training legend for them
+    is_baseline_model = False
     if compare_by == "model":
         if fixed_training_data is None:
             raise ValueError("Must specify fixed_training_data when compare_by='model'")
@@ -610,7 +650,7 @@ def plot_treesearch_evaluation(
         if fixed_model is None:
             raise ValueError("Must specify fixed_model when compare_by='training_data'")
         elif "Baseline" in fixed_model:
-            no_training = True
+            is_baseline_model = True
         filtered_df = filtered_df[filtered_df["model_name"] == fixed_model]
         comparison_column = "train_data_name"
         title_prefix = f"Model {fixed_model} trained on different datasets, tested on {base_test_name}"
@@ -620,35 +660,18 @@ def plot_treesearch_evaluation(
     # Get unique values for the comparison
     comparison_values = filtered_df[comparison_column].unique()
 
-    # Create color palette for the different models/training datasets
-    metric_labels = {
-        "auroc": "AUROC",
-        "accuracy": "Accuracy",
-        "precision": "Precision",
-        "recall": "Recall",
-        "f1": "F1 Score",
-        "tp": "True Positives",
-        "fp": "False Positives",
-        "tn": "True Negatives",
-        "fn": "False Negatives",
-    }
-
-    # Create color palette for models/training datasets
-    palette = sns.color_palette(
-        "Dark2", len(comparison_values) + 2
-    )  # +2 for parsimony and non-MP
+    # Create color palette for models/training datasets (+2 for parsimony and non-MP)
+    palette = sns.color_palette("Dark2", len(comparison_values) + 2)
     color_dict = dict(zip(comparison_values, palette[: len(comparison_values)]))
-
-    # Reserve the last two colors for parsimony and non-MP edges
-    parsimony_color = palette[-2]  # Second-to-last color for parsimony
-    nonmp_color = palette[-1]  # Last color for non-MP edges
+    parsimony_color = palette[-2]
+    nonmp_color = palette[-1]
 
     # Calculate grid dimensions for the metrics plots
     n_metrics = len(metrics)
     n_rows = n_metrics + 1  # +1 for the parsimony/non-MP plot
 
     # Create figure with a grid of subplots
-    fig = plt.figure(figsize=(12, 5 * n_rows))
+    fig = plt.figure(figsize=(FIGURE_WIDTH, FIGURE_HEIGHT_PER_ROW * n_rows))
     gs = fig.add_gridspec(n_rows, 1, hspace=0.4)
 
     # Create a list to store all legend handles and labels
@@ -659,7 +682,7 @@ def plot_treesearch_evaluation(
 
     # Create subplot for each metric
     for i, metric in enumerate(metrics):
-        metric_label = metric_labels.get(metric, metric)
+        metric_label = METRIC_LABELS.get(metric, metric)
         ax = fig.add_subplot(gs[i, 0])
 
         # Plot for each comparison value (model/training dataset)
@@ -675,253 +698,188 @@ def plot_treesearch_evaluation(
                 test_datasets = group_df["test_data_name"].unique()
 
                 if len(test_datasets) > 1:  # We have replicates
-                    # First determine the max length among replicates to set up interpolation grid
-                    max_length = 0
-                    for test_dataset in test_datasets:
-                        test_df = group_df[group_df["test_data_name"] == test_dataset]
-                        max_length = max(max_length, len(test_df))
-
-                    # Create a common x-axis grid for interpolation
-                    common_x = np.linspace(0, 1, max_length)
-
-                    # Collect interpolated values for all replicates
-                    all_values = []
+                    # Collect metric values for each replicate
+                    replicate_values = []
                     for test_dataset in test_datasets:
                         test_df = group_df[group_df["test_data_name"] == test_dataset]
                         test_df = test_df.sort_values("tree_idx")
+                        if len(test_df) > 0:
+                            replicate_values.append(test_df[metric].values)
 
-                        if len(test_df) == 0:
-                            continue
-
-                        # Create normalized x-axis for this dataset
-                        dataset_x = np.linspace(0, 1, len(test_df))
-                        # Interpolate values onto common grid
-                        interpolated_values = np.interp(
-                            common_x,
-                            dataset_x,
-                            test_df[metric].values,
-                            left=np.nan,
-                            right=np.nan,
-                        )
-                        all_values.append(interpolated_values)
-
-                    if not all_values:
+                    if not replicate_values:
                         continue
 
-                    # Convert to numpy array for percentile calculation
-                    all_values = np.array(all_values)
+                    # Interpolate to common grid and calculate percentiles
+                    rep_max_len = max(len(v) for v in replicate_values)
+                    common_x, all_values = interpolate_to_common_grid(
+                        replicate_values, rep_max_len
+                    )
+                    if len(all_values) == 0:
+                        continue
 
-                    # Calculate median and percentiles
-                    median = np.nanmedian(all_values, axis=0)
-                    lower = np.nanpercentile(all_values, percentiles[0], axis=0)
-                    upper = np.nanpercentile(all_values, percentiles[1], axis=0)
+                    median, lower, upper = calculate_percentile_bands(
+                        all_values, percentiles
+                    )
 
-                    # Plot median line
+                    # Plot median line with percentile band
                     line = ax.plot(
                         common_x,
                         median,
                         color=color_dict[value],
                         label=f"{value}",
-                        linewidth=2.0,
-                        alpha=0.9,
+                        linewidth=LINE_WIDTH_MAIN,
+                        alpha=LINE_ALPHA,
                     )
-
-                    # Plot percentile band
                     ax.fill_between(
                         common_x,
                         lower,
                         upper,
                         color=color_dict[value],
-                        alpha=0.2,
-                        # label=f"{value} ({percentiles[0]}-{percentiles[1]} percentile)",
+                        alpha=FILL_ALPHA,
                     )
 
                     # Only add to legend for the first metric plot
-                    if i == 0 and not no_training:
+                    if i == 0 and not is_baseline_model:
                         model_handles.append(line[0])
                         model_labels.append(f"{value}")
 
                 else:  # Single dataset (no replicates)
-                    # Process just the one dataset
                     test_dataset = test_datasets[0]
                     test_df = group_df[group_df["test_data_name"] == test_dataset]
                     test_df = test_df.sort_values("tree_idx")
 
-                    # Create a normalized x-axis
                     normalized_x = np.linspace(0, 1, len(test_df))
-
-                    # Plot the actual metric values
                     line = ax.plot(
                         normalized_x,
                         test_df[metric].values,
                         color=color_dict[value],
                         label=value,
-                        alpha=0.9,
-                        markersize=3,
-                        linewidth=1.5,
+                        alpha=LINE_ALPHA,
+                        markersize=MARKER_SIZE,
+                        linewidth=LINE_WIDTH_SECONDARY,
                     )
 
-                    # Only add to legend for the first metric plot
-                    if i == 0 and not no_training:
+                    if i == 0 and not is_baseline_model:
                         model_handles.append(line[0])
                         model_labels.append(value)
 
         # Set axis labels and styling
-        ax.set_ylabel(metric_label, fontsize=14)
+        ax.set_ylabel(metric_label, fontsize=FONT_SIZE_LABEL)
         if i < n_metrics - 1:
             ax.set_xlabel("")
         else:
-            ax.set_xlabel("Normalized Tree Index (0-1)", fontsize=14)
-        ax.set_title(f"{metric_label}", fontsize=14)
-        ax.grid(True, linestyle="--", alpha=0.7)
-        ax.tick_params(axis="both", which="major", labelsize=14)
+            ax.set_xlabel("Normalized Tree Index (0-1)", fontsize=FONT_SIZE_LABEL)
+        ax.set_title(f"{metric_label}", fontsize=FONT_SIZE_TITLE)
+        ax.grid(True, linestyle="--", alpha=GRID_ALPHA)
+        ax.tick_params(axis="both", which="major", labelsize=FONT_SIZE_TICK)
 
     # Bottom panel: Plot parsimony scores AND non-MP edges with percentile bands
     ax_bottom = fig.add_subplot(gs[n_rows - 1, 0])
 
-    # Create common x-axis grid for interpolation
-    common_x = (
-        np.linspace(0, 1, max_length) if max_length > 0 else np.linspace(0, 1, 100)
-    )
+    # Determine grid length for bottom panel
+    bottom_max_length = max_length if max_length > 0 else 100
 
     # Process parsimony scores with percentile bands
-    if all_parsimony_scores and not all(
-        len(scores) == 0 for scores in all_parsimony_scores
-    ):
-        # Interpolate all parsimony scores to common grid
-        interpolated_pscores = []
-        for scores in all_parsimony_scores:
-            if len(scores) > 0:
-                dataset_x = np.linspace(0, 1, len(scores))
-                interp_values = np.interp(
-                    common_x, dataset_x, scores, left=np.nan, right=np.nan
-                )
-                interpolated_pscores.append(interp_values)
+    valid_parsimony = [s for s in all_parsimony_scores if len(s) > 0]
+    if valid_parsimony:
+        common_x, parsimony_array = interpolate_to_common_grid(
+            valid_parsimony, bottom_max_length
+        )
 
-        # Calculate median and percentiles for parsimony scores
-        if interpolated_pscores:
-            parsimony_array = np.array(interpolated_pscores)
-            parsimony_median = np.nanmedian(parsimony_array, axis=0)
-            parsimony_lower = np.nanpercentile(parsimony_array, percentiles[0], axis=0)
-            parsimony_upper = np.nanpercentile(parsimony_array, percentiles[1], axis=0)
+        if len(parsimony_array) > 0:
+            parsimony_median, parsimony_lower, parsimony_upper = (
+                calculate_percentile_bands(parsimony_array, percentiles)
+            )
 
-            # Plot parsimony scores with median and percentile band
             (line1,) = ax_bottom.plot(
                 common_x,
                 parsimony_median,
-                color=parsimony_color,  # Use reserved color from Dark2 palette
-                linewidth=2.0,
-                label=f"Parsimony Score (median)",
+                color=parsimony_color,
+                linewidth=LINE_WIDTH_MAIN,
+                label="Parsimony Score (median)",
             )
 
-            # Only add percentile band if we have multiple replicates
-            if len(all_parsimony_scores) > 1:
+            if len(valid_parsimony) > 1:
                 ax_bottom.fill_between(
                     common_x,
                     parsimony_lower,
                     parsimony_upper,
                     color=parsimony_color,
-                    alpha=0.2,
+                    alpha=FILL_ALPHA,
                 )
-
-                # Add rectangle for legend
-                pscore_band = plt.Rectangle(
-                    (0, 0),
-                    1,
-                    1,
-                    color=parsimony_color,
-                    alpha=0.2,
-                )
-                all_handles.extend([line1])
-                all_labels.extend(
-                    [
-                        f"Parsimony Score (median)",
-                    ]
-                )
+                all_handles.append(line1)
+                all_labels.append("Parsimony Score (median)")
             else:
                 all_handles.append(line1)
-                all_labels.append(f"Parsimony Score")
-        else:
-            ax_bottom.text(
-                0.5,
-                0.5,
-                "No parsimony scores available",
-                ha="center",
-                va="center",
-                transform=ax_bottom.transAxes,
-            )
+                all_labels.append("Parsimony Score")
+    else:
+        common_x = np.linspace(0, 1, bottom_max_length)
+        ax_bottom.text(
+            0.5,
+            0.5,
+            "No parsimony scores available",
+            ha="center",
+            va="center",
+            transform=ax_bottom.transAxes,
+        )
 
     # Process non-MP edges with percentile bands
-    if all_frac_non_mp_edges and not all(
-        len(fracs) == 0 for fracs in all_frac_non_mp_edges
-    ):
-        # Secondary y-axis for non-MP edges
+    valid_fracs = [f for f in all_frac_non_mp_edges if len(f) > 0]
+    if valid_fracs:
         ax_bottom_twin = ax_bottom.twinx()
 
-        # Interpolate all non-MP edge fractions to common grid
-        interpolated_fracs = []
-        for fracs in all_frac_non_mp_edges:
-            if len(fracs) > 0:
-                dataset_x = np.linspace(0, 1, len(fracs))
-                interp_values = np.interp(
-                    common_x, dataset_x, fracs, left=np.nan, right=np.nan
-                )
-                interpolated_fracs.append(interp_values)
+        _, fracs_array = interpolate_to_common_grid(valid_fracs, bottom_max_length)
 
-        # Calculate median and percentiles for non-MP edges
-        if interpolated_fracs:
-            fracs_array = np.array(interpolated_fracs)
-            fracs_median = np.nanmedian(fracs_array, axis=0)
-            fracs_lower = np.nanpercentile(fracs_array, percentiles[0], axis=0)
-            fracs_upper = np.nanpercentile(fracs_array, percentiles[1], axis=0)
+        if len(fracs_array) > 0:
+            fracs_median, fracs_lower, fracs_upper = calculate_percentile_bands(
+                fracs_array, percentiles
+            )
 
-            # Plot non-MP edges with median and percentile band
             (line2,) = ax_bottom_twin.plot(
                 common_x,
                 fracs_median,
-                color=nonmp_color,  # Use reserved color from Dark2 palette
-                linewidth=2.0,
-                label=f"Fraction of non-MP Edges (median)",
+                color=nonmp_color,
+                linewidth=LINE_WIDTH_MAIN,
+                label="Fraction of non-MP Edges (median)",
             )
 
-            # Only add percentile band if we have multiple replicates
-            if len(all_frac_non_mp_edges) > 1:
+            if len(valid_fracs) > 1:
                 ax_bottom_twin.fill_between(
                     common_x,
                     fracs_lower,
                     fracs_upper,
                     color=nonmp_color,
-                    alpha=0.2,
-                    # label=f"Non-MP Edges ({percentiles[0]}-{percentiles[1]}%)",
+                    alpha=FILL_ALPHA,
                 )
-
-                all_handles.extend([line2])
-                all_labels.extend(
-                    [
-                        f"Fraction of non-MP Edges",
-                    ]
-                )
+                all_handles.append(line2)
+                all_labels.append("Fraction of non-MP Edges")
             else:
                 all_handles.append(line2)
-                all_labels.append(f"Fraction of non-MP Edges")
+                all_labels.append("Fraction of non-MP Edges")
 
         ax_bottom_twin.set_ylabel(
-            "Fraction of non-MP Edges", color=nonmp_color, fontsize=14
+            "Fraction of non-MP Edges", color=nonmp_color, fontsize=FONT_SIZE_LABEL
         )
-        ax_bottom_twin.tick_params(axis="y", labelcolor=nonmp_color, labelsize=14)
+        ax_bottom_twin.tick_params(
+            axis="y", labelcolor=nonmp_color, labelsize=FONT_SIZE_TICK
+        )
 
     # Styling for the bottom plot
-    ax_bottom.set_xlabel("Normalized Tree Index (0-1)", fontsize=14)
-    ax_bottom.set_ylabel("Parsimony Score", color=parsimony_color, fontsize=14)
-    ax_bottom.tick_params(axis="y", labelcolor=parsimony_color, labelsize=14)
-    ax_bottom.tick_params(axis="x", labelsize=14)
+    ax_bottom.set_xlabel("Normalized Tree Index (0-1)", fontsize=FONT_SIZE_LABEL)
+    ax_bottom.set_ylabel(
+        "Parsimony Score", color=parsimony_color, fontsize=FONT_SIZE_LABEL
+    )
+    ax_bottom.tick_params(
+        axis="y", labelcolor=parsimony_color, labelsize=FONT_SIZE_TICK
+    )
+    ax_bottom.tick_params(axis="x", labelsize=FONT_SIZE_TICK)
     ax_bottom.set_xlim(0, 1)
-    ax_bottom.grid(True, linestyle="--", alpha=0.7)
-    ax_bottom.set_title("Parsimony Scores and Non-MP Edges", fontsize=14)
+    ax_bottom.grid(True, linestyle="--", alpha=GRID_ALPHA)
+    ax_bottom.set_title("Parsimony Scores and Non-MP Edges", fontsize=FONT_SIZE_TITLE)
 
     # Position legend for model/training data comparisons ABOVE all plots
-    if model_handles and model_labels and not no_training:
-        # No need to add legend distinguishing training data for baseline models
+    if model_handles and model_labels and not is_baseline_model:
+        # Deduplicate legend entries
         unique_labels = []
         unique_handles = []
         seen_labels = set()
@@ -931,18 +889,16 @@ def plot_treesearch_evaluation(
                 unique_labels.append(label)
                 unique_handles.append(handle)
 
-        # Position legend at the top of the figure
         first_legend = fig.legend(
             unique_handles,
             unique_labels,
             loc="lower center",
-            bbox_to_anchor=(0.5, 1.01),  # Position above figure, anchored at bottom of legend
+            bbox_to_anchor=(0.5, 1.01),
             title=comparison_column.replace("_", " ").title(),
-            title_fontsize=14,
-            fontsize=12,
-            ncol=min(2, len(unique_labels)),  # Use multiple columns for better spacing
+            title_fontsize=FONT_SIZE_LABEL,
+            fontsize=FONT_SIZE_LEGEND,
+            ncol=min(2, len(unique_labels)),
         )
-        # Ensure the first legend is drawn
         fig.add_artist(first_legend)
 
     # Position legend for parsimony/non-MP edges BELOW all plots
@@ -951,21 +907,14 @@ def plot_treesearch_evaluation(
             all_handles,
             all_labels,
             loc="upper center",
-            bbox_to_anchor=(0.5, -0.01),  # Position below figure, anchored at top of legend
-            fontsize=12,
-            ncol=2,  # Use two columns for better spacing
+            bbox_to_anchor=(0.5, -0.01),
+            fontsize=FONT_SIZE_LEGEND,
+            ncol=2,
         )
         fig.add_artist(bottom_legend)
 
-    # Remove individual legends from the parsimony/non-MP plot
-    # (Comment out or remove the ax_bottom.legend() call)
+    plt.rcParams.update({"font.size": FONT_SIZE_LABEL})
+    fig.subplots_adjust(top=0.90, bottom=0.08)
 
-    plt.rcParams.update({"font.size": 14})  # Set default font size globally
-
-    # Adjust figure to make room for legends on top and bottom
-    # plt.tight_layout()
-    fig.subplots_adjust(top=0.90, bottom=0.08)  # Adjust top and bottom margins for legends
-
-    # Save figure
     plt.savefig(output_file, bbox_inches="tight")
     plt.close(fig)

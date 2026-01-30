@@ -5,12 +5,21 @@ import os
 import sys
 
 
+VALID_START_TREE_TYPES = ("random", "nj")
+STARTING_DIR_SUFFIX = "_starting"
+
+
 def main():
     """
     Add specific treesearch pickle files to data nicknames json file.
 
     Usage:
-        python add_to_dataset_nicknames.py <nicknames_json> <file1.p> [file2.p ...]
+        python add_to_dataset_nicknames.py <nicknames_json> <start_tree_type> <file1.p> [file2.p ...]
+
+    Args:
+        nicknames_json: Path to the JSON file containing dataset nicknames.
+        start_tree_type: Type of starting tree used ("random" or "nj").
+        file1.p, file2.p, ...: Pickle files to add to the nicknames.
 
     The files should be paths relative to the data_dir specified in the nicknames JSON.
 
@@ -18,10 +27,11 @@ def main():
     subdirectories (random_starting/ or nj_starting/), the nickname will include
     the starting tree type prefix (e.g., 'random_PF05036-dna_rep1_tree_search').
     """
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 4:
         print(
-            "Usage: python add_to_dataset_nicknames.py <nicknames_json> <file1.p> [file2.p ...]"
+            "Usage: python add_to_dataset_nicknames.py <nicknames_json> <start_tree_type> <file1.p> [file2.p ...]"
         )
+        print(f"  start_tree_type must be one of: {VALID_START_TREE_TYPES}")
         sys.exit(1)
 
     json_file = sys.argv[1]
@@ -51,7 +61,7 @@ def main():
             filename = os.path.basename(filepath)
             rel_path = os.path.join(
                 "treesearch",
-                start_tree_type + "_starting",
+                start_tree_type + STARTING_DIR_SUFFIX,
                 filename.split("_rep")[0],
                 filename,
             )
@@ -60,10 +70,10 @@ def main():
         base_nickname = os.path.basename(filepath).replace(".p", "")
 
         # Add starting tree type prefix if present in path
-        if "random_starting" in filepath:
-            nickname = f"random_{base_nickname}"
-        elif "nj_starting" in filepath:
-            nickname = f"nj_{base_nickname}"
+        for tree_type in VALID_START_TREE_TYPES:
+            if f"{tree_type}{STARTING_DIR_SUFFIX}" in filepath:
+                nickname = f"{tree_type}_{base_nickname}"
+                break
         else:
             nickname = base_nickname
 

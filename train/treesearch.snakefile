@@ -18,10 +18,10 @@ from dpvtex.dpvt_zoo import (
 from dpvtex.dpvt_data import load_nicknames_dict
 
 from dpvtex.evaluate_individual_trees import (
-    evaluate_individual_trees, 
+    evaluate_individual_trees,
     evaluate_baseline_reversion_on_trees,
     concatenate_tree_eval_files,
-    plot_treesearch_evaluation
+    plot_treesearch_evaluation,
 )
 
 # Set threading environment variables to prevent parallel execution
@@ -32,12 +32,12 @@ os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 
-
 # Import config from main Snakefile
 configfile: "config.yaml"
 
+
 # Config settings
-working_dir = os.getcwd(),
+working_dir = (os.getcwd(),)
 output_dir = config["output_dir"]
 fasta_dir = config["fasta_dir"]
 data_nicknames_path = config["data_nicknames_path"]
@@ -72,9 +72,16 @@ for test_data_name in test_data_names:
 
     # Find all matching replicate datasets
     # Matches: exact name, or {alignment_base}_rep{i}_tree_search pattern
-    all_test_datasets = [name for name in dataset_dict.keys()
-                        if name == test_data_name or
-                        (name.startswith(alignment_base) and "_rep" in name and "_tree_search" in name)]
+    all_test_datasets = [
+        name
+        for name in dataset_dict.keys()
+        if name == test_data_name
+        or (
+            name.startswith(alignment_base)
+            and "_rep" in name
+            and "_tree_search" in name
+        )
+    ]
     test_data_names_with_reps += all_test_datasets
 
 
@@ -83,6 +90,7 @@ if bool(config["use_hyperparameter_optimize"]):
 else:
     param_ids = ["Param0"]
 
+
 # Helper functions
 def get_trained_model_ckpt(model, train_data, param_id, device, timestamp, output_dir):
     path = get_trained_model_path(
@@ -90,11 +98,13 @@ def get_trained_model_ckpt(model, train_data, param_id, device, timestamp, outpu
     )
     return f"{path}.ckpt"
 
+
 def get_model_params_json(model, train_data, param_id, device, timestamp, output_dir):
     path = get_model_params_path(
         model, train_data, param_id, device, timestamp, output_dir
     )
     return f"{path}.json"
+
 
 def get_individual_tree_eval_path(
     model_name,
@@ -159,7 +169,7 @@ def generate_individual_tree_eval_plot_paths(
     device,
     timestamp,
     output_dir,
-    metrics = ["auroc"],
+    metrics=["auroc"],
 ):
     eval_paths = [
         get_individual_tree_eval_path(
@@ -170,7 +180,10 @@ def generate_individual_tree_eval_plot_paths(
             device=device,
             timestamp=timestamp,
             output_dir=output_dir,
-        )[:-4] + "_" + metric + ".pdf"
+        )[:-4]
+        + "_"
+        + metric
+        + ".pdf"
         for model_name in model_names
         for train_data_name, test_data_name in data_pairs
         for param_id in param_ids
@@ -304,6 +317,7 @@ def generate_hyperparameter_dicts(hyperparameters, use_hyperparameter_optimize):
         param_dicts[param_id] = result_dict
     return list(param_dicts.keys()), param_dicts
 
+
 param_ids, param_dicts = generate_hyperparameter_dicts(
     hyperparameters=hyperparameters,
     use_hyperparameter_optimize=use_hyperparameter_optimize,
@@ -313,10 +327,11 @@ param_ids, param_dicts = generate_hyperparameter_dicts(
 # Specify ruleorder - baseline models should be handled by the evaluate_baseline_models rule
 ruleorder: evaluate_baseline_model > evaluate_individual_trees
 
+
 # Rules
 rule all:
     input:
-        comparison_plot_paths
+        comparison_plot_paths,
 
 
 rule optimize_hyperparameters_step:
@@ -412,7 +427,7 @@ rule evaluate_individual_trees:
         ),
     wildcard_constraints:
         # Exclude baseline models from this rule
-        model_name="(?!.*Baseline).*"
+        model_name="(?!.*Baseline).*",
     run:
         evaluate_individual_trees(
             model_name=wildcards.model_name,
@@ -440,7 +455,7 @@ rule evaluate_baseline_model:
         ),
     wildcard_constraints:
         # only use rule for baseline model
-        baseline_model="|".join(baseline_models)
+        baseline_model="|".join(baseline_models),
     run:
         evaluate_baseline_reversion_on_trees(
             test_data_name=wildcards.test_data_name,
@@ -463,7 +478,7 @@ rule concat_tree_eval:
         # Add "baseline" to the list of training data names and param IDs for concatenation
         all_train_data = train_data_names + ["baseline"]
         all_param_ids = param_ids + ["baseline"]
-        
+
         concatenate_tree_eval_files(
             input.eval_paths,
             model_names,
@@ -482,18 +497,23 @@ rule plot_treesearch_evaluation:
     run:
         # Extract alignment base for matching
         if "_tree_search" in wildcards.test_data_name:
-            alignment_base = wildcards.test_data_name.replace("_tree_search", "").split("_rep")[0]
+            alignment_base = wildcards.test_data_name.replace("_tree_search", "").split(
+                "_rep"
+            )[0]
         else:
             alignment_base = wildcards.test_data_name.split("_rep")[0]
 
-        # Find matching test datasets (including replicates)
-        matching_test_data = [name for name in test_data_names_with_reps
-                             if name.startswith(alignment_base) and "_tree_search" in name]
+            # Find matching test datasets (including replicates)
+        matching_test_data = [
+            name
+            for name in test_data_names_with_reps
+            if name.startswith(alignment_base) and "_tree_search" in name
+        ]
 
         if len(matching_test_data) == 0:
             matching_test_data = [wildcards.test_data_name]
 
-        # Determine what we're fixing based on compare_by
+            # Determine what we're fixing based on compare_by
         if wildcards.compare_by == "model":
             fixed_model = None
             fixed_training_data = wildcards.fixed_value
@@ -511,5 +531,7 @@ rule plot_treesearch_evaluation:
             compare_by=wildcards.compare_by,
             fixed_model=fixed_model,
             fixed_training_data=fixed_training_data,
-            include_baseline=(wildcards.compare_by == "model")  # Include baseline models when comparing models
+            include_baseline=(
+                wildcards.compare_by == "model"
+            ),  # Include baseline models when comparing models
         )

@@ -12,21 +12,27 @@ from dpvtex.larch.scripts.extract_data_from_hdag import (
 )
 import sys
 
+# Suffix added by some tree software that needs to be stripped from leaf names
+UNKNOWN_DESCRIPTION_SUFFIX = "_<unknown_description>"
+
 
 def read_trees(filename, fasta_path):
     """
-    Read trees from filename and return them as ete3 trees with sequences of
-    fasta assigned to leaves. Also uses ete3's resolve_polytomy() to ensure
-    output trees are binary.
+    Read trees from filename and return them as ete3 trees with sequences
+    assigned to leaves.
+
+    Uses ete3's resolve_polytomy() to ensure output trees are binary.
+
     Args:
         filename (str): Path to the file containing trees in newick format.
         fasta_path (str): Path to the fasta file containing sequences.
-    """
-    trees = []  # list of trees from iqtree run
-    with open(filename, "r") as f:
-        # Get the basename to construct path to fasta file
-        basename = os.path.basename(os.path.splitext(filename)[0])
 
+    Returns:
+        list: List of ete3 Tree objects with sequences attached to leaves.
+              Returns empty list if sequences cannot be loaded.
+    """
+    trees = []
+    with open(filename, "r") as f:
         # Read sequences from fasta file
         sequences = {}
         try:
@@ -42,8 +48,9 @@ def read_trees(filename, fasta_path):
             tree.resolve_polytomy(recursive=True)
             # Assign sequences to leaf nodes
             for leaf in tree.get_leaves():
-                if "_<unknown_description>" in leaf.name:
-                    leaf.name = leaf.name.split("_<unknown_description>")[0]
+                # Strip software-added suffixes from leaf names
+                if UNKNOWN_DESCRIPTION_SUFFIX in leaf.name:
+                    leaf.name = leaf.name.split(UNKNOWN_DESCRIPTION_SUFFIX)[0]
                 if leaf.name in sequences:
                     leaf.add_feature("sequence", sequences[leaf.name])
                 else:
@@ -56,43 +63,58 @@ def read_trees(filename, fasta_path):
 
 def main():
     """
-    Read a file containing pickled hDAG or protobuf, a file containing a list of
-    trees to compare to DAG, and a fasta file with leaf sequences. The script
-    will assign edge labels (MP vs non-MP edges) to the trees based on the hDAG
-    and save the results in a pickle file.
-    """
-    if len(sys.argv) < 3:
-        print(
-            "Error: Please provide (1) file containing pickled hDAG or protobuf, (2) filename for dpvt data, and (3) files of trees to compare to DAG."
-        )
-        sys.exit(1)
-    else:
-        dag_file = sys.argv[1]
-        dpvt_data_file = sys.argv[2]
-        tree_file = sys.argv[3]
-        fasta_path = sys.argv[4]
+    Create DPVT testing data from tree search logs and an hDAG.
 
-    if dag_file[-2:] == ".p":
+    Reads a pickled hDAG or protobuf file, a file containing logged trees,
+    and a FASTA file with leaf sequences. Assigns edge labels (MP vs non-MP)
+    to trees based on the hDAG and saves results as a pickle file.
+
+    Usage:
+        python create_testing_data.py <dag_file> <output_file> <tree_file> <fasta_file>
+
+    Args:
+        dag_file: Path to pickled hDAG (.p) or protobuf (.pb) file.
+        output_file: Path for output pickle file with labeled trees.
+        tree_file: Path to file containing trees in newick format.
+        fasta_file: Path to FASTA file with leaf sequences.
+    """
+    if len(sys.argv) < 5:
+        print(
+            "Usage: python create_testing_data.py <dag_file> <output_file> <tree_file> <fasta_file>"
+        )
+        print("  dag_file:    Pickled hDAG (.p) or protobuf (.pb)")
+        print("  output_file: Output pickle file for labeled trees")
+        print("  tree_file:   File containing trees in newick format")
+        print("  fasta_file:  FASTA file with leaf sequences")
+        sys.exit(1)
+
+    dag_file = sys.argv[1]
+    dpvt_data_file = sys.argv[2]
+    tree_file = sys.argv[3]
+    fasta_path = sys.argv[4]
+
+    # Load DAG based on file extension
+    if dag_file.endswith(".p"):
         with open(dag_file, "rb") as f:
             dag = pickle.load(f)
-    elif dag_file[-3:] == ".pb":
+    elif dag_file.endswith(".pb"):
         dag = hdag.mutation_annotated_dag.load_MAD_protobuf_file(
             dag_file, compact_genomes=True
         )
     else:
-        print("Error: First input file should be pickled hDAG or protobuf.")
+        print("Error: DAG file must be .p (pickle) or .pb (protobuf)")
         sys.exit(1)
 
-    # trim to only MP topologies + convert to sequence_dag
+    # Trim to only MP topologies and convert to sequence_dag
     dag.trim_optimal_weight()
     dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
     dag_clades = extract_hdag_clade_child_clades(dag)
-    # take a random tree from dag to be able to apply function
-    # assign_edge_labels()
+    # Take a random tree from dag to use with assign_edge_labels()
     dag_tree = next(dag.get_histories()).to_ete()
 
     trees = read_trees(tree_file, fasta_path)
-    # assign edge labels to the tree
+
+    # Assign edge labels to each tree
     tree_label_dict = {}
     for tree in trees:
         sankoff_for_missing_sequences(tree)

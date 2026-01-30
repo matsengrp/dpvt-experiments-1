@@ -5,31 +5,43 @@ from Bio import AlignIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 
-# get config from command line or use default
+# =============================================================================
+# Constants
+# =============================================================================
+DEFAULT_NUM_REPLICATES = 3
+DEFAULT_START_TREE_TYPE = "random"  # Alternative: "nj" (neighbor joining)
+
+# Character replacements for larch naming compatibility (see transform_fasta_names_for_larch)
+LARCH_NAME_REPLACEMENTS = {"-": "N", "?": "N", "|": "_"}
+
+
+# =============================================================================
+# Config Loading
+# =============================================================================
 snakefile_dir = workflow.basedir
 default_config_path = os.path.join(snakefile_dir, "config.yaml")
 try:
     config_path = os.path.join(snakefile_dir, args[args.index("--configfile") + 1])
-except:
+except (ValueError, IndexError):
+    # ValueError: --configfile not in args; IndexError: no value after --configfile
     config_path = default_config_path
 
 
 configfile: config_path
 
 
+# Required config parameters
 input_dir = config["input_dir"]
 dpvt_data_dir = config["dpvt_data_dir"]
 larch_build = config["larch_build"]
 nicknames = config["nicknames"]
-num_replicates = config.get(
-    "num_replicates", 3
-)  # Default to 3 replicates if not specified
-start_tree_type = config.get(
-    "start_tree_type", "random"
-)  # "random" or "nj" (neighbor joining)
+
+# Optional config with explicit defaults
+num_replicates = config.get("num_replicates", DEFAULT_NUM_REPLICATES)
+start_tree_type = config.get("start_tree_type", DEFAULT_START_TREE_TYPE)
 
 # Map start_tree_type to directory name
-start_tree_dir = "random_starting" if start_tree_type == "random" else "nj_starting"
+start_tree_dir = f"{start_tree_type}_starting"
 
 
 # Get input files
@@ -50,11 +62,9 @@ def transform_fasta_names_for_larch(fasta_path):
     """Transform sequence names in FASTA in-place to match larch naming convention.
 
     The larch preprocessing (convert_fasta_to_larch_input.snakefile) applies
-    sed transformations that affect sequence names:
-        s/-/N/g; s/?/N/g; s/|/_/g
-
-    This function applies the same transformations to sequence NAMES only,
-    so the FASTA can be used for tree search while maintaining compatibility
+    sed transformations that affect sequence names. This function applies the
+    same transformations (defined in LARCH_NAME_REPLACEMENTS) to sequence NAMES
+    only, so the FASTA can be used for tree search while maintaining compatibility
     with larch-built DAGs.
 
     Args:
@@ -63,7 +73,9 @@ def transform_fasta_names_for_larch(fasta_path):
     alignment = AlignIO.read(fasta_path, "fasta")
     transformed_records = []
     for record in alignment:
-        new_id = record.id.replace("-", "N").replace("?", "N").replace("|", "_")
+        new_id = record.id
+        for old_char, new_char in LARCH_NAME_REPLACEMENTS.items():
+            new_id = new_id.replace(old_char, new_char)
         new_record = SeqRecord(record.seq, id=new_id, description="")
         transformed_records.append(new_record)
     AlignIO.write(MultipleSeqAlignment(transformed_records), fasta_path, "fasta")
@@ -75,11 +87,14 @@ VALID_BASENAMES = [os.path.basename(f).rsplit(".", 1)[0] for f in get_input_file
 
 wildcard_constraints:
     basename="|".join(VALID_BASENAMES) if VALID_BASENAMES else "NONE",
-    replicate="[0-9]+"
+    replicate="[0-9]+",
 
 
 treesearch_data_paths = expand(
-    dpvt_data_dir+"/treesearch/"+start_tree_dir+"/{basename}/{basename}_rep{replicate}_tree_search.p",
+    dpvt_data_dir
+    + "/treesearch/"
+    + start_tree_dir
+    + "/{basename}/{basename}_rep{replicate}_tree_search.p",
     basename=VALID_BASENAMES,
     replicate=range(1, num_replicates + 1),
 )
@@ -133,6 +148,7 @@ rule preprocess_larch:
         snakemake --snakefile ../larch/setup_larch_inputs/convert_fasta_to_larch_input.snakefile --configfile ../larch/setup_larch_inputs/config.yaml -d {params.output_dir} -c1
         """
 
+
 rule run_larch_usher:
     input:
         pb=input_dir + "/{basename}/output.pb",
@@ -156,7 +172,10 @@ rule compute_labels:
         tree_log=input_dir + "/{basename}/{basename}_rep{replicate}_log.trees",
         fasta=input_dir + "/{basename}/input.fasta",
     output:
-        test_p=dpvt_data_dir + "/treesearch/" + start_tree_dir + "/{basename}/{basename}_rep{replicate}_tree_search.p",
+        test_p=dpvt_data_dir
+        + "/treesearch/"
+        + start_tree_dir
+        + "/{basename}/{basename}_rep{replicate}_tree_search.p",
     shell:
         """
         mkdir -p $(dirname {output.test_p})
@@ -166,7 +185,7 @@ rule compute_labels:
 
 rule add_to_dataset_nicknames:
     input:
-        treesearch_files=treesearch_data_paths
+        treesearch_files=treesearch_data_paths,
     output:
         touch("nicknames_added.flag"),
     params:

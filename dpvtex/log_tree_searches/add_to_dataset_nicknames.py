@@ -88,7 +88,6 @@ def main():
         base_nickname = f"{start_tree_type}_"
 
     # Add one glob pattern per alignment
-    # Use "prefix:alignment" format - the part before ":" becomes the nickname prefix
     for alignment_name, alignment_dir in sorted(alignment_dirs.items()):
         glob_pattern = f"{alignment_dir}/*_tree_search.p"
         nickname = f"{base_nickname}{alignment_name}"

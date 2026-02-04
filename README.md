@@ -110,6 +110,37 @@ edge is in a Maximum Parsimony tree and `1` indicates that it is not.
 Nicknames for datasets and paths to those datasets must be provided in the json
 file that is provided as `data_nicknames_path` in the config.
 
+#### Nicknames JSON format
+
+The nicknames JSON file maps dataset nicknames to file paths:
+
+```json
+{
+  "data_dir": "../data",
+  "my_train_data": "my_train_data.p",
+  "my_test_data": "my_test_data.p"
+}
+```
+
+The `data_dir` key specifies the base directory for all paths. All other keys are
+nicknames that can be used in `train_data` and `test_data` config options.
+
+**Glob pattern support for treesearch replicates:** Values can contain glob
+patterns (`*`, `?`, `**`) which are automatically expanded. This is useful for
+treesearch datasets with multiple replicates per alignment:
+
+```json
+{
+  "data_dir": "../data",
+  "my_dataset_:alignment1": "treesearch/alignment1/*_tree_search.p",
+  "my_dataset_:alignment2": "treesearch/alignment2/*_tree_search.p"
+}
+```
+
+The part before `:` becomes the prefix for expanded nicknames. For example, if
+`alignment1/` contains `alignment1_rep1_tree_search.p` and `alignment1_rep2_tree_search.p`,
+they expand to `my_dataset_alignment1_rep1_tree_search` and `my_dataset_alignment1_rep2_tree_search`.
+
 #### Data format
 We assume that each dataset is provided by one file that contains a pickled
 dictionary. The keys of this dictionary shall be trees and their values lists of

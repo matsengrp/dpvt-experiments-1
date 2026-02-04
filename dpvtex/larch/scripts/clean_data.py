@@ -17,8 +17,13 @@ from dpvtex.larch.scripts.utils import (
 
 class _NoOpLogger:
     """No-op logger for when logging is not needed."""
-    def log(self, *args, **kwargs): pass
-    def log_section(self, *args, **kwargs): pass
+
+    def log(self, *args, **kwargs):
+        pass
+
+    def log_section(self, *args, **kwargs):
+        pass
+
 
 # CSV header for alignment size statistics
 _ALIGNMENT_STATS_CSV_HEADER = [

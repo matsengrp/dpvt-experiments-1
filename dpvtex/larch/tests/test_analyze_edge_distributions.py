@@ -41,7 +41,9 @@ class TestGetPicklePattern:
         """Test that 'random_subtree' pattern matches new-style with target param."""
         pattern = get_pickle_pattern("random_subtree")
         assert re.search(pattern, "dataset_subtree_t0.1.p")
-        assert re.search(pattern, "simulated_15_seq_20_sites_10_algnmnts_subtree_t0.167.p")
+        assert re.search(
+            pattern, "simulated_15_seq_20_sites_10_algnmnts_subtree_t0.167.p"
+        )
 
     def test_random_subtree_rejects_other_methods(self):
         """Test that 'random_subtree' pattern doesn't match other method suffixes."""
@@ -105,7 +107,9 @@ class TestExtractMethodLabelFromFilename:
 
     def test_subtree_old_style_fallback(self):
         """Test fallback to base name for old-style subtree suffix."""
-        label = extract_method_label_from_filename("dataset_subtree.p", "random_subtree")
+        label = extract_method_label_from_filename(
+            "dataset_subtree.p", "random_subtree"
+        )
         assert label == "random subtree"
 
     def test_uniform_with_params(self):
@@ -131,9 +135,7 @@ class TestExtractMethodLabelFromFilename:
 
     def test_unknown_method_uses_method_name(self):
         """Test that unknown methods use the method name as base."""
-        label = extract_method_label_from_filename(
-            "dataset_custom.p", "custom_method"
-        )
+        label = extract_method_label_from_filename("dataset_custom.p", "custom_method")
         assert label == "custom_method"
 
 

@@ -6,6 +6,23 @@ import os
 import pandas as pd
 from collections import Counter
 import json
+import glob as glob_module
+
+
+def _extract_prefix(pattern_key: str) -> str:
+    """Extract prefix from pattern key.
+
+    If the key contains ":", uses everything before ":" as the prefix.
+    Otherwise, uses everything before the first glob char (* or ?).
+    """
+    # Check for ":" separator first (used to separate prefix from identifier)
+    if ":" in pattern_key:
+        return pattern_key.split(":")[0]
+    # Fall back to glob char extraction
+    for i, char in enumerate(pattern_key):
+        if char in ("*", "?"):
+            return pattern_key[:i]
+    return pattern_key
 
 
 def load_nicknames_dict(data_nicknames_path):
@@ -14,6 +31,8 @@ def load_nicknames_dict(data_nicknames_path):
     Args:
         data_nicknames_path: Path to the JSON file containing dataset nicknames.
             The JSON should have a "data_dir" key and nickname-to-filename mappings.
+            Values can contain glob patterns (* or ?) which will be expanded to
+            multiple entries automatically.
 
     Returns:
         dict: Dictionary mapping dataset nicknames to their full file paths.
@@ -21,8 +40,22 @@ def load_nicknames_dict(data_nicknames_path):
     with open(data_nicknames_path, "r") as f:
         dataset_dict = json.load(f)
     data_dir = dataset_dict.pop("data_dir")
-    dataset_dict = {key: f"{data_dir}/{dataset_dict[key]}" for key in dataset_dict}
-    return dataset_dict
+
+    expanded_dict = {}
+    for key, value in dataset_dict.items():
+        full_pattern = f"{data_dir}/{value}"
+
+        if "*" in value or "?" in value:
+            matched_files = sorted(glob_module.glob(full_pattern, recursive=True))
+            prefix = _extract_prefix(key)
+            for matched_path in matched_files:
+                filename = Path(matched_path).stem
+                nickname = f"{prefix}{filename}"
+                expanded_dict[nickname] = matched_path
+        else:
+            expanded_dict[key] = full_pattern
+
+    return expanded_dict
 
 
 def data_of_nicknames(

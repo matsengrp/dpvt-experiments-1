@@ -51,10 +51,7 @@ def read_trees(filename, fasta_path):
                 # Strip software-added suffixes from leaf names
                 if UNKNOWN_DESCRIPTION_SUFFIX in leaf.name:
                     leaf.name = leaf.name.split(UNKNOWN_DESCRIPTION_SUFFIX)[0]
-                if leaf.name in sequences:
-                    leaf.add_feature("sequence", sequences[leaf.name])
-                else:
-                    print(f"Warning: No sequence found for leaf {leaf.name}")
+                leaf.add_feature("sequence", sequences[leaf.name])
             trees.append(tree)
 
     print(f"Loaded {len(trees)} trees from {filename}")

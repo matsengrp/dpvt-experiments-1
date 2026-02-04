@@ -37,7 +37,6 @@ configfile: "config.yaml"
 
 
 # Config settings
-working_dir = (os.getcwd(),)
 output_dir = config["output_dir"]
 fasta_dir = config["fasta_dir"]
 data_nicknames_path = config["data_nicknames_path"]
@@ -51,10 +50,13 @@ num_replicates = config["replicates"]
 use_hyperparameter_optimize = bool(config["use_hyperparameter_optimize"])
 hyperparameters = config["hyperparameters"]
 
-# Get data directory from nicknames file
+# Get data directory from nicknames file (raw JSON)
 with open(data_nicknames_path, "r") as f:
-    dataset_dict = json.load(f)
-    data_dir = dataset_dict["data_dir"]
+    raw_nicknames = json.load(f)
+    data_dir = raw_nicknames["data_dir"]
+
+# Get expanded dataset dict (with glob patterns resolved)
+dataset_dict = load_nicknames_dict(data_nicknames_path)
 
 # Automatically identify baseline models based on name (any model containing "Baseline")
 baseline_models = [model for model in model_names if "Baseline" in model]
@@ -190,35 +192,6 @@ def generate_individual_tree_eval_plot_paths(
         for metric in metrics
     ]
     return eval_paths
-
-
-def generate_model_comparison_plot_paths(
-    test_data_names,
-    model_names,
-    train_data_names,
-    metrics=["auroc"],
-    output_dir=".",
-    timestamp="latest",
-):
-    """Generate paths for model comparison plots."""
-    plot_paths = []
-
-    # Generate paths for comparing different models with fixed training data
-    for test_data in test_data_names:
-        for train_data in train_data_names:
-            for metric in metrics:
-                plot_paths.append(
-                    f"{output_dir}/run.{timestamp}/tree_eval_logs/model_comparison_{test_data}-model-{train_data}-{metric}.pdf"
-                )
-
-    # Generate paths for comparing different training datasets with fixed model
-    for test_data in test_data_names:
-        for model in model_names:
-            for metric in metrics:
-                plot_paths.append(
-                    f"{output_dir}/run.{timestamp}/tree_eval_logs/model_comparison_{test_data}-training_data-{model}-{metric}.pdf"
-                )
-    return plot_paths
 
 
 def generate_comparison_plot_paths(
@@ -436,9 +409,8 @@ rule evaluate_individual_trees:
             test_data_name=wildcards.test_data_name,
             device=device,
             hyperparameter_path=input.hyperparameter_path,
-            output_dir=output_dir,
-            data_nicknames_path=data_nicknames_path,
             output_file=output.eval_path,
+            data_nicknames_path=data_nicknames_path,
         )
 
 
@@ -459,10 +431,8 @@ rule evaluate_baseline_model:
     run:
         evaluate_baseline_reversion_on_trees(
             test_data_name=wildcards.test_data_name,
-            output_dir=output_dir,
-            data_nicknames_path=data_nicknames_path,
             output_file=output.eval_path,
-            timestamp=timestamp,
+            data_nicknames_path=data_nicknames_path,
         )
 
 

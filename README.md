@@ -132,14 +132,15 @@ treesearch datasets with multiple replicates per alignment:
 ```json
 {
   "data_dir": "../data",
-  "my_dataset_:alignment1": "treesearch/alignment1/*_tree_search.p",
-  "my_dataset_:alignment2": "treesearch/alignment2/*_tree_search.p"
+  "random_treesearch_my_dataset_alignment1": "treesearch/my_dataset/random_starting/alignment1/*_tree_search.p",
+  "random_treesearch_my_dataset_alignment2": "treesearch/my_dataset/random_starting/alignment2/*_tree_search.p"
 }
 ```
 
-The part before `:` becomes the prefix for expanded nicknames. For example, if
-`alignment1/` contains `alignment1_rep1_tree_search.p` and `alignment1_rep2_tree_search.p`,
-they expand to `my_dataset_alignment1_rep1_tree_search` and `my_dataset_alignment1_rep2_tree_search`.
+For example, if `alignment1/` contains `alignment1_rep1_tree_search.p` and
+`alignment1_rep2_tree_search.p`, they expand to
+`random_treesearch_my_dataset_alignment1_rep1_tree_search` and
+`random_treesearch_my_dataset_alignment1_rep2_tree_search`.
 
 #### Data format
 We assume that each dataset is provided by one file that contains a pickled

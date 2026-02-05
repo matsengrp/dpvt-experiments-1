@@ -18,6 +18,7 @@ import os
 import re
 
 from dpvtex.larch.scripts.utils import EDGE_DIST_TO_SUFFIX
+from dpvtex.plotting import get_dataset_display_name as _get_base_display_name
 
 # Configuration constants
 
@@ -280,33 +281,26 @@ def create_comparison_plots(
 
 
 def extract_dataset_label(dataset_name):
-    """
-    Extract a structured label from dataset name for plotting.
+    """Extract a structured label from dataset name for plotting.
 
-    Parses dataset names and extracts metadata:
-    - Simulated: extracts sequences, sites, alignments from filename structure
-    - Rotavirus: extracts and reformats specimen identifiers
-    - Flu: extracts and reformats strain identifiers
-
-    Note: Returns full metadata labels that may later be simplified to show
-    only the varying parts across datasets.
+    Parses dataset names and extracts metadata for edge distribution analysis.
+    Uses shared base function from dpvtex.plotting for common dataset types,
+    with specialized handling for simulated datasets with detailed naming.
 
     Args:
-        dataset_name: Original dataset filename or identifier
+        dataset_name: Original dataset filename or identifier.
 
     Returns:
-        str: Extracted label suitable for plotting
+        Extracted label suitable for plotting.
     """
-    # Scenario (i): simulated datasets
+    # Scenario (i): simulated datasets with detailed naming structure
     if "_seq_" in dataset_name:
-        # Extract number of leaves, sites, and alignments from the dataset name
         parts = dataset_name.split("_")
         num_leaves = None
         num_sites = None
         num_algnmnts = None
         data_type = "unknown"
 
-        # Find algnmnts in any position (could be followed by _spr, _subtree, etc.)
         for i, part in enumerate(parts):
             if part == "seq" and i > 0:
                 num_leaves = parts[i - 1]
@@ -314,11 +308,11 @@ def extract_dataset_label(dataset_name):
                 num_sites = parts[i - 1]
             elif part == "algnmnts" and i > 0:
                 num_algnmnts = parts[i - 1]
-                # Check if this is a train/test split
                 if parts[i - 1] == "500":
                     data_type = "train"
                 elif parts[i - 1] == "200":
                     data_type = "test"
+
         if num_leaves and data_type != "unknown":
             return f"simulated-{num_leaves}-{data_type}"
         elif num_leaves and num_sites and num_algnmnts:
@@ -329,33 +323,22 @@ def extract_dataset_label(dataset_name):
             return f"simulated-{num_leaves}"
         return dataset_name
 
-    # Scenario (ii): rotavirus datasets
+    # Scenario (ii): rotavirus datasets - special handling for larch filenames
     elif "rotavirus" in dataset_name:
         if "larch_" in dataset_name and "_spr" in dataset_name:
             start_idx = dataset_name.find("larch_") + len("larch_")
         else:
             start_idx = 0
         end_idx = dataset_name.find("_spr")
+        if end_idx == -1:
+            end_idx = len(dataset_name)
         name = dataset_name[start_idx:end_idx]
         name = name.replace("_", " ")
         name = name.replace("rotavirusA", "rotavirus A")
         return name
 
-    # Scenario (iii): flu datasets
-    elif "flu" in dataset_name:
-        parts = dataset_name.split("_")[-3:]
-        name = " ".join(parts) if isinstance(parts, list) else ""
-        return name.replace("influenzaC_fluC", "influenza C ")
-
-    elif "orthomam" in dataset_name or "pandit" in dataset_name:
-        parts = dataset_name.split("_")
-        name = parts[0]
-        if name == "orthomam":
-            data_type = parts[1]
-            return f"{name}-{data_type}"
-        return name
-
-    return dataset_name
+    # Use shared base function for other dataset types
+    return _get_base_display_name(dataset_name)
 
 
 def separate_by_method_count(df):
@@ -783,7 +766,9 @@ It generates violin plots comparing non-MP edge distributions across datasets.
             if matching_files:
                 # Process all matching files to include different parameter variants
                 for pickle_file in matching_files:
-                    method_label = extract_method_label_from_filename(pickle_file, method)
+                    method_label = extract_method_label_from_filename(
+                        pickle_file, method
+                    )
                     print(f"Found file for {method_label}: {pickle_file}")
 
                     data = load_tree_label_data(pickle_file)

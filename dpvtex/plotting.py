@@ -1,0 +1,1250 @@
+"""Plotting utilities for DPVT training summaries and visualizations.
+
+This module provides functions for generating summary plots from training results,
+including performance heatmaps, hyperparameter summaries, and runtime visualizations.
+"""
+
+import json
+import logging
+import pickle
+from dataclasses import dataclass
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import tbparse
+import yaml
+
+logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Constants
+# =============================================================================
+
+FONT_LARGE, FONT_MED, FONT_SMALL = 16, 14, 12
+DPI = 300
+PALETTE = "Dark2"
+
+# Model display names for plots
+MODEL_NAMES = {
+    "TraverseMaxPooling": "Maximum",
+    "TraverseAvgPooling": "Average",
+    "TraverseNN": "Transformer\nEncoder",
+    "BaselineReversion": "Baseline",
+}
+
+# Standard model ordering for consistent plots
+MODEL_ORDER = [
+    "TraverseMaxPooling",
+    "TraverseAvgPooling",
+    "TraverseNN",
+    "BaselineReversion",
+]
+
+# Dataset display names for plots
+DATASET_NAMES = {
+    "orthomam": "OrthoMaM",
+    "pandit": "PANDIT",
+    "fluC_NS": "flu C NS",
+    "fluC_M": "flu C M",
+    "fluC_PB2": "flu C PB2",
+    "fluC": "flu C",
+    "rotavirus": "rota A H H2",
+    "alisim": "simulated",
+    "simulated": "simulated",
+}
+
+# Metric display labels
+METRIC_LABELS = {
+    "test_auroc": "AUROC",
+    "test_accuracy": "Accuracy",
+    "test_loss": "Loss",
+}
+
+# Label mappings for heatmap axes
+COLUMN_LABELS = {
+    "model": "Model",
+    "train_data": "Dataset",
+    "test_data": "Dataset",
+    "train_num_leaves": "Number of Leaves",
+    "train_num_sites": "Number of Sites",
+    "train_num_trees": "Number of Trees",
+    "test_num_leaves": "Number of Leaves",
+    "test_num_sites": "Number of Sites",
+    "test_num_trees": "Number of Trees",
+    "train_perturbation": "Perturbation method",
+    "test_perturbation": "Perturbation method",
+    "test_data_source": "Data Source",
+    "train_data_source": "Data Source",
+    "test_data_model": "Evolutionary Model",
+    "train_data_model": "Evolutionary Model",
+}
+
+
+# =============================================================================
+# Configuration Classes
+# =============================================================================
+
+
+@dataclass
+class LabelConfig:
+    """Configuration for which labels to show on heatmap axes.
+
+    By default (all fields None), labels are auto-detected: only shown if
+    values vary across datasets. Set to True/False to manually override.
+
+    Attributes:
+        show_num_leaves: Show number of leaves (n) in labels.
+        show_num_sites: Show number of sites (N) in labels.
+        show_num_trees: Show number of trees (T) in labels.
+        show_nonmp_fraction: Show non-MP edge fraction in labels.
+        show_perturbation: Show perturbation method in labels.
+        show_data_source: Show data source in labels.
+    """
+
+    show_num_leaves: bool | None = None
+    show_num_sites: bool | None = None
+    show_num_trees: bool | None = None
+    show_nonmp_fraction: bool | None = None
+    show_perturbation: bool | None = None
+    show_data_source: bool | None = None
+
+
+def _should_show_label(values, override: bool | None) -> bool:
+    """Determine if a label should be shown.
+
+    Args:
+        values: List of values to check for variation.
+        override: If True/False, use that value. If None, auto-detect.
+
+    Returns:
+        True if label should be shown, False otherwise.
+    """
+    if override is not None:
+        return override
+    unique_values = set(v for v in values if v is not None and pd.notna(v))
+    return len(unique_values) > 1
+
+
+# =============================================================================
+# Data Loading Functions
+# =============================================================================
+
+
+def load_data(file_path, file_type=None):
+    """Load data from JSON, YAML, or pickle files.
+
+    Args:
+        file_path: Path to the file to load.
+        file_type: Optional file type override ('json', 'yaml', 'yml', 'pickle', 'pkl', 'p').
+            If None, inferred from file extension.
+
+    Returns:
+        Loaded data object, or None if file type not recognized.
+    """
+    file_path = str(file_path)
+    # Handle cpu_/gpu_ prefixes in paths
+    if "cpu_" in file_path or "gpu_" in file_path:
+        file_path = file_path.replace("cpu_", "").replace("gpu_", "")
+
+    if file_type is None:
+        file_type = file_path.split(".")[-1]
+
+    if file_type in ["json"]:
+        with open(file_path, "r") as file:
+            return json.load(file)
+    elif file_type in ["yaml", "yml"]:
+        with open(file_path, "r") as file:
+            return yaml.safe_load(file)
+    elif file_type in ["pickle", "pkl", "p"]:
+        with open(file_path, "rb") as file:
+            return pickle.load(file)
+    else:
+        logger.warning(f'load failed: "{file_type}" file type not recognized.')
+        return None
+
+
+def get_stats_from_data(data_path, take_first=True):
+    """Extract the number of trees, leaves, and sites from a dataset.
+
+    Args:
+        data_path: Path to a pickle file containing tree data.
+        take_first: If True, takes the first tree as representative. Otherwise,
+            creates min-max ranges over all trees.
+
+    Returns:
+        Dictionary with keys: num_trees, num_leaves, num_sites, num_leaves_range, num_sites_range.
+    """
+    if data_path is None:
+        return {
+            "num_trees": None,
+            "num_leaves": None,
+            "num_sites": None,
+            "num_leaves_range": [np.inf, -np.inf],
+            "num_sites_range": [np.inf, -np.inf],
+        }
+
+    data_stats = {
+        "num_trees": None,
+        "num_leaves": [],
+        "num_sites": [],
+        "num_leaves_range": [np.inf, -np.inf],
+        "num_sites_range": [np.inf, -np.inf],
+    }
+
+    logger.info(f"Loading data stats from: {data_path}")
+    data_dict = load_data(data_path)
+
+    for i, (tree, vec) in enumerate(data_dict.items()):
+        num_leaves = [len(tree.get_leaves()) + 1]  # add one for root leaf
+        num_sites = [len(x.sequence) for x in tree.get_leaves()]
+
+        data_stats["num_leaves"] += num_leaves
+        data_stats["num_sites"] += num_sites
+        data_stats["num_leaves_range"][0] = min(
+            data_stats["num_leaves_range"][0], np.min(num_leaves)
+        )
+        data_stats["num_leaves_range"][1] = max(
+            data_stats["num_leaves_range"][1], np.max(num_leaves)
+        )
+        data_stats["num_sites_range"][0] = min(
+            data_stats["num_sites_range"][0], np.min(num_sites)
+        )
+        data_stats["num_sites_range"][1] = max(
+            data_stats["num_sites_range"][1], np.max(num_sites)
+        )
+        if take_first:
+            break
+
+    data_stats["num_trees"] = len(data_dict.items())
+    data_stats["num_leaves"] = int(np.mean(data_stats["num_leaves"]))
+    data_stats["num_sites"] = int(np.mean(data_stats["num_sites"]))
+    return data_stats
+
+
+def build_data_stats_dict(df, nicknames_dict, working_dir=".", take_first=True):
+    """Build dict of number of trees, leaves, and sites for each dataset in DataFrame.
+
+    Args:
+        df: DataFrame with train_data and test_data columns.
+        nicknames_dict: Dictionary mapping dataset nicknames to file paths.
+        working_dir: Base directory for resolving relative paths.
+        take_first: If True, use only first tree for stats (faster).
+
+    Returns:
+        Dictionary mapping dataset names to their stats dictionaries.
+    """
+    data_stats = {}
+    data_names = list(set(df["train_data"].tolist() + df["test_data"].tolist()))
+
+    for i, data_name in enumerate(data_names):
+        if (i + 1) % 5 == 0:
+            logger.info(f"Loading data stats: {i + 1}/{len(data_names)}")
+
+        if "baseline" in data_name:
+            data_path = None
+        elif data_name in nicknames_dict:
+            data_path = f"{working_dir}/{nicknames_dict[data_name]}"
+        else:
+            logger.warning(f"Dataset {data_name} not found in nicknames dict")
+            data_path = None
+
+        data_stats[data_name] = get_stats_from_data(data_path, take_first)
+
+    return data_stats
+
+
+def get_df_from_log(log_path):
+    """Load a DataFrame from a TensorBoard log directory.
+
+    Args:
+        log_path: Path to the TensorBoard log directory.
+
+    Returns:
+        DataFrame with scalar values from the log.
+    """
+    if "cpu_" in log_path or "gpu_" in log_path:
+        log_path = log_path.replace("cpu_", "").replace("gpu_", "")
+    reader = tbparse.SummaryReader(log_path)
+    return reader.scalars
+
+
+# =============================================================================
+# Dataset Name Parsing Functions
+# =============================================================================
+
+
+def extract_num_leaves(data_name):
+    """Extract number of leaves from a dataset name.
+
+    Works for alisim and perfect phylogeny data following specific naming rules.
+
+    Args:
+        data_name: Dataset name string.
+
+    Returns:
+        String representation of number of leaves, or None if not found.
+    """
+    if "alisim" in data_name:
+        return data_name.split("_")[1]
+    elif "leaf" in data_name:
+        return data_name.split("leaf")[0]
+    elif "perfect" in data_name:
+        return data_name.split("_")[1]
+    return None
+
+
+def extract_num_sites(data_name):
+    """Extract number of sites from a dataset name.
+
+    Works for alisim and perfect phylogeny data following specific naming rules.
+
+    Args:
+        data_name: Dataset name string.
+
+    Returns:
+        String representation of number of sites, or None if not found.
+    """
+    if "alisim" in data_name:
+        return data_name.split("_")[3]
+    elif "perfect" in data_name:
+        return data_name.split("_")[7]
+    return None
+
+
+def extract_num_trees(data_name):
+    """Extract number of trees from a dataset name.
+
+    Works for perfect phylogeny data following specific naming rules.
+
+    Args:
+        data_name: Dataset name string.
+
+    Returns:
+        String representation of number of trees, or None if not found.
+    """
+    if "pp" in data_name:
+        return data_name.split("trees")[0].split("_")[-1]
+    elif "perfect" in data_name:
+        return data_name.split("_")[3]
+    return None
+
+
+def extract_nonmp_fraction(data_name):
+    """Extract non-MP edge fraction from a dataset name.
+
+    Parses filenames ending with '_t{fraction}.p' or '_t{fraction}' format.
+
+    Args:
+        data_name: Dataset name string.
+
+    Returns:
+        Float fraction value, or None if not found.
+
+    Examples:
+        >>> extract_nonmp_fraction("dataset_t0.1.p")
+        0.1
+        >>> extract_nonmp_fraction("dataset_t0.25")
+        0.25
+        >>> extract_nonmp_fraction("dataset.p")
+        None
+    """
+    import re
+
+    # Match pattern like _t0.1.p or _t0.1 at the end
+    match = re.search(r"_t(\d+\.?\d*)(?:\.p)?$", data_name)
+    if match:
+        return float(match.group(1))
+    return None
+
+
+def get_evolution_model(data_string):
+    """Extract the evolutionary model from a dataset name.
+
+    Args:
+        data_string: Dataset name string.
+
+    Returns:
+        String "GTR", "HKY", "JC", or empty string if not found.
+    """
+    data_lower = data_string.lower()
+    if "alisim" in data_lower:
+        if "gtr" in data_lower:
+            return "GTR"
+        elif "hky" in data_lower:
+            return "HKY"
+        else:
+            return "JC"
+    return ""
+
+
+def get_data_source(data_name):
+    """Extract the data source from a dataset name.
+
+    Args:
+        data_name: Dataset name string.
+
+    Returns:
+        Data source string (e.g., "flu", "rotavirus", "alisim").
+    """
+    if "alisim" in data_name:
+        return "alisim"
+    return data_name.split("_")[0]
+
+
+def get_dataset_display_name(
+    data_name, num_leaves=None, num_sites=None, num_trees=None
+):
+    """Get a human-readable display name for a dataset.
+
+    Parses dataset names and extracts metadata for display. Handles simulated,
+    rotavirus, flu, orthomam, and pandit datasets.
+
+    Args:
+        data_name: Original dataset name or identifier.
+        num_leaves: Optional number of leaves to include in label.
+        num_sites: Optional number of sites to include in label.
+        num_trees: Optional number of trees to include in label.
+
+    Returns:
+        Human-readable dataset label suitable for plotting.
+    """
+    # Simulated/alisim datasets
+    if "simulated" in data_name or "alisim" in data_name:
+        name = "sim"
+    # Rotavirus datasets
+    elif "rotavirus" in data_name:
+        name = "rota A H H2"
+    # Flu datasets
+    elif "flu" in data_name:
+        parts = data_name.split("_")[-3:-1]
+        name = "_".join(parts) if isinstance(parts, list) else ""
+        name = name.replace("fluC_", "flu C ")
+    # OrthoMaM datasets
+    elif "orthomam" in data_name:
+        name = "OrthoMaM"
+    # PANDIT datasets
+    elif "pandit" in data_name:
+        name = "PANDIT"
+    else:
+        name = data_name
+
+    # Add stats if provided
+    if num_leaves is not None and num_sites is not None and num_trees is not None:
+        return f"{name}\nn={num_leaves}\nN={num_sites}\nT={num_trees}"
+    elif num_leaves is not None and num_sites is not None:
+        return f"{name}\nn={num_leaves}, N={num_sites}"
+    elif num_leaves is not None:
+        return f"{name}\nn={num_leaves}"
+
+    return name
+
+
+# =============================================================================
+# Formatting Utilities
+# =============================================================================
+
+
+def plt_subplots(*args, **kwargs):
+    """Create subplots ensuring axes is always iterable.
+
+    Wrapper around plt.subplots() that ensures the returned axes object
+    is always a numpy array, even for single subplot.
+
+    Args:
+        *args: Positional arguments passed to plt.subplots().
+        **kwargs: Keyword arguments passed to plt.subplots().
+
+    Returns:
+        Tuple of (fig, axs) where axs is always a numpy array.
+    """
+    fig, axs = plt.subplots(*args, **kwargs)
+    if not isinstance(axs, np.ndarray):
+        axs = np.array([axs])
+    return fig, axs
+
+
+def truncate_to_significant_digits(x, sig_digits):
+    """Truncate a number to the specified number of significant digits.
+
+    Args:
+        x: Number to truncate.
+        sig_digits: Number of significant digits to keep.
+
+    Returns:
+        Truncated number.
+    """
+    if x == 0:
+        return 0
+    magnitude = np.floor(np.log10(abs(x)))
+    factor = 10 ** (sig_digits - magnitude - 1)
+    return np.floor(x * factor) / factor
+
+
+def format_number(x, sig_digits=4, sci_range=(1e-6, 1e6)):
+    """Format a number with optional scientific notation.
+
+    Args:
+        x: Number to format.
+        sig_digits: Number of significant digits.
+        sci_range: Tuple (min, max) outside which scientific notation is used.
+
+    Returns:
+        Formatted number (string for scientific notation, number otherwise).
+    """
+    x = truncate_to_significant_digits(x, sig_digits)
+    if (x != 0) and (x < sci_range[0] or x > sci_range[1]):
+        return f"{x:.{sig_digits}e}"
+    return x
+
+
+# =============================================================================
+# Heatmap Plotting
+# =============================================================================
+
+
+def build_performance_heatmap(
+    df,
+    value_column,
+    output_path,
+    title="",
+    v_range=(0.0, 1.0),
+    label_config: LabelConfig | None = None,
+):
+    """Build a performance heatmap from summary DataFrame.
+
+    Creates a heatmap showing model performance (AUROC, accuracy, or loss)
+    across different training and testing dataset configurations.
+
+    Args:
+        df: DataFrame with columns: model, train_data, test_data, train_num_leaves,
+            train_num_sites, train_num_trees, test_num_leaves, test_num_sites,
+            test_num_trees, and the value_column.
+        value_column: Column name for the values to display (e.g., "test_auroc").
+        output_path: Path to save the output PDF.
+        title: Optional title for the plot.
+        v_range: Tuple (min, max) for the color scale.
+        label_config: Configuration for which labels to show. If None, uses
+            auto-detection (only shows labels that vary across datasets).
+    """
+    if label_config is None:
+        label_config = LabelConfig()
+
+    # Sort data
+    df_sorted = df.sort_values(by=["model", "train_num_leaves", "train_num_sites"])
+
+    # Determine which labels to show using auto-detection or overrides
+    train_leaves_display = _should_show_label(
+        df_sorted["train_num_leaves"].tolist(), label_config.show_num_leaves
+    )
+    train_site_display = _should_show_label(
+        df_sorted["train_num_sites"].tolist(), label_config.show_num_sites
+    )
+    train_trees_display = _should_show_label(
+        df_sorted["train_num_trees"].tolist(), label_config.show_num_trees
+    )
+    test_site_display = _should_show_label(
+        df_sorted["test_num_sites"].tolist(), label_config.show_num_sites
+    )
+
+    # Check for mixed perturbation methods
+    has_spr = df_sorted["train_data"].str.contains("spr", na=False).any()
+    has_subtree = df_sorted["train_data"].str.contains("subtree", na=False).any()
+    has_uniform = df_sorted["train_data"].str.contains("uniform", na=False).any()
+    mixed_source_training = _should_show_label(
+        [has_spr, has_subtree, has_uniform], label_config.show_perturbation
+    )
+
+    has_spr_test = df_sorted["test_data"].str.contains("spr", na=False).any()
+    has_subtree_test = df_sorted["test_data"].str.contains("subtree", na=False).any()
+    has_uniform_test = df_sorted["test_data"].str.contains("uniform", na=False).any()
+    mixed_source_testing = _should_show_label(
+        [has_spr_test, has_subtree_test, has_uniform_test],
+        label_config.show_perturbation,
+    )
+
+    # Build column lists based on what should be displayed
+    indices = ["model"]
+    extra_cols = []
+    if train_leaves_display:
+        extra_cols.append("train_num_leaves")
+    if train_site_display:
+        extra_cols.append("train_num_sites")
+    if train_trees_display:
+        extra_cols.append("train_num_trees")
+
+    test_cols = []
+    if mixed_source_testing:
+        test_cols.append("test_perturbation")
+    test_cols.append("test_num_leaves")
+    if test_site_display:
+        test_cols.append("test_num_sites")
+
+    # Handle perturbation methods
+    df_sorted = df_sorted.copy()
+    if mixed_source_testing:
+        df_sorted["test_perturbation"] = np.select(
+            [
+                df_sorted["test_data"].str.contains("spr_subtree", na=False),
+                df_sorted["test_data"].str.contains("spr", na=False),
+                df_sorted["test_data"].str.contains("subtree", na=False),
+                df_sorted["test_data"].str.contains("uniform", na=False),
+                df_sorted["test_data"].str.contains("treesearch", na=False),
+            ],
+            ["SPR+Subtree", "SPR", "Subtree", "uniform", "treesearch_mimic"],
+            default="unknown",
+        )
+    else:
+        df_sorted["test_perturbation"] = ""
+
+    if mixed_source_training:
+        df_sorted["train_perturbation"] = np.select(
+            [
+                df_sorted["train_data"].str.contains("spr_subtree", na=False),
+                df_sorted["train_data"].str.contains("spr", na=False),
+                df_sorted["train_data"].str.contains("subtree", na=False),
+                df_sorted["train_data"].str.contains("uniform", na=False),
+                df_sorted["train_data"].str.contains("treesearch", na=False),
+            ],
+            ["SPR+Subtree", "SPR", "Subtree", "uniform", "treesearch_mimic"],
+            default="unknown",
+        )
+        extra_cols = ["train_perturbation"] + extra_cols
+
+    for col_name in extra_cols:
+        indices.append(col_name)
+
+    if len(indices) > 1:
+        df_for_pivot = df_sorted.copy()
+        for col in indices + test_cols:
+            if isinstance(df_for_pivot[col].dtype, pd.CategoricalDtype):
+                df_for_pivot[col] = df_for_pivot[col].astype(str)
+            if (
+                pd.api.types.is_integer_dtype(df_for_pivot[col])
+                and pd.isna(df_for_pivot[col]).any()
+            ):
+                df_for_pivot[col] = df_for_pivot[col].astype(str)
+            df_for_pivot[col] = df_for_pivot[col].fillna("N/A")
+
+        # Check for multiple data sources
+        pattern_matches = [
+            df_for_pivot["test_data"].str.contains("flu", na=False).any(),
+            df_for_pivot["test_data"].str.contains("rotavirus", na=False).any(),
+            df_for_pivot["test_data"].str.contains("alisim", na=False).any(),
+        ]
+        if sum(pattern_matches) >= 2:
+            df_for_pivot["test_data_name"] = df_for_pivot.apply(
+                lambda row: get_dataset_display_name(
+                    row["test_data"],
+                    row["test_num_leaves"],
+                    row["test_num_sites"],
+                    row["test_num_trees"],
+                ),
+                axis=1,
+            )
+            test_cols = ["test_data_name"]
+
+        heatmap_data = df_for_pivot.pivot_table(
+            index=indices,
+            columns=test_cols,
+            values=value_column,
+            dropna=False,
+        )
+
+        # Drop rows/columns with all NaN
+        heatmap_data = heatmap_data[~heatmap_data.isna().all(axis=1)]
+        heatmap_data = heatmap_data.dropna(axis=1, how="all")
+    else:
+        heatmap_data = df_sorted.pivot(
+            index="model", columns="test_data", values=value_column
+        )
+
+    # Build heatmap
+    fig_width = (len(heatmap_data.columns) * 0.75) + 10
+    fig_height = (len(heatmap_data) * 0.3) + 4
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+
+    cmap = sns.color_palette("coolwarm", as_cmap=True)
+
+    # Create secondary labels for y-axis
+    if isinstance(heatmap_data.index, pd.MultiIndex):
+        secondary_labels = []
+        for idx in heatmap_data.index:
+            label_parts = []
+            col_offset = 1
+
+            if mixed_source_training:
+                perturbation = idx[col_offset] if len(idx) > col_offset else ""
+                label_parts.append(str(perturbation))
+                col_offset += 1
+
+            if train_leaves_display:
+                leaves = idx[col_offset] if len(idx) > col_offset else ""
+                label_parts.append(f"n={leaves}")
+                col_offset += 1
+
+            if train_site_display:
+                sites = idx[col_offset] if len(idx) > col_offset else ""
+                label_parts.append(f"N={sites}")
+                col_offset += 1
+
+            if train_trees_display:
+                trees = idx[col_offset] if len(idx) > col_offset else ""
+                label_parts.append(f"T={trees}")
+
+            secondary_labels.append("\n".join(label_parts))
+    else:
+        secondary_labels = True
+
+    sns_heatmap = sns.heatmap(
+        data=heatmap_data,
+        yticklabels=secondary_labels,
+        annot=True,
+        annot_kws={"fontsize": FONT_LARGE},
+        cbar_kws={"label": value_column, "shrink": 0.8},
+        vmin=v_range[0],
+        vmax=v_range[1],
+        cmap=cmap,
+        fmt=".2f",
+        ax=ax,
+    )
+    ax.set_ylabel("")
+    cbar = sns_heatmap.collections[0].colorbar
+    cbar.ax.tick_params(labelsize=FONT_MED)
+    cbar.set_label(METRIC_LABELS.get(value_column, value_column), fontsize=FONT_MED)
+
+    plt.tight_layout()
+
+    # Position model labels
+    bbox = ax.get_position()
+    axis_left = bbox.x0
+    axis_height = bbox.height
+    axis_bottom = bbox.y0
+
+    if isinstance(heatmap_data.index, pd.MultiIndex):
+        models = heatmap_data.index.get_level_values(0).unique()
+        model_rows = {}
+        current_model = None
+        start_idx = 0
+
+        for i, idx in enumerate(heatmap_data.index):
+            model = idx[0]
+            if current_model != model:
+                if current_model is not None:
+                    model_rows[current_model] = (start_idx, i - 1)
+                    ax.axhline(y=i, color="black", linewidth=1)
+                current_model = model
+                start_idx = i
+
+        if current_model is not None:
+            model_rows[current_model] = (start_idx, len(heatmap_data.index) - 1)
+
+        add_for_baseline = 0
+        if "BaselineReversion" in model_rows:
+            add_for_baseline = -0.5
+
+        ylabel_shift = -0.055
+        if mixed_source_training:
+            ylabel_shift += 0.07
+
+        max_end_idx = max(end for start, end in model_rows.values())
+
+        for model, (start, end) in model_rows.items():
+            if "Baseline" in model:
+                continue
+
+            display_name = MODEL_NAMES.get(model, model)
+            center_row = max_end_idx - ((start + end) / 2 + add_for_baseline)
+            fig_y_pos = axis_bottom + (
+                (center_row / len(heatmap_data.index)) * axis_height
+            )
+
+            fig.text(
+                axis_left - ylabel_shift + 0.1,
+                fig_y_pos,
+                display_name,
+                va="center",
+                ha="center",
+                fontsize=FONT_LARGE,
+            )
+
+        ylabel = "Trained model"
+        num_displayed = sum(
+            [train_leaves_display, train_site_display, train_trees_display]
+        )
+        if num_displayed <= 1:
+            ylabel_shift -= 0.05
+
+        fig.text(
+            axis_left - ylabel_shift + 0.05,
+            axis_bottom + (axis_height / 2),
+            ylabel,
+            va="center",
+            ha="center",
+            rotation=90,
+            fontsize=FONT_LARGE,
+        )
+
+        if any("Baseline" in model for model in models):
+            yticks = plt.yticks()
+            positions = yticks[0]
+            labels = [label.get_text() for label in plt.gca().get_yticklabels()]
+            baseline_label = ax.get_yticklabels()[0]
+            baseline_label.set_fontsize(FONT_LARGE)
+            for model, (start, _) in model_rows.items():
+                if "Baseline" in model and start < len(labels):
+                    labels[start] = "BaselineReversion"
+            plt.yticks(positions, labels)
+
+        plt.yticks(rotation=0, fontsize=FONT_LARGE)
+        plt.xticks(rotation=0, fontsize=FONT_MED)
+        plt.subplots_adjust(left=0.3)
+
+        xlabel = "Testing data: number of leaves"
+        if test_site_display:
+            xlabel = "Testing data\n n: avg number of leaves, N: avg number of sites, T: number of trees"
+        if mixed_source_testing:
+            if test_site_display:
+                xlabel = "Testing data: perturbation method - number of leaves - number of sites - number of trees"
+            else:
+                xlabel = "Testing data: perturbation method - number of leaves"
+
+        fig.text(
+            axis_left + (bbox.width / 2) + 0.15,
+            axis_bottom - 0.3,
+            xlabel,
+            va="center",
+            ha="center",
+            fontsize=FONT_LARGE,
+        )
+        ax.set_xlabel("")
+        ax.set_title(title)
+        plt.title("")
+
+    logger.info(f"Saving heatmap to: {output_path}")
+    plt.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
+
+
+# =============================================================================
+# Bar and Line Plot Functions
+# =============================================================================
+
+
+def plot_hyperparameters_summary(df, output_path, hyperparams=None):
+    """Create a bar plot summarizing hyperparameters across models.
+
+    Args:
+        df: DataFrame with model_and_train_data column and hyperparameter columns.
+        output_path: Path to save the output PDF.
+        hyperparams: List of hyperparameter column names. Defaults to common ones.
+    """
+    if hyperparams is None:
+        hyperparams = [
+            "learning_rate",
+            "batch_size",
+            "accum_grad_batches",
+            "max_epochs",
+            "feature_length",
+            "dim_mlp_layers",
+        ]
+
+    if len(df["model_and_train_data"].unique()) >= 10:
+        logger.info("Too many trained models, skipping hyperparameter summary plot")
+        return
+
+    num_params = len(hyperparams)
+    train_df = df.groupby("model_and_train_data")[hyperparams].first().reset_index()
+    melt_df = pd.melt(
+        train_df, id_vars="model_and_train_data", var_name="Metric", value_name="Value"
+    )
+    melt_df = melt_df[melt_df.Metric.isin(hyperparams)]
+
+    plt.figure(figsize=(3 * num_params, 8))
+    sns.barplot(
+        x="Metric", y="Value", hue="model_and_train_data", data=melt_df, palette="deep"
+    )
+    plt.xticks(rotation=45)
+    plt.title("Hyper Parameters by Model")
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+    logger.info(f"Saved hyperparameter summary to: {output_path}")
+
+
+def plot_training_runtimes_by_leaves(df, output_dir):
+    """Create bar plots of training runtimes grouped by number of leaves.
+
+    Args:
+        df: DataFrame with train_data, train_num_leaves, train_walltime, model columns.
+        output_dir: Directory to save output PDFs.
+    """
+    for num_leaves in df["train_num_leaves"].unique():
+        fig, ax = plt.subplots()
+
+        leaf_pattern = f"{num_leaves}_seqs|{num_leaves}_leaves|{num_leaves}leaves|{num_leaves}seqs|{num_leaves}leaf|{num_leaves}seq"
+        this_df = df[df["train_data"].str.contains(leaf_pattern, na=False)].copy()
+        this_df.sort_values(by="train_num_sites", inplace=True)
+
+        if len(this_df) > 0:
+            sns.barplot(
+                y="train_data",
+                x="train_walltime",
+                data=this_df,
+                palette="deep",
+                hue="model",
+                errorbar=None,
+            )
+            ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+            ax.set_ylabel("Train Data")
+            ax.set_xlabel("Training Runtime (in secs)")
+
+            plt.tight_layout()
+            output_path = f"{output_dir}/train_walltime_{num_leaves}seq.barplot.pdf"
+            plt.savefig(output_path)
+            logger.info(f"Saved runtime plot to: {output_path}")
+            plt.close(fig)
+
+
+def plot_metric_by_model(df, metric_column, output_path, model_list):
+    """Create bar plots of a metric split by model.
+
+    Args:
+        df: DataFrame with model, train_data, and metric columns.
+        metric_column: Name of the metric column to plot.
+        output_path: Path to save the output PDF.
+        model_list: List of model names to include.
+    """
+    fig, axes = plt_subplots(
+        nrows=1, ncols=len(model_list), figsize=(15, 6), sharey=True
+    )
+
+    x_pad_factor = 0.05
+    x_pad = abs(df[metric_column].min() - df[metric_column].max()) * x_pad_factor
+    x_min = df[metric_column].min() - x_pad
+    x_max = df[metric_column].max() + x_pad
+
+    for ax, model in zip(axes, model_list):
+        this_df = df[df["model"] == model]
+        sns.barplot(
+            y="train_data",
+            x=metric_column,
+            data=this_df,
+            palette="deep",
+            hue="train_data",
+            ax=ax,
+        )
+        ax.set_ylabel("Train Data")
+        ax.set_xlabel(metric_column)
+        ax.set_title(model)
+        ax.set_xlim(x_min, x_max)
+        ax.xaxis.set_major_formatter(
+            ticker.FuncFormatter(lambda x, p: format_number(x))
+        )
+        for label in ax.get_xticklabels():
+            label.set_rotation(90)
+
+    plt.xticks(rotation=90)
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close(fig)
+    logger.info(f"Saved metric plot to: {output_path}")
+
+
+def plot_training_dynamics(custom_dfs, output_dir, model_list, measures=None):
+    """Create line plots of training dynamics over epochs/batches.
+
+    Args:
+        custom_dfs: Dictionary mapping (model, train_data, test_data, param_id) to DataFrames.
+        output_dir: Directory to save output PDFs.
+        model_list: List of model names to include.
+        measures: Dictionary of {title: column_name} for metrics to plot.
+    """
+    if measures is None:
+        measures = {
+            "Runtime over Batches": "walltime_per_batch",
+            "Loss over Batches": "loss_per_batch",
+            "Runtime over Epochs": "walltime_per_epoch",
+            "Loss over Epochs": "avgloss_per_epoch",
+        }
+
+    df_list = []
+    for key, df in custom_dfs.items():
+        this_df = df.copy()
+        this_df["model_and_train_data"] = key[0] + "-" + key[1]
+        this_df["model"] = key[0]
+        df_list.append(this_df)
+
+    runtime_df = pd.concat(df_list)
+
+    for title, col in measures.items():
+        fig, axes = plt_subplots(
+            nrows=1, ncols=len(model_list), figsize=(15, 6), sharey=True
+        )
+        this_tag_df = runtime_df[runtime_df.tag == col]
+        x_max = this_tag_df["step"].max() + 2
+
+        handles, labels = None, None
+        for ax, model in zip(axes, model_list):
+            this_df = this_tag_df[this_tag_df["model"] == model]
+            plot = sns.lineplot(
+                y="value",
+                x="step",
+                data=this_df,
+                hue="model_and_train_data",
+                palette="deep",
+                ax=ax,
+                legend=True,
+            )
+            ax.set_xlabel("Training Step")
+            ax.set_ylabel(title)
+            ax.set_title(model)
+            ax.set_xlim(0, x_max)
+            plt.tight_layout()
+            handles, labels = plot.get_legend_handles_labels()
+            ax.get_legend().remove()
+
+        if handles and labels:
+            fig.legend(handles, labels, loc="center left", bbox_to_anchor=(1, 0.5))
+
+        output_path = f"{output_dir}/{col}.barplot.pdf"
+        plt.savefig(output_path, bbox_inches="tight")
+        plt.close(fig)
+        logger.info(f"Saved training dynamics plot to: {output_path}")
+
+
+def plot_loss_over_time(custom_dfs, output_path, model_list):
+    """Create line plots of loss over walltime.
+
+    Args:
+        custom_dfs: Dictionary mapping (model, train_data, test_data, param_id) to DataFrames.
+        output_path: Path to save the output PDF.
+        model_list: List of model names to include.
+    """
+    fig, axes = plt_subplots(
+        nrows=1, ncols=len(model_list), figsize=(15, 6), sharey=True
+    )
+    model_list = list(model_list)
+    label_set = set()
+    handles, labels = None, None
+
+    for key, df in custom_dfs.items():
+        label = key[0] + "-" + key[1]
+        if label in label_set:
+            continue
+        label_set.add(label)
+
+        df_time = df[df.tag == "walltime_per_batch"]
+        df_loss = df[df.tag == "loss_per_batch"]
+        ax = axes[model_list.index(key[0])]
+        ax.plot(df_time.value, df_loss.value, label=key[1])
+        ax.set_title(key[0])
+
+    fig.supylabel("Training loss", fontsize=FONT_SMALL)
+    fig.supxlabel("Walltime (in seconds)", fontsize=FONT_SMALL)
+
+    plt.xticks(rotation=45)
+
+    if handles and labels:
+        fig.legend(handles, labels, loc="center left", bbox_to_anchor=(1, 0.5))
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close(fig)
+    logger.info(f"Saved loss over time plot to: {output_path}")
+
+
+# =============================================================================
+# Public API
+# =============================================================================
+
+
+def generate_summary_plots(
+    summary_csv_path,
+    results_dir,
+    config_path=None,
+    data_nicknames_path=None,
+    baseline_csv_path=None,
+    working_dir=".",
+    get_data_stats_from_name=False,
+    plot_details=False,
+    label_config: LabelConfig | None = None,
+):
+    """Generate all summary plots from a training run.
+
+    Main entry point for Snakemake workflow to generate plots from summary CSV.
+
+    Args:
+        summary_csv_path: Path to the summary CSV file.
+        results_dir: Directory to save output plots.
+        config_path: Optional path to config YAML file.
+        data_nicknames_path: Optional path to data nicknames JSON file.
+        baseline_csv_path: Optional path to baseline summary CSV.
+        working_dir: Base directory for resolving relative paths.
+        get_data_stats_from_name: If True, extract stats from dataset names.
+        plot_details: If True, generate additional detailed plots.
+        label_config: Configuration for which labels to show on heatmaps.
+            If None, uses auto-detection (only shows labels that vary).
+
+    Returns:
+        Dictionary with paths to generated plots.
+    """
+    from dpvtex.dpvt_data import load_nicknames_dict
+
+    # Create output directory
+    Path(results_dir).mkdir(parents=True, exist_ok=True)
+
+    # Load summary data
+    summary_df = pd.read_csv(summary_csv_path)
+
+    # Load baseline if available
+    if baseline_csv_path and Path(baseline_csv_path).exists():
+        baseline_summary_df = pd.read_csv(baseline_csv_path)
+        summary_df = pd.concat([summary_df, baseline_summary_df], ignore_index=True)
+
+    # Load config and nicknames
+    config_data = None
+    if config_path and Path(config_path).exists():
+        config_data = load_data(config_path)
+
+    nicknames_dict = {}
+    if data_nicknames_path and Path(data_nicknames_path).exists():
+        nicknames_dict = load_nicknames_dict(data_nicknames_path)
+
+    # Add summary columns
+    summary_df["label"] = summary_df[
+        ["model", "train_data", "test_data", "param_id"]
+    ].apply(lambda x: "\n".join(x.astype(str)), axis=1)
+    summary_df["percent_epochs"] = summary_df["train_epochs"] / summary_df["max_epochs"]
+    summary_df["model_and_train_data"] = (
+        summary_df["model"].astype(str) + "-" + summary_df["train_data"].astype(str)
+    )
+
+    # Get data stats
+    if get_data_stats_from_name:
+        summary_df["train_num_leaves"] = pd.to_numeric(
+            summary_df["train_data"].apply(extract_num_leaves), errors="coerce"
+        )
+        summary_df["train_num_sites"] = pd.to_numeric(
+            summary_df["train_data"].apply(extract_num_sites), errors="coerce"
+        )
+        summary_df["train_num_trees"] = pd.to_numeric(
+            summary_df["train_data"].apply(extract_num_trees), errors="coerce"
+        )
+        summary_df["test_num_leaves"] = pd.to_numeric(
+            summary_df["test_data"].apply(extract_num_leaves), errors="coerce"
+        )
+        summary_df["test_num_sites"] = pd.to_numeric(
+            summary_df["test_data"].apply(extract_num_sites), errors="coerce"
+        )
+        summary_df["test_num_trees"] = pd.to_numeric(
+            summary_df["test_data"].apply(extract_num_trees), errors="coerce"
+        )
+    else:
+        data_stats = build_data_stats_dict(summary_df, nicknames_dict, working_dir)
+        summary_df["train_num_leaves"] = [
+            data_stats[x]["num_leaves"] for x in summary_df["train_data"]
+        ]
+        summary_df["train_num_sites"] = [
+            data_stats[x]["num_sites"] for x in summary_df["train_data"]
+        ]
+        summary_df["train_num_trees"] = [
+            data_stats[x]["num_trees"] for x in summary_df["train_data"]
+        ]
+        summary_df["test_num_leaves"] = [
+            data_stats[x]["num_leaves"] for x in summary_df["test_data"]
+        ]
+        summary_df["test_num_sites"] = [
+            data_stats[x]["num_sites"] for x in summary_df["test_data"]
+        ]
+        summary_df["test_num_trees"] = [
+            data_stats[x]["num_trees"] for x in summary_df["test_data"]
+        ]
+
+    int_columns = [
+        "train_num_leaves",
+        "train_num_sites",
+        "train_num_trees",
+        "test_num_leaves",
+        "test_num_sites",
+        "test_num_trees",
+    ]
+    summary_df[int_columns] = summary_df[int_columns].astype("Int64")
+
+    # Set model order
+    summary_df["model"] = pd.Categorical(
+        summary_df["model"], categories=MODEL_ORDER, ordered=True
+    )
+    model_list = summary_df["model"].unique()
+
+    generated_plots = {}
+
+    # Generate heatmaps
+    heatmap_settings = {
+        "test_auroc": {"title": "Test AUROC", "v_range": (0.0, 1.0)},
+        "test_loss": {"title": "Test Loss", "v_range": (0.0, None)},
+        "test_accuracy": {"title": "Test accuracy", "v_range": (0.0, 1.0)},
+    }
+
+    for value_name, settings in heatmap_settings.items():
+        if value_name not in summary_df.columns:
+            continue
+        output_path = f"{results_dir}/{value_name}_heatmap.pdf"
+        build_performance_heatmap(
+            df=summary_df,
+            value_column=value_name,
+            output_path=output_path,
+            title=settings["title"],
+            v_range=settings["v_range"],
+            label_config=label_config,
+        )
+        generated_plots[value_name] = output_path
+
+    # Generate hyperparameter summary
+    hyperparam_path = f"{results_dir}/hyperparameter_summary.barplot.pdf"
+    plot_hyperparameters_summary(summary_df, hyperparam_path)
+    generated_plots["hyperparameters"] = hyperparam_path
+
+    # Generate runtime plots by leaves
+    plot_training_runtimes_by_leaves(summary_df, results_dir)
+
+    # Generate detailed plots if requested
+    if plot_details:
+        # Load log data
+        custom_dfs = {}
+        for _, row in summary_df.iterrows():
+            if "baseline" in row.train_data:
+                continue
+            label = (row.model, row.train_data, row.test_data, row.param_id)
+            if hasattr(row, "train_clog_path") and row.train_clog_path:
+                custom_dfs[label] = get_df_from_log(row.train_clog_path)
+
+        if custom_dfs:
+            plot_training_dynamics(custom_dfs, results_dir, model_list)
+            loss_path = f"{results_dir}/loss_per_walltime.lineplot.pdf"
+            plot_loss_over_time(custom_dfs, loss_path, model_list)
+            generated_plots["loss_over_time"] = loss_path
+
+        # Generate metric bar plots
+        x_measures = {
+            "Training Runtime (in secs)": "train_walltime",
+            "Learning Rate": "learning_rate",
+            "Batch Size": "batch_size",
+            "Gradient Accumulation": "accum_grad_batches",
+            "Max Epochs": "max_epochs",
+            "Train Epochs": "train_epochs",
+            "Train Steps": "train_steps",
+            "Percent of Max Epochs Used": "percent_epochs",
+        }
+
+        for x_title, x_col in x_measures.items():
+            if x_col not in summary_df.columns:
+                continue
+            output_path = f"{results_dir}/{x_col}.barplot.pdf"
+            plot_metric_by_model(summary_df, x_col, output_path, model_list)
+            generated_plots[x_col] = output_path
+
+    logger.info(f"Generated {len(generated_plots)} plots in {results_dir}")
+    return generated_plots

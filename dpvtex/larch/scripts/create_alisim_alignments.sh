@@ -21,6 +21,7 @@ num_alignments_list=(50 100)
 num_sequences_list=(15)
 alignment_length_list=(20)
 edge_distributions=("constant" "random_subtree")
+target_nonmp_proportions=(0.1) # Target non-MP edge proportions for perturbation
 
 max_attempts=20
 # How much larger to make the initial alignment to account for cleaning
@@ -101,11 +102,17 @@ for num_alignments in "${num_alignments_list[@]}"; do
             fi
             # Generate config file with all edge distribution methods
             echo "Generating config with edge distributions: ${edge_distributions[*]}"
+            echo "Target non-MP proportions: ${target_nonmp_proportions[*]}"
             dataset_name="simulated_${target_num_sequences}_seq_${target_alignment_length}_sites_${num_alignments}_algnmnts"
             # Build -e flags for all edge distributions
             edge_flags=""
             for edge_dist in "${edge_distributions[@]}"; do
                 edge_flags="$edge_flags -e $edge_dist"
+            done
+            # Build -p flags for all target non-MP proportions
+            proportion_flags=""
+            for proportion in "${target_nonmp_proportions[@]}"; do
+                proportion_flags="$proportion_flags -p $proportion"
             done
             python ${script_dir}/generate_configs.py \
                 -i "${base_directory}" \
@@ -113,6 +120,7 @@ for num_alignments in "${num_alignments_list[@]}"; do
                 -l "${larch_path}" \
                 -o "${config_dir}" \
                 $edge_flags \
+                $proportion_flags \
                 --no-split
         done
     done

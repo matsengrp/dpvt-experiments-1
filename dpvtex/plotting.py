@@ -550,6 +550,26 @@ def build_performance_heatmap(
         df_sorted["test_num_sites"].tolist(), label_config.show_num_sites
     )
 
+    # Auto-detect non-MP fraction display
+    # Fill None with "default" so that datasets without an explicit fraction
+    # are distinguishable from those with one (e.g. _t0.1)
+    train_nonmp_display = False
+    test_nonmp_display = False
+    if "train_nonmp_fraction" in df_sorted.columns:
+        df_sorted = df_sorted.copy()
+        df_sorted["train_nonmp_fraction"] = df_sorted["train_nonmp_fraction"].fillna(
+            "default"
+        )
+        df_sorted["test_nonmp_fraction"] = df_sorted["test_nonmp_fraction"].fillna(
+            "default"
+        )
+        train_nonmp_display = _should_show_label(
+            df_sorted["train_nonmp_fraction"].tolist(), label_config.show_nonmp_fraction
+        )
+        test_nonmp_display = _should_show_label(
+            df_sorted["test_nonmp_fraction"].tolist(), label_config.show_nonmp_fraction
+        )
+
     # Check for mixed perturbation methods
     has_spr = df_sorted["train_data"].str.contains("spr", na=False).any()
     has_subtree = df_sorted["train_data"].str.contains("subtree", na=False).any()
@@ -575,6 +595,8 @@ def build_performance_heatmap(
         extra_cols.append("train_num_sites")
     if train_trees_display:
         extra_cols.append("train_num_trees")
+    if train_nonmp_display:
+        extra_cols.append("train_nonmp_fraction")
 
     test_cols = []
     if mixed_source_testing:
@@ -582,9 +604,10 @@ def build_performance_heatmap(
     test_cols.append("test_num_leaves")
     if test_site_display:
         test_cols.append("test_num_sites")
+    if test_nonmp_display:
+        test_cols.append("test_nonmp_fraction")
 
     # Handle perturbation methods
-    df_sorted = df_sorted.copy()
     if mixed_source_testing:
         df_sorted["test_perturbation"] = np.select(
             [
@@ -694,6 +717,11 @@ def build_performance_heatmap(
             if train_trees_display:
                 trees = idx[col_offset] if len(idx) > col_offset else ""
                 label_parts.append(f"T={trees}")
+                col_offset += 1
+
+            if train_nonmp_display:
+                frac = idx[col_offset] if len(idx) > col_offset else ""
+                label_parts.append(f"t={frac}")
 
             secondary_labels.append("\n".join(label_parts))
     else:
@@ -1162,6 +1190,14 @@ def generate_summary_plots(
         summary_df["test_num_trees"] = [
             data_stats[x]["num_trees"] for x in summary_df["test_data"]
         ]
+
+    # Extract non-MP fraction from dataset names (always from name, not pickle)
+    summary_df["train_nonmp_fraction"] = summary_df["train_data"].apply(
+        extract_nonmp_fraction
+    )
+    summary_df["test_nonmp_fraction"] = summary_df["test_data"].apply(
+        extract_nonmp_fraction
+    )
 
     int_columns = [
         "train_num_leaves",

@@ -323,6 +323,33 @@ class TestBuildPerformanceHeatmap:
             )
             assert output_path.exists()
 
+    def test_heatmap_with_nonmp_fraction(self, sample_dataframe):
+        """Test heatmap distinguishes datasets with and without non-MP fraction."""
+        sample_dataframe = sample_dataframe.copy()
+        sample_dataframe["train_data"] = [
+            "sim_filtered_0.8_spr",
+            "sim_filtered_0.8_spr",
+            "sim_filtered_0.8_spr_r2_t0.1",
+            "sim_filtered_0.8_spr_r2_t0.1",
+        ]
+        sample_dataframe["test_data"] = [
+            "sim_filtered_0.8_spr",
+            "sim_filtered_0.8_spr_r2_t0.1",
+            "sim_filtered_0.8_spr",
+            "sim_filtered_0.8_spr_r2_t0.1",
+        ]
+        sample_dataframe["train_nonmp_fraction"] = [None, None, 0.1, 0.1]
+        sample_dataframe["test_nonmp_fraction"] = [None, 0.1, None, 0.1]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "test_heatmap_nonmp.pdf"
+            build_performance_heatmap(
+                df=sample_dataframe,
+                value_column="test_auroc",
+                output_path=str(output_path),
+            )
+            assert output_path.exists()
+
 
 class TestPlotHyperparametersSummary:
     """Integration tests for plot_hyperparameters_summary function."""

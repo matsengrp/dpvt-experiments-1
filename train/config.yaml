@@ -6,11 +6,15 @@ models: [
   ]
 train_data: [
   "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_spr",
-  "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_subtree"
+  "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_subtree",
+  "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_subtree_t0.1",
+  "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_spr_r2_t0.1"
   ]
 test_data: [
   "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8_spr",
-  "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8_subtree"
+  "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8_subtree",
+  "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8_subtree_t0.1",
+  "simulated_15_seq_20_sites_50_algnmnts_filtered_0.8_spr_r2_t0.1"
   ]
 
 device: "cpu"
@@ -22,6 +26,15 @@ use_hyperparameter_optimize: False
 n_hyperparameter_trials: 50
 
 profiling: False
+
+# Plot label overrides (optional, omit or set to null for auto-detection)
+label_config:
+  show_num_leaves: False
+  show_num_sites: False
+  show_num_trees: False
+  show_nonmp_fraction: True
+  show_perturbation: True
+  show_data_source: False
 
 hyperparameters:
   learning_rate: [0.00005]

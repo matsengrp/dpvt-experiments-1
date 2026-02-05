@@ -24,7 +24,7 @@ from dpvtex.dpvt_zoo import (
     test_baseline_model,
     aggregate_baseline_data_to_csv,
 )
-from dpvtex.plotting import generate_summary_plots
+from dpvtex.plotting import generate_summary_plots, LabelConfig
 from plot_times import generate_benchmark_plots
 
 
@@ -90,6 +90,9 @@ use_cross_datasets = config["use_cross_datasets"]
 use_hyperparameter_optimize = config["use_hyperparameter_optimize"]
 profiling = config["profiling"]
 hyperparameters = config["hyperparameters"]
+label_config = (
+    LabelConfig(**config["label_config"]) if "label_config" in config else None
+)
 
 # Common context for path generation
 ctx = {"device": device, "timestamp": timestamp, "output_dir": output_dir}
@@ -447,6 +450,7 @@ rule generate_summary_plots:
                 input.baseline_csv_output_path if baseline_model_list else None
             ),
             working_dir=working_dir,
+            label_config=label_config,
         )
 
 

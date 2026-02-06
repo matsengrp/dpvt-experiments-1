@@ -11,8 +11,6 @@ from dpvtex.plotting import (
     extract_num_sites,
     extract_num_trees,
     extract_nonmp_fraction,
-    get_evolution_model,
-    get_data_source,
     get_dataset_display_name,
     truncate_to_significant_digits,
     format_number,
@@ -34,14 +32,24 @@ from dpvtex.plotting import (
 class TestExtractNumLeaves:
     """Tests for extract_num_leaves function."""
 
-    def test_alisim_dataset(self):
-        assert extract_num_leaves("alisim_50_sites_1000_trees") == "50"
+    def test_simulated_dataset(self):
+        assert extract_num_leaves("simulated_15_seq_20_sites_100_algnmnts") == "15"
 
-    def test_leaf_in_name(self):
-        assert extract_num_leaves("100leaf_dataset") == "100"
+    def test_simulated_with_suffix(self):
+        assert (
+            extract_num_leaves(
+                "simulated_50_seq_200_sites_50_algnmnts_filtered_0.8_spr"
+            )
+            == "50"
+        )
 
-    def test_perfect_phylogeny(self):
-        assert extract_num_leaves("perfect_25_trees_100") == "25"
+    def test_simulated_with_nonmp_fraction(self):
+        assert (
+            extract_num_leaves(
+                "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_spr_r2_t0.1"
+            )
+            == "15"
+        )
 
     def test_unrecognized_format(self):
         assert extract_num_leaves("unknown_dataset") is None
@@ -50,12 +58,14 @@ class TestExtractNumLeaves:
 class TestExtractNumSites:
     """Tests for extract_num_sites function."""
 
-    def test_alisim_dataset(self):
-        assert extract_num_sites("alisim_50_sites_1000_trees") == "1000"
+    def test_simulated_dataset(self):
+        assert extract_num_sites("simulated_15_seq_20_sites_100_algnmnts") == "20"
 
-    def test_perfect_phylogeny(self):
-        # Format: perfect_{leaves}_{trees}_{more}_{more2}_{more3}_{more4}_{sites}
-        assert extract_num_sites("perfect_25_100_more_500_stuff_sites_xyz") == "xyz"
+    def test_simulated_with_suffix(self):
+        assert (
+            extract_num_sites("simulated_50_seq_200_sites_50_algnmnts_filtered_0.8_spr")
+            == "200"
+        )
 
     def test_unrecognized_format(self):
         assert extract_num_sites("unknown_dataset") is None
@@ -64,12 +74,16 @@ class TestExtractNumSites:
 class TestExtractNumTrees:
     """Tests for extract_num_trees function."""
 
-    def test_pp_dataset(self):
-        # Format: dataset_100_pp_trees => splits on "trees", then takes last "_" part
-        assert extract_num_trees("dataset_pp_100trees_spr") == "100"
+    def test_simulated_dataset(self):
+        assert extract_num_trees("simulated_15_seq_20_sites_100_algnmnts") == "100"
 
-    def test_perfect_phylogeny(self):
-        assert extract_num_trees("perfect_25_trees_100") == "100"
+    def test_simulated_with_suffix(self):
+        assert (
+            extract_num_trees(
+                "simulated_50_seq_200_sites_50_algnmnts_filtered_0.8_subtree"
+            )
+            == "50"
+        )
 
     def test_unrecognized_format(self):
         assert extract_num_trees("unknown_dataset") is None
@@ -95,35 +109,6 @@ class TestExtractNonmpFraction:
 
     def test_no_fraction_no_extension(self):
         assert extract_nonmp_fraction("plain_dataset") is None
-
-
-class TestGetEvolutionModel:
-    """Tests for get_evolution_model function."""
-
-    def test_gtr_model(self):
-        assert get_evolution_model("alisim_50_GTR_1000") == "GTR"
-
-    def test_hky_model(self):
-        assert get_evolution_model("alisim_50_hky_1000") == "HKY"
-
-    def test_jc_model(self):
-        assert get_evolution_model("alisim_50_1000") == "JC"
-
-    def test_non_alisim(self):
-        assert get_evolution_model("flu_dataset") == ""
-
-
-class TestGetDataSource:
-    """Tests for get_data_source function."""
-
-    def test_alisim_dataset(self):
-        assert get_data_source("alisim_50_sites_1000") == "alisim"
-
-    def test_flu_dataset(self):
-        assert get_data_source("fluC_NS_dataset") == "fluC"
-
-    def test_rotavirus_dataset(self):
-        assert get_data_source("rotavirus_A_H") == "rotavirus"
 
 
 class TestGetDatasetDisplayName:

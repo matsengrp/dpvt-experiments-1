@@ -88,10 +88,6 @@ COLUMN_LABELS = {
     "test_num_trees": "Number of Trees",
     "train_perturbation": "Perturbation method",
     "test_perturbation": "Perturbation method",
-    "test_data_source": "Data Source",
-    "train_data_source": "Data Source",
-    "test_data_model": "Evolutionary Model",
-    "train_data_model": "Evolutionary Model",
 }
 
 
@@ -113,7 +109,6 @@ class LabelConfig:
         show_num_trees: Show number of trees (T) in labels.
         show_nonmp_fraction: Show non-MP edge fraction in labels.
         show_perturbation: Show perturbation method in labels.
-        show_data_source: Show data source in labels.
     """
 
     show_num_leaves: bool | None = None
@@ -121,7 +116,6 @@ class LabelConfig:
     show_num_trees: bool | None = None
     show_nonmp_fraction: bool | None = None
     show_perturbation: bool | None = None
-    show_data_source: bool | None = None
 
 
 def _should_show_label(values, override: bool | None) -> bool:
@@ -293,57 +287,58 @@ def get_df_from_log(log_path):
 def extract_num_leaves(data_name):
     """Extract number of leaves from a dataset name.
 
-    Works for alisim and perfect phylogeny data following specific naming rules.
+    Parses the simulated_{leaves}_seq_{sites}_sites_{trees}_algnmnts_... format.
 
     Args:
         data_name: Dataset name string.
 
     Returns:
         String representation of number of leaves, or None if not found.
+
+    Examples:
+        >>> extract_num_leaves("simulated_15_seq_20_sites_100_algnmnts_filtered")
+        '15'
     """
-    if "alisim" in data_name:
-        return data_name.split("_")[1]
-    elif "leaf" in data_name:
-        return data_name.split("leaf")[0]
-    elif "perfect" in data_name:
-        return data_name.split("_")[1]
-    return None
+    match = re.search(r"simulated_(\d+)_seq", data_name)
+    return match.group(1) if match else None
 
 
 def extract_num_sites(data_name):
     """Extract number of sites from a dataset name.
 
-    Works for alisim and perfect phylogeny data following specific naming rules.
+    Parses the simulated_{leaves}_seq_{sites}_sites_{trees}_algnmnts_... format.
 
     Args:
         data_name: Dataset name string.
 
     Returns:
         String representation of number of sites, or None if not found.
+
+    Examples:
+        >>> extract_num_sites("simulated_15_seq_20_sites_100_algnmnts_filtered")
+        '20'
     """
-    if "alisim" in data_name:
-        return data_name.split("_")[3]
-    elif "perfect" in data_name:
-        return data_name.split("_")[7]
-    return None
+    match = re.search(r"_(\d+)_sites", data_name)
+    return match.group(1) if match else None
 
 
 def extract_num_trees(data_name):
-    """Extract number of trees from a dataset name.
+    """Extract number of trees (alignments) from a dataset name.
 
-    Works for perfect phylogeny data following specific naming rules.
+    Parses the simulated_{leaves}_seq_{sites}_sites_{trees}_algnmnts_... format.
 
     Args:
         data_name: Dataset name string.
 
     Returns:
         String representation of number of trees, or None if not found.
+
+    Examples:
+        >>> extract_num_trees("simulated_15_seq_20_sites_100_algnmnts_filtered")
+        '100'
     """
-    if "pp" in data_name:
-        return data_name.split("trees")[0].split("_")[-1]
-    elif "perfect" in data_name:
-        return data_name.split("_")[3]
-    return None
+    match = re.search(r"_(\d+)_algnmnts", data_name)
+    return match.group(1) if match else None
 
 
 def extract_nonmp_fraction(data_name):
@@ -370,40 +365,6 @@ def extract_nonmp_fraction(data_name):
     if match:
         return float(match.group(1))
     return None
-
-
-def get_evolution_model(data_string):
-    """Extract the evolutionary model from a dataset name.
-
-    Args:
-        data_string: Dataset name string.
-
-    Returns:
-        String "GTR", "HKY", "JC", or empty string if not found.
-    """
-    data_lower = data_string.lower()
-    if "alisim" in data_lower:
-        if "gtr" in data_lower:
-            return "GTR"
-        elif "hky" in data_lower:
-            return "HKY"
-        else:
-            return "JC"
-    return ""
-
-
-def get_data_source(data_name):
-    """Extract the data source from a dataset name.
-
-    Args:
-        data_name: Dataset name string.
-
-    Returns:
-        Data source string (e.g., "flu", "rotavirus", "alisim").
-    """
-    if "alisim" in data_name:
-        return "alisim"
-    return data_name.split("_")[0]
 
 
 def get_dataset_display_name(

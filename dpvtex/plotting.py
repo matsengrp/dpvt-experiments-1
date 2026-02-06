@@ -7,6 +7,7 @@ including performance heatmaps, hyperparameter summaries, and runtime visualizat
 import json
 import logging
 import pickle
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,6 +28,16 @@ logger = logging.getLogger(__name__)
 FONT_LARGE, FONT_MED, FONT_SMALL = 16, 14, 12
 DPI = 300
 PALETTE = "Dark2"
+
+# Heatmap sizing (inches)
+HEATMAP_COL_WIDTH = 0.75
+HEATMAP_BASE_WIDTH = 10
+HEATMAP_ROW_HEIGHT = 0.3
+HEATMAP_BASE_HEIGHT = 4
+
+# Label positioning (figure fraction coordinates)
+YLABEL_BASE_OFFSET = -0.055
+YLABEL_MIXED_SOURCE_ADJUSTMENT = 0.07
 
 # Model display names for plots
 MODEL_NAMES = {
@@ -163,8 +174,10 @@ def load_data(file_path, file_type=None):
         with open(file_path, "rb") as file:
             return pickle.load(file)
     else:
-        logger.warning(f'load failed: "{file_type}" file type not recognized.')
-        return None
+        raise ValueError(
+            f'Unrecognized file type "{file_type}". '
+            f"Supported types: json, yaml, yml, pickle, pkl, p"
+        )
 
 
 def get_stats_from_data(data_path, take_first=True):
@@ -352,8 +365,6 @@ def extract_nonmp_fraction(data_name):
         >>> extract_nonmp_fraction("dataset.p")
         None
     """
-    import re
-
     # Match pattern like _t0.1.p or _t0.1 at the end
     match = re.search(r"_t(\d+\.?\d*)(?:\.p)?$", data_name)
     if match:
@@ -502,6 +513,370 @@ def format_number(x, sig_digits=4, sci_range=(1e-6, 1e6)):
 
 
 # =============================================================================
+# Heatmap Helper Functions
+# =============================================================================
+
+
+def _determine_label_visibility(df_sorted, label_config):
+    """Determine which labels should be shown on the heatmap.
+
+    Auto-detects label visibility based on data variation, unless overridden
+    by label_config settings. May modify df_sorted to fill non-MP fraction NaNs.
+
+    Args:
+        df_sorted: Sorted DataFrame with training/testing data columns.
+        label_config: LabelConfig with optional overrides.
+
+    Returns:
+        Tuple of (df_sorted, flags) where flags is a dict of display booleans.
+    """
+    flags = {
+        "train_leaves": _should_show_label(
+            df_sorted["train_num_leaves"].tolist(), label_config.show_num_leaves
+        ),
+        "train_sites": _should_show_label(
+            df_sorted["train_num_sites"].tolist(), label_config.show_num_sites
+        ),
+        "train_trees": _should_show_label(
+            df_sorted["train_num_trees"].tolist(), label_config.show_num_trees
+        ),
+        "test_sites": _should_show_label(
+            df_sorted["test_num_sites"].tolist(), label_config.show_num_sites
+        ),
+        "train_nonmp": False,
+        "test_nonmp": False,
+    }
+
+    # Auto-detect non-MP fraction display.
+    # Fill None with "default" so datasets without an explicit fraction
+    # are distinguishable from those with one (e.g. _t0.1).
+    if "train_nonmp_fraction" in df_sorted.columns:
+        df_sorted = df_sorted.copy()
+        df_sorted["train_nonmp_fraction"] = df_sorted["train_nonmp_fraction"].fillna(
+            "default"
+        )
+        df_sorted["test_nonmp_fraction"] = df_sorted["test_nonmp_fraction"].fillna(
+            "default"
+        )
+        flags["train_nonmp"] = _should_show_label(
+            df_sorted["train_nonmp_fraction"].tolist(),
+            label_config.show_nonmp_fraction,
+        )
+        flags["test_nonmp"] = _should_show_label(
+            df_sorted["test_nonmp_fraction"].tolist(),
+            label_config.show_nonmp_fraction,
+        )
+
+    # Check for mixed perturbation methods in training data
+    train_methods = [
+        df_sorted["train_data"].str.contains("spr", na=False).any(),
+        df_sorted["train_data"].str.contains("subtree", na=False).any(),
+        df_sorted["train_data"].str.contains("uniform", na=False).any(),
+    ]
+    flags["mixed_training"] = _should_show_label(
+        train_methods, label_config.show_perturbation
+    )
+
+    # Check for mixed perturbation methods in testing data
+    test_methods = [
+        df_sorted["test_data"].str.contains("spr", na=False).any(),
+        df_sorted["test_data"].str.contains("subtree", na=False).any(),
+        df_sorted["test_data"].str.contains("uniform", na=False).any(),
+    ]
+    flags["mixed_testing"] = _should_show_label(
+        test_methods, label_config.show_perturbation
+    )
+
+    return df_sorted, flags
+
+
+def _extract_perturbation_method(data_series):
+    """Extract perturbation method labels from a dataset name series.
+
+    Args:
+        data_series: Pandas Series of dataset name strings.
+
+    Returns:
+        Array of perturbation method label strings.
+    """
+    return np.select(
+        [
+            data_series.str.contains("spr_subtree", na=False),
+            data_series.str.contains("spr", na=False),
+            data_series.str.contains("subtree", na=False),
+            data_series.str.contains("uniform", na=False),
+            data_series.str.contains("treesearch", na=False),
+        ],
+        ["SPR+Subtree", "SPR", "Subtree", "uniform", "treesearch_mimic"],
+        default="unknown",
+    )
+
+
+def _build_heatmap_columns(flags):
+    """Build column lists for heatmap pivot table based on display flags.
+
+    Args:
+        flags: Dictionary of display flags from _determine_label_visibility.
+
+    Returns:
+        Tuple of (indices, test_cols) column name lists.
+    """
+    indices = ["model"]
+    extra_cols = []
+    if flags["train_leaves"]:
+        extra_cols.append("train_num_leaves")
+    if flags["train_sites"]:
+        extra_cols.append("train_num_sites")
+    if flags["train_trees"]:
+        extra_cols.append("train_num_trees")
+    if flags["train_nonmp"]:
+        extra_cols.append("train_nonmp_fraction")
+
+    if flags["mixed_training"]:
+        extra_cols = ["train_perturbation"] + extra_cols
+    indices.extend(extra_cols)
+
+    test_cols = []
+    if flags["mixed_testing"]:
+        test_cols.append("test_perturbation")
+    test_cols.append("test_num_leaves")
+    if flags["test_sites"]:
+        test_cols.append("test_num_sites")
+    if flags["test_nonmp"]:
+        test_cols.append("test_nonmp_fraction")
+
+    return indices, test_cols
+
+
+def _create_heatmap_pivot(df_sorted, indices, test_cols, value_column):
+    """Create pivot table for heatmap visualization.
+
+    Handles type coercion, multi-source dataset display names, and NaN cleanup.
+
+    Args:
+        df_sorted: Sorted DataFrame with data.
+        indices: Row index columns for the pivot table.
+        test_cols: Column index columns for the pivot table.
+        value_column: Column name for the cell values.
+
+    Returns:
+        Pivot table DataFrame ready for heatmap rendering.
+    """
+    if len(indices) <= 1:
+        return df_sorted.pivot(index="model", columns="test_data", values=value_column)
+
+    df_for_pivot = df_sorted.copy()
+    for col in indices + test_cols:
+        if isinstance(df_for_pivot[col].dtype, pd.CategoricalDtype):
+            df_for_pivot[col] = df_for_pivot[col].astype(str)
+        if (
+            pd.api.types.is_integer_dtype(df_for_pivot[col])
+            and pd.isna(df_for_pivot[col]).any()
+        ):
+            df_for_pivot[col] = df_for_pivot[col].astype(str)
+        df_for_pivot[col] = df_for_pivot[col].fillna("N/A")
+
+    # Use display names when multiple data sources are present
+    pattern_matches = [
+        df_for_pivot["test_data"].str.contains("flu", na=False).any(),
+        df_for_pivot["test_data"].str.contains("rotavirus", na=False).any(),
+        df_for_pivot["test_data"].str.contains("alisim", na=False).any(),
+    ]
+    if sum(pattern_matches) >= 2:
+        df_for_pivot["test_data_name"] = df_for_pivot.apply(
+            lambda row: get_dataset_display_name(
+                row["test_data"],
+                row["test_num_leaves"],
+                row["test_num_sites"],
+                row["test_num_trees"],
+            ),
+            axis=1,
+        )
+        test_cols = ["test_data_name"]
+
+    heatmap_data = df_for_pivot.pivot_table(
+        index=indices,
+        columns=test_cols,
+        values=value_column,
+        dropna=False,
+    )
+
+    # Drop rows/columns with all NaN
+    heatmap_data = heatmap_data[~heatmap_data.isna().all(axis=1)]
+    heatmap_data = heatmap_data.dropna(axis=1, how="all")
+    return heatmap_data
+
+
+def _build_secondary_y_labels(heatmap_data, flags):
+    """Build secondary y-axis labels for multiindex heatmap rows.
+
+    Each row label shows the training data attributes (leaves, sites, trees, etc.)
+    that vary across the datasets.
+
+    Args:
+        heatmap_data: Pivot table with potentially multi-level index.
+        flags: Display flags dictionary.
+
+    Returns:
+        List of label strings for each row, or True for default labels.
+    """
+    if not isinstance(heatmap_data.index, pd.MultiIndex):
+        return True
+
+    secondary_labels = []
+    for idx in heatmap_data.index:
+        label_parts = []
+        col_offset = 1
+
+        if flags["mixed_training"]:
+            perturbation = idx[col_offset] if len(idx) > col_offset else ""
+            label_parts.append(str(perturbation))
+            col_offset += 1
+
+        if flags["train_leaves"]:
+            leaves = idx[col_offset] if len(idx) > col_offset else ""
+            label_parts.append(f"n={leaves}")
+            col_offset += 1
+
+        if flags["train_sites"]:
+            sites = idx[col_offset] if len(idx) > col_offset else ""
+            label_parts.append(f"N={sites}")
+            col_offset += 1
+
+        if flags["train_trees"]:
+            trees = idx[col_offset] if len(idx) > col_offset else ""
+            label_parts.append(f"T={trees}")
+            col_offset += 1
+
+        if flags["train_nonmp"]:
+            frac = idx[col_offset] if len(idx) > col_offset else ""
+            label_parts.append(f"t={frac}")
+
+        secondary_labels.append("\n".join(label_parts))
+    return secondary_labels
+
+
+def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
+    """Position model labels and format heatmap axes for multiindex data.
+
+    Adds model name labels on the left, horizontal dividers between models,
+    baseline label handling, and descriptive axis labels.
+
+    Args:
+        fig: Matplotlib figure.
+        ax: Matplotlib axes with the rendered heatmap.
+        heatmap_data: Pivot table used for the heatmap.
+        flags: Display flags dictionary.
+        title: Title for the heatmap.
+    """
+    if not isinstance(heatmap_data.index, pd.MultiIndex):
+        return
+
+    # Find row spans for each model and draw dividers
+    models = heatmap_data.index.get_level_values(0).unique()
+    model_rows = {}
+    current_model = None
+    start_idx = 0
+
+    for i, idx in enumerate(heatmap_data.index):
+        model = idx[0]
+        if current_model != model:
+            if current_model is not None:
+                model_rows[current_model] = (start_idx, i - 1)
+                ax.axhline(y=i, color="black", linewidth=1)
+            current_model = model
+            start_idx = i
+
+    if current_model is not None:
+        model_rows[current_model] = (start_idx, len(heatmap_data.index) - 1)
+
+    # Position model name labels
+    bbox = ax.get_position()
+    axis_left = bbox.x0
+    axis_height = bbox.height
+    axis_bottom = bbox.y0
+
+    baseline_offset = -0.5 if "BaselineReversion" in model_rows else 0
+    ylabel_shift = YLABEL_BASE_OFFSET
+    if flags["mixed_training"]:
+        ylabel_shift += YLABEL_MIXED_SOURCE_ADJUSTMENT
+
+    max_end_idx = max(end for start, end in model_rows.values())
+
+    for model, (start, end) in model_rows.items():
+        if "Baseline" in model:
+            continue
+
+        display_name = MODEL_NAMES.get(model, model)
+        center_row = max_end_idx - ((start + end) / 2 + baseline_offset)
+        fig_y_pos = axis_bottom + ((center_row / len(heatmap_data.index)) * axis_height)
+
+        fig.text(
+            axis_left - ylabel_shift + 0.1,
+            fig_y_pos,
+            display_name,
+            va="center",
+            ha="center",
+            fontsize=FONT_LARGE,
+        )
+
+    # Add "Trained model" y-axis label
+    num_displayed = sum(
+        [flags["train_leaves"], flags["train_sites"], flags["train_trees"]]
+    )
+    if num_displayed <= 1:
+        ylabel_shift -= 0.05
+
+    fig.text(
+        axis_left - ylabel_shift + 0.05,
+        axis_bottom + (axis_height / 2),
+        "Trained model",
+        va="center",
+        ha="center",
+        rotation=90,
+        fontsize=FONT_LARGE,
+    )
+
+    # Handle baseline model label
+    if any("Baseline" in model for model in models):
+        yticks = plt.yticks()
+        positions = yticks[0]
+        labels = [label.get_text() for label in plt.gca().get_yticklabels()]
+        baseline_label = ax.get_yticklabels()[0]
+        baseline_label.set_fontsize(FONT_LARGE)
+        for model, (start, _) in model_rows.items():
+            if "Baseline" in model and start < len(labels):
+                labels[start] = "BaselineReversion"
+        plt.yticks(positions, labels)
+
+    plt.yticks(rotation=0, fontsize=FONT_LARGE)
+    plt.xticks(rotation=0, fontsize=FONT_MED)
+    plt.subplots_adjust(left=0.3)
+
+    # Build descriptive x-axis label
+    xlabel = "Testing data: number of leaves"
+    if flags["test_sites"]:
+        xlabel = "Testing data\n n: avg number of leaves, N: avg number of sites, T: number of trees"
+    if flags["mixed_testing"]:
+        if flags["test_sites"]:
+            xlabel = "Testing data: perturbation method - number of leaves - number of sites - number of trees"
+        else:
+            xlabel = "Testing data: perturbation method - number of leaves"
+
+    fig.text(
+        axis_left + (bbox.width / 2) + 0.15,
+        axis_bottom - 0.3,
+        xlabel,
+        va="center",
+        ha="center",
+        fontsize=FONT_LARGE,
+    )
+    ax.set_xlabel("")
+    ax.set_title(title)
+    plt.title("")
+
+
+# =============================================================================
 # Heatmap Plotting
 # =============================================================================
 
@@ -533,200 +908,32 @@ def build_performance_heatmap(
     if label_config is None:
         label_config = LabelConfig()
 
-    # Sort data
     df_sorted = df.sort_values(by=["model", "train_num_leaves", "train_num_sites"])
+    df_sorted, flags = _determine_label_visibility(df_sorted, label_config)
 
-    # Determine which labels to show using auto-detection or overrides
-    train_leaves_display = _should_show_label(
-        df_sorted["train_num_leaves"].tolist(), label_config.show_num_leaves
-    )
-    train_site_display = _should_show_label(
-        df_sorted["train_num_sites"].tolist(), label_config.show_num_sites
-    )
-    train_trees_display = _should_show_label(
-        df_sorted["train_num_trees"].tolist(), label_config.show_num_trees
-    )
-    test_site_display = _should_show_label(
-        df_sorted["test_num_sites"].tolist(), label_config.show_num_sites
-    )
-
-    # Auto-detect non-MP fraction display
-    # Fill None with "default" so that datasets without an explicit fraction
-    # are distinguishable from those with one (e.g. _t0.1)
-    train_nonmp_display = False
-    test_nonmp_display = False
-    if "train_nonmp_fraction" in df_sorted.columns:
-        df_sorted = df_sorted.copy()
-        df_sorted["train_nonmp_fraction"] = df_sorted["train_nonmp_fraction"].fillna(
-            "default"
-        )
-        df_sorted["test_nonmp_fraction"] = df_sorted["test_nonmp_fraction"].fillna(
-            "default"
-        )
-        train_nonmp_display = _should_show_label(
-            df_sorted["train_nonmp_fraction"].tolist(), label_config.show_nonmp_fraction
-        )
-        test_nonmp_display = _should_show_label(
-            df_sorted["test_nonmp_fraction"].tolist(), label_config.show_nonmp_fraction
-        )
-
-    # Check for mixed perturbation methods
-    has_spr = df_sorted["train_data"].str.contains("spr", na=False).any()
-    has_subtree = df_sorted["train_data"].str.contains("subtree", na=False).any()
-    has_uniform = df_sorted["train_data"].str.contains("uniform", na=False).any()
-    mixed_source_training = _should_show_label(
-        [has_spr, has_subtree, has_uniform], label_config.show_perturbation
-    )
-
-    has_spr_test = df_sorted["test_data"].str.contains("spr", na=False).any()
-    has_subtree_test = df_sorted["test_data"].str.contains("subtree", na=False).any()
-    has_uniform_test = df_sorted["test_data"].str.contains("uniform", na=False).any()
-    mixed_source_testing = _should_show_label(
-        [has_spr_test, has_subtree_test, has_uniform_test],
-        label_config.show_perturbation,
-    )
-
-    # Build column lists based on what should be displayed
-    indices = ["model"]
-    extra_cols = []
-    if train_leaves_display:
-        extra_cols.append("train_num_leaves")
-    if train_site_display:
-        extra_cols.append("train_num_sites")
-    if train_trees_display:
-        extra_cols.append("train_num_trees")
-    if train_nonmp_display:
-        extra_cols.append("train_nonmp_fraction")
-
-    test_cols = []
-    if mixed_source_testing:
-        test_cols.append("test_perturbation")
-    test_cols.append("test_num_leaves")
-    if test_site_display:
-        test_cols.append("test_num_sites")
-    if test_nonmp_display:
-        test_cols.append("test_nonmp_fraction")
-
-    # Handle perturbation methods
-    if mixed_source_testing:
-        df_sorted["test_perturbation"] = np.select(
-            [
-                df_sorted["test_data"].str.contains("spr_subtree", na=False),
-                df_sorted["test_data"].str.contains("spr", na=False),
-                df_sorted["test_data"].str.contains("subtree", na=False),
-                df_sorted["test_data"].str.contains("uniform", na=False),
-                df_sorted["test_data"].str.contains("treesearch", na=False),
-            ],
-            ["SPR+Subtree", "SPR", "Subtree", "uniform", "treesearch_mimic"],
-            default="unknown",
+    # Add perturbation columns
+    if flags["mixed_testing"]:
+        df_sorted["test_perturbation"] = _extract_perturbation_method(
+            df_sorted["test_data"]
         )
     else:
         df_sorted["test_perturbation"] = ""
 
-    if mixed_source_training:
-        df_sorted["train_perturbation"] = np.select(
-            [
-                df_sorted["train_data"].str.contains("spr_subtree", na=False),
-                df_sorted["train_data"].str.contains("spr", na=False),
-                df_sorted["train_data"].str.contains("subtree", na=False),
-                df_sorted["train_data"].str.contains("uniform", na=False),
-                df_sorted["train_data"].str.contains("treesearch", na=False),
-            ],
-            ["SPR+Subtree", "SPR", "Subtree", "uniform", "treesearch_mimic"],
-            default="unknown",
-        )
-        extra_cols = ["train_perturbation"] + extra_cols
-
-    for col_name in extra_cols:
-        indices.append(col_name)
-
-    if len(indices) > 1:
-        df_for_pivot = df_sorted.copy()
-        for col in indices + test_cols:
-            if isinstance(df_for_pivot[col].dtype, pd.CategoricalDtype):
-                df_for_pivot[col] = df_for_pivot[col].astype(str)
-            if (
-                pd.api.types.is_integer_dtype(df_for_pivot[col])
-                and pd.isna(df_for_pivot[col]).any()
-            ):
-                df_for_pivot[col] = df_for_pivot[col].astype(str)
-            df_for_pivot[col] = df_for_pivot[col].fillna("N/A")
-
-        # Check for multiple data sources
-        pattern_matches = [
-            df_for_pivot["test_data"].str.contains("flu", na=False).any(),
-            df_for_pivot["test_data"].str.contains("rotavirus", na=False).any(),
-            df_for_pivot["test_data"].str.contains("alisim", na=False).any(),
-        ]
-        if sum(pattern_matches) >= 2:
-            df_for_pivot["test_data_name"] = df_for_pivot.apply(
-                lambda row: get_dataset_display_name(
-                    row["test_data"],
-                    row["test_num_leaves"],
-                    row["test_num_sites"],
-                    row["test_num_trees"],
-                ),
-                axis=1,
-            )
-            test_cols = ["test_data_name"]
-
-        heatmap_data = df_for_pivot.pivot_table(
-            index=indices,
-            columns=test_cols,
-            values=value_column,
-            dropna=False,
+    if flags["mixed_training"]:
+        df_sorted["train_perturbation"] = _extract_perturbation_method(
+            df_sorted["train_data"]
         )
 
-        # Drop rows/columns with all NaN
-        heatmap_data = heatmap_data[~heatmap_data.isna().all(axis=1)]
-        heatmap_data = heatmap_data.dropna(axis=1, how="all")
-    else:
-        heatmap_data = df_sorted.pivot(
-            index="model", columns="test_data", values=value_column
-        )
+    indices, test_cols = _build_heatmap_columns(flags)
+    heatmap_data = _create_heatmap_pivot(df_sorted, indices, test_cols, value_column)
+    secondary_labels = _build_secondary_y_labels(heatmap_data, flags)
 
-    # Build heatmap
-    fig_width = (len(heatmap_data.columns) * 0.75) + 10
-    fig_height = (len(heatmap_data) * 0.3) + 4
+    # Render heatmap
+    fig_width = (len(heatmap_data.columns) * HEATMAP_COL_WIDTH) + HEATMAP_BASE_WIDTH
+    fig_height = (len(heatmap_data) * HEATMAP_ROW_HEIGHT) + HEATMAP_BASE_HEIGHT
     fig, ax = plt.subplots(figsize=(fig_width, fig_height))
 
     cmap = sns.color_palette("coolwarm", as_cmap=True)
-
-    # Create secondary labels for y-axis
-    if isinstance(heatmap_data.index, pd.MultiIndex):
-        secondary_labels = []
-        for idx in heatmap_data.index:
-            label_parts = []
-            col_offset = 1
-
-            if mixed_source_training:
-                perturbation = idx[col_offset] if len(idx) > col_offset else ""
-                label_parts.append(str(perturbation))
-                col_offset += 1
-
-            if train_leaves_display:
-                leaves = idx[col_offset] if len(idx) > col_offset else ""
-                label_parts.append(f"n={leaves}")
-                col_offset += 1
-
-            if train_site_display:
-                sites = idx[col_offset] if len(idx) > col_offset else ""
-                label_parts.append(f"N={sites}")
-                col_offset += 1
-
-            if train_trees_display:
-                trees = idx[col_offset] if len(idx) > col_offset else ""
-                label_parts.append(f"T={trees}")
-                col_offset += 1
-
-            if train_nonmp_display:
-                frac = idx[col_offset] if len(idx) > col_offset else ""
-                label_parts.append(f"t={frac}")
-
-            secondary_labels.append("\n".join(label_parts))
-    else:
-        secondary_labels = True
-
     sns_heatmap = sns.heatmap(
         data=heatmap_data,
         yticklabels=secondary_labels,
@@ -745,112 +952,7 @@ def build_performance_heatmap(
     cbar.set_label(METRIC_LABELS.get(value_column, value_column), fontsize=FONT_MED)
 
     plt.tight_layout()
-
-    # Position model labels
-    bbox = ax.get_position()
-    axis_left = bbox.x0
-    axis_height = bbox.height
-    axis_bottom = bbox.y0
-
-    if isinstance(heatmap_data.index, pd.MultiIndex):
-        models = heatmap_data.index.get_level_values(0).unique()
-        model_rows = {}
-        current_model = None
-        start_idx = 0
-
-        for i, idx in enumerate(heatmap_data.index):
-            model = idx[0]
-            if current_model != model:
-                if current_model is not None:
-                    model_rows[current_model] = (start_idx, i - 1)
-                    ax.axhline(y=i, color="black", linewidth=1)
-                current_model = model
-                start_idx = i
-
-        if current_model is not None:
-            model_rows[current_model] = (start_idx, len(heatmap_data.index) - 1)
-
-        add_for_baseline = 0
-        if "BaselineReversion" in model_rows:
-            add_for_baseline = -0.5
-
-        ylabel_shift = -0.055
-        if mixed_source_training:
-            ylabel_shift += 0.07
-
-        max_end_idx = max(end for start, end in model_rows.values())
-
-        for model, (start, end) in model_rows.items():
-            if "Baseline" in model:
-                continue
-
-            display_name = MODEL_NAMES.get(model, model)
-            center_row = max_end_idx - ((start + end) / 2 + add_for_baseline)
-            fig_y_pos = axis_bottom + (
-                (center_row / len(heatmap_data.index)) * axis_height
-            )
-
-            fig.text(
-                axis_left - ylabel_shift + 0.1,
-                fig_y_pos,
-                display_name,
-                va="center",
-                ha="center",
-                fontsize=FONT_LARGE,
-            )
-
-        ylabel = "Trained model"
-        num_displayed = sum(
-            [train_leaves_display, train_site_display, train_trees_display]
-        )
-        if num_displayed <= 1:
-            ylabel_shift -= 0.05
-
-        fig.text(
-            axis_left - ylabel_shift + 0.05,
-            axis_bottom + (axis_height / 2),
-            ylabel,
-            va="center",
-            ha="center",
-            rotation=90,
-            fontsize=FONT_LARGE,
-        )
-
-        if any("Baseline" in model for model in models):
-            yticks = plt.yticks()
-            positions = yticks[0]
-            labels = [label.get_text() for label in plt.gca().get_yticklabels()]
-            baseline_label = ax.get_yticklabels()[0]
-            baseline_label.set_fontsize(FONT_LARGE)
-            for model, (start, _) in model_rows.items():
-                if "Baseline" in model and start < len(labels):
-                    labels[start] = "BaselineReversion"
-            plt.yticks(positions, labels)
-
-        plt.yticks(rotation=0, fontsize=FONT_LARGE)
-        plt.xticks(rotation=0, fontsize=FONT_MED)
-        plt.subplots_adjust(left=0.3)
-
-        xlabel = "Testing data: number of leaves"
-        if test_site_display:
-            xlabel = "Testing data\n n: avg number of leaves, N: avg number of sites, T: number of trees"
-        if mixed_source_testing:
-            if test_site_display:
-                xlabel = "Testing data: perturbation method - number of leaves - number of sites - number of trees"
-            else:
-                xlabel = "Testing data: perturbation method - number of leaves"
-
-        fig.text(
-            axis_left + (bbox.width / 2) + 0.15,
-            axis_bottom - 0.3,
-            xlabel,
-            va="center",
-            ha="center",
-            fontsize=FONT_LARGE,
-        )
-        ax.set_xlabel("")
-        ax.set_title(title)
-        plt.title("")
+    _render_heatmap_layout(fig, ax, heatmap_data, flags, title)
 
     logger.info(f"Saving heatmap to: {output_path}")
     plt.savefig(output_path, bbox_inches="tight")
@@ -1089,6 +1191,55 @@ def plot_loss_over_time(custom_dfs, output_path, model_list):
 # =============================================================================
 
 
+def _add_data_stats_columns(
+    summary_df, get_data_stats_from_name, nicknames_dict, working_dir
+):
+    """Add num_leaves, num_sites, num_trees, and non-MP fraction columns.
+
+    Augments the summary DataFrame with dataset statistics either extracted
+    from dataset names or loaded from pickle files.
+
+    Args:
+        summary_df: Summary DataFrame to augment (modified in place).
+        get_data_stats_from_name: If True, parse stats from dataset name strings.
+            Otherwise, load from pickle files via nicknames_dict.
+        nicknames_dict: Dictionary mapping dataset nicknames to file paths.
+        working_dir: Base directory for resolving relative paths.
+    """
+    extractors = {
+        "num_leaves": extract_num_leaves,
+        "num_sites": extract_num_sites,
+        "num_trees": extract_num_trees,
+    }
+
+    if get_data_stats_from_name:
+        for prefix in ("train", "test"):
+            for stat, extractor in extractors.items():
+                summary_df[f"{prefix}_{stat}"] = pd.to_numeric(
+                    summary_df[f"{prefix}_data"].apply(extractor), errors="coerce"
+                )
+    else:
+        data_stats = build_data_stats_dict(summary_df, nicknames_dict, working_dir)
+        for prefix in ("train", "test"):
+            for stat in extractors:
+                summary_df[f"{prefix}_{stat}"] = [
+                    data_stats[x][stat] for x in summary_df[f"{prefix}_data"]
+                ]
+
+    # Extract non-MP fraction from dataset names (always from name, not pickle)
+    for prefix in ("train", "test"):
+        summary_df[f"{prefix}_nonmp_fraction"] = summary_df[f"{prefix}_data"].apply(
+            extract_nonmp_fraction
+        )
+
+    int_columns = [
+        f"{prefix}_{stat}"
+        for prefix in ("train", "test")
+        for stat in ("num_leaves", "num_sites", "num_trees")
+    ]
+    summary_df[int_columns] = summary_df[int_columns].astype("Int64")
+
+
 def generate_summary_plots(
     summary_csv_path,
     results_dir,
@@ -1150,64 +1301,10 @@ def generate_summary_plots(
         summary_df["model"].astype(str) + "-" + summary_df["train_data"].astype(str)
     )
 
-    # Get data stats
-    if get_data_stats_from_name:
-        summary_df["train_num_leaves"] = pd.to_numeric(
-            summary_df["train_data"].apply(extract_num_leaves), errors="coerce"
-        )
-        summary_df["train_num_sites"] = pd.to_numeric(
-            summary_df["train_data"].apply(extract_num_sites), errors="coerce"
-        )
-        summary_df["train_num_trees"] = pd.to_numeric(
-            summary_df["train_data"].apply(extract_num_trees), errors="coerce"
-        )
-        summary_df["test_num_leaves"] = pd.to_numeric(
-            summary_df["test_data"].apply(extract_num_leaves), errors="coerce"
-        )
-        summary_df["test_num_sites"] = pd.to_numeric(
-            summary_df["test_data"].apply(extract_num_sites), errors="coerce"
-        )
-        summary_df["test_num_trees"] = pd.to_numeric(
-            summary_df["test_data"].apply(extract_num_trees), errors="coerce"
-        )
-    else:
-        data_stats = build_data_stats_dict(summary_df, nicknames_dict, working_dir)
-        summary_df["train_num_leaves"] = [
-            data_stats[x]["num_leaves"] for x in summary_df["train_data"]
-        ]
-        summary_df["train_num_sites"] = [
-            data_stats[x]["num_sites"] for x in summary_df["train_data"]
-        ]
-        summary_df["train_num_trees"] = [
-            data_stats[x]["num_trees"] for x in summary_df["train_data"]
-        ]
-        summary_df["test_num_leaves"] = [
-            data_stats[x]["num_leaves"] for x in summary_df["test_data"]
-        ]
-        summary_df["test_num_sites"] = [
-            data_stats[x]["num_sites"] for x in summary_df["test_data"]
-        ]
-        summary_df["test_num_trees"] = [
-            data_stats[x]["num_trees"] for x in summary_df["test_data"]
-        ]
-
-    # Extract non-MP fraction from dataset names (always from name, not pickle)
-    summary_df["train_nonmp_fraction"] = summary_df["train_data"].apply(
-        extract_nonmp_fraction
+    # Add dataset statistics and non-MP fraction columns
+    _add_data_stats_columns(
+        summary_df, get_data_stats_from_name, nicknames_dict, working_dir
     )
-    summary_df["test_nonmp_fraction"] = summary_df["test_data"].apply(
-        extract_nonmp_fraction
-    )
-
-    int_columns = [
-        "train_num_leaves",
-        "train_num_sites",
-        "train_num_trees",
-        "test_num_leaves",
-        "test_num_sites",
-        "test_num_trees",
-    ]
-    summary_df[int_columns] = summary_df[int_columns].astype("Int64")
 
     # Set model order
     summary_df["model"] = pd.Categorical(

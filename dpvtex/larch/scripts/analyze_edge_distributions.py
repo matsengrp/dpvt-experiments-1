@@ -323,20 +323,6 @@ def extract_dataset_label(dataset_name):
             return f"simulated-{num_leaves}"
         return dataset_name
 
-    # Scenario (ii): rotavirus datasets - special handling for larch filenames
-    elif "rotavirus" in dataset_name:
-        if "larch_" in dataset_name and "_spr" in dataset_name:
-            start_idx = dataset_name.find("larch_") + len("larch_")
-        else:
-            start_idx = 0
-        end_idx = dataset_name.find("_spr")
-        if end_idx == -1:
-            end_idx = len(dataset_name)
-        name = dataset_name[start_idx:end_idx]
-        name = name.replace("_", " ")
-        name = name.replace("rotavirusA", "rotavirus A")
-        return name
-
     # Use shared base function for other dataset types
     return _get_base_display_name(dataset_name)
 

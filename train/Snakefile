@@ -93,7 +93,7 @@ hyperparameters = config["hyperparameters"]
 label_config = (
     LabelConfig(**config["label_config"]) if "label_config" in config else None
 )
-plot_details = False # set to True to plot more training/testing stats
+plot_details = False  # set to True to plot more training/testing stats
 
 # Common context for path generation
 ctx = {"device": device, "timestamp": timestamp, "output_dir": output_dir}

@@ -357,8 +357,7 @@ def get_dataset_display_name(
 
 
 def plt_subplots(*args, **kwargs):
-    """Create subplots ensuring axes is always iterable.
-    """
+    """Create subplots ensuring axes is always iterable."""
     fig, axs = plt.subplots(*args, **kwargs)
     if not isinstance(axs, np.ndarray):
         axs = np.array([axs])
@@ -366,8 +365,7 @@ def plt_subplots(*args, **kwargs):
 
 
 def truncate_to_significant_digits(x, sig_digits):
-    """Truncate a number x to the specified number of significant digits sig_digits.
-    """
+    """Truncate a number x to the specified number of significant digits sig_digits."""
     if x == 0:
         return 0
     magnitude = np.floor(np.log10(abs(x)))
@@ -376,8 +374,7 @@ def truncate_to_significant_digits(x, sig_digits):
 
 
 def format_number(x, sig_digits=4, sci_range=(1e-6, 1e6)):
-    """Format a number x with optional scientific notation.
-    """
+    """Format a number x with optional scientific notation."""
     x = truncate_to_significant_digits(x, sig_digits)
     if (x != 0) and (x < sci_range[0] or x > sci_range[1]):
         return f"{x:.{sig_digits}e}"
@@ -440,10 +437,13 @@ def _determine_label_visibility(df_sorted, label_config):
         )
 
     # Check for multiple dataset sources in training data
-    flags["mixed_train_sources"] = sum(
-        df_sorted["train_data"].str.contains(key, na=False).any()
-        for key in DATASET_NAMES
-    ) >= 2
+    flags["mixed_train_sources"] = (
+        sum(
+            df_sorted["train_data"].str.contains(key, na=False).any()
+            for key in DATASET_NAMES
+        )
+        >= 2
+    )
 
     # Check for mixed perturbation methods in training data
     train_methods = [
@@ -469,8 +469,7 @@ def _determine_label_visibility(df_sorted, label_config):
 
 
 def _extract_perturbation_method(data_series):
-    """Extract perturbation method labels from a dataset name series.
-    """
+    """Extract perturbation method labels from a dataset name series."""
     return np.select(
         [
             data_series.str.contains("spr_subtree", na=False),
@@ -814,10 +813,16 @@ def build_performance_heatmap(
     secondary_labels = _build_secondary_y_labels(heatmap_data, flags)
 
     # Render heatmap
-    num_y_labels = sum([
-        flags["train_leaves"], flags["train_sites"], flags["train_trees"],
-        flags["train_nonmp"], flags["mixed_training"], flags["mixed_train_sources"],
-    ])
+    num_y_labels = sum(
+        [
+            flags["train_leaves"],
+            flags["train_sites"],
+            flags["train_trees"],
+            flags["train_nonmp"],
+            flags["mixed_training"],
+            flags["mixed_train_sources"],
+        ]
+    )
     row_height = HEATMAP_ROW_HEIGHT + num_y_labels * HEATMAP_ROW_HEIGHT_PER_LABEL
     fig_width = (len(heatmap_data.columns) * HEATMAP_COL_WIDTH) + HEATMAP_BASE_WIDTH
     fig_height = (len(heatmap_data) * row_height) + HEATMAP_BASE_HEIGHT

@@ -64,8 +64,8 @@ DATASET_NAMES = {
     "fluC_PB2": "flu C PB2",
     "fluC": "flu C",
     "rotavirus": "rota A H H2",
-    "alisim": "simulated",
-    "simulated": "simulated",
+    "alisim": "sim",
+    "simulated": "sim",
 }
 
 # Metric display labels
@@ -285,81 +285,25 @@ def get_df_from_log(log_path):
 
 
 def extract_num_leaves(data_name):
-    """Extract number of leaves from a dataset name.
-
-    Parses the simulated_{leaves}_seq_{sites}_sites_{trees}_algnmnts_... format.
-
-    Args:
-        data_name: Dataset name string.
-
-    Returns:
-        String representation of number of leaves, or None if not found.
-
-    Examples:
-        >>> extract_num_leaves("simulated_15_seq_20_sites_100_algnmnts_filtered")
-        '15'
-    """
+    """Extract number of leaves from a dataset name, or None if not found."""
     match = re.search(r"simulated_(\d+)_seq", data_name)
     return match.group(1) if match else None
 
 
 def extract_num_sites(data_name):
-    """Extract number of sites from a dataset name.
-
-    Parses the simulated_{leaves}_seq_{sites}_sites_{trees}_algnmnts_... format.
-
-    Args:
-        data_name: Dataset name string.
-
-    Returns:
-        String representation of number of sites, or None if not found.
-
-    Examples:
-        >>> extract_num_sites("simulated_15_seq_20_sites_100_algnmnts_filtered")
-        '20'
-    """
+    """Extract number of sites from a dataset name, or None if not found."""
     match = re.search(r"_(\d+)_sites", data_name)
     return match.group(1) if match else None
 
 
 def extract_num_trees(data_name):
-    """Extract number of trees (alignments) from a dataset name.
-
-    Parses the simulated_{leaves}_seq_{sites}_sites_{trees}_algnmnts_... format.
-
-    Args:
-        data_name: Dataset name string.
-
-    Returns:
-        String representation of number of trees, or None if not found.
-
-    Examples:
-        >>> extract_num_trees("simulated_15_seq_20_sites_100_algnmnts_filtered")
-        '100'
-    """
+    """Extract number of trees (alignments) from a dataset name, or None if not found."""
     match = re.search(r"_(\d+)_algnmnts", data_name)
     return match.group(1) if match else None
 
 
 def extract_nonmp_fraction(data_name):
-    """Extract non-MP edge fraction from a dataset name.
-
-    Parses filenames ending with '_t{fraction}.p' or '_t{fraction}' format.
-
-    Args:
-        data_name: Dataset name string.
-
-    Returns:
-        Float fraction value, or None if not found.
-
-    Examples:
-        >>> extract_nonmp_fraction("dataset_t0.1.p")
-        0.1
-        >>> extract_nonmp_fraction("dataset_t0.25")
-        0.25
-        >>> extract_nonmp_fraction("dataset.p")
-        None
-    """
+    """Extract non-MP edge fraction (e.g. '_t0.1') from a dataset name, or None if not found."""
     # Match pattern like _t0.1.p or _t0.1 at the end
     match = re.search(r"_t(\d+\.?\d*)(?:\.p)?$", data_name)
     if match:
@@ -384,25 +328,12 @@ def get_dataset_display_name(
     Returns:
         Human-readable dataset label suitable for plotting.
     """
-    # Simulated/alisim datasets
-    if "simulated" in data_name or "alisim" in data_name:
-        name = "sim"
-    # Rotavirus datasets
-    elif "rotavirus" in data_name:
-        name = "rota A H H2"
-    # Flu datasets
-    elif "flu" in data_name:
-        parts = data_name.split("_")[-3:-1]
-        name = "_".join(parts) if isinstance(parts, list) else ""
-        name = name.replace("fluC_", "flu C ")
-    # OrthoMaM datasets
-    elif "orthomam" in data_name:
-        name = "OrthoMaM"
-    # PANDIT datasets
-    elif "pandit" in data_name:
-        name = "PANDIT"
-    else:
-        name = data_name
+    # Match the longest key in DATASET_NAMES that appears in data_name
+    name = data_name
+    for key in sorted(DATASET_NAMES, key=len, reverse=True):
+        if key in data_name:
+            name = DATASET_NAMES[key]
+            break
 
     # Add stats if provided
     if num_leaves is not None and num_sites is not None and num_trees is not None:
@@ -422,16 +353,6 @@ def get_dataset_display_name(
 
 def plt_subplots(*args, **kwargs):
     """Create subplots ensuring axes is always iterable.
-
-    Wrapper around plt.subplots() that ensures the returned axes object
-    is always a numpy array, even for single subplot.
-
-    Args:
-        *args: Positional arguments passed to plt.subplots().
-        **kwargs: Keyword arguments passed to plt.subplots().
-
-    Returns:
-        Tuple of (fig, axs) where axs is always a numpy array.
     """
     fig, axs = plt.subplots(*args, **kwargs)
     if not isinstance(axs, np.ndarray):
@@ -440,14 +361,7 @@ def plt_subplots(*args, **kwargs):
 
 
 def truncate_to_significant_digits(x, sig_digits):
-    """Truncate a number to the specified number of significant digits.
-
-    Args:
-        x: Number to truncate.
-        sig_digits: Number of significant digits to keep.
-
-    Returns:
-        Truncated number.
+    """Truncate a number x to the specified number of significant digits sig_digits.
     """
     if x == 0:
         return 0
@@ -457,15 +371,7 @@ def truncate_to_significant_digits(x, sig_digits):
 
 
 def format_number(x, sig_digits=4, sci_range=(1e-6, 1e6)):
-    """Format a number with optional scientific notation.
-
-    Args:
-        x: Number to format.
-        sig_digits: Number of significant digits.
-        sci_range: Tuple (min, max) outside which scientific notation is used.
-
-    Returns:
-        Formatted number (string for scientific notation, number otherwise).
+    """Format a number x with optional scientific notation.
     """
     x = truncate_to_significant_digits(x, sig_digits)
     if (x != 0) and (x < sci_range[0] or x > sci_range[1]):
@@ -553,12 +459,6 @@ def _determine_label_visibility(df_sorted, label_config):
 
 def _extract_perturbation_method(data_series):
     """Extract perturbation method labels from a dataset name series.
-
-    Args:
-        data_series: Pandas Series of dataset name strings.
-
-    Returns:
-        Array of perturbation method label strings.
     """
     return np.select(
         [
@@ -638,12 +538,11 @@ def _create_heatmap_pivot(df_sorted, indices, test_cols, value_column):
         df_for_pivot[col] = df_for_pivot[col].fillna("N/A")
 
     # Use display names when multiple data sources are present
-    pattern_matches = [
-        df_for_pivot["test_data"].str.contains("flu", na=False).any(),
-        df_for_pivot["test_data"].str.contains("rotavirus", na=False).any(),
-        df_for_pivot["test_data"].str.contains("alisim", na=False).any(),
-    ]
-    if sum(pattern_matches) >= 2:
+    matched_sources = sum(
+        df_for_pivot["test_data"].str.contains(key, na=False).any()
+        for key in DATASET_NAMES
+    )
+    if matched_sources >= 2:
         df_for_pivot["test_data_name"] = df_for_pivot.apply(
             lambda row: get_dataset_display_name(
                 row["test_data"],

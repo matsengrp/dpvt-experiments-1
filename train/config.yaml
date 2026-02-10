@@ -34,7 +34,6 @@ label_config:
   show_num_trees: False
   show_nonmp_fraction: True
   show_perturbation: True
-  show_data_source: False
 
 hyperparameters:
   learning_rate: [0.00005]

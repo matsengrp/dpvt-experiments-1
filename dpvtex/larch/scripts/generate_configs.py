@@ -44,13 +44,13 @@ Examples:
         With --no-split:
             - configs/sim_15seq_prepare.yaml
             - configs/sim_15seq_generate.yaml
-        With --proportions (one config per proportion per split):
-            - configs/my_dataset_prepare.yaml
+        With --proportions (one config set per proportion):
+            - configs/my_dataset_prepare_t0.1.yaml
+            - configs/my_dataset_prepare_t0.2.yaml
             - configs/my_dataset_train_t0.1.yaml
             - configs/my_dataset_train_t0.2.yaml
             - configs/my_dataset_test_t0.1.yaml
             - configs/my_dataset_test_t0.2.yaml
-            - ...
 """
 
 import argparse
@@ -111,10 +111,38 @@ def generate_prepare_config(
     min_frac_sites_retained=DEFAULT_MIN_FRAC_SITES_RETAINED,
     test_fraction=DEFAULT_TEST_FRACTION,
     edge_distributions=None,
+    spr_target_non_mp_proportion=None,
+    subtree_target_non_mp_proportion=None,
 ):
-    """Generate Phase 1 & 2 config (prepare)."""
+    """Generate Phase 1 & 2 config (prepare).
+
+    Args:
+        input_data: Path to input alignment directory.
+        dataset_name: Name for the dataset.
+        larch_command: Command to run larch.
+        dataset_path: Directory where datasets will be created.
+        create_train_test_split: Whether to create train/test split.
+        max_ambiguous_site_frac_per_seq: Max fraction of ambiguous sites per sequence.
+        min_frac_sites_retained: Min fraction of sites retained after cleaning.
+        test_fraction: Fraction of alignments for test set.
+        edge_distributions: List of edge distribution methods.
+        spr_target_non_mp_proportion: Target non-MP edge proportion for SPR methods.
+        subtree_target_non_mp_proportion: Target non-MP edge proportion for subtree methods.
+    """
     if edge_distributions is None:
         edge_distributions = ["constant"]
+
+    # Use defaults if not specified
+    spr_proportion = (
+        spr_target_non_mp_proportion
+        if spr_target_non_mp_proportion is not None
+        else DEFAULT_SPR_TARGET_NON_MP_PROPORTION
+    )
+    subtree_proportion = (
+        subtree_target_non_mp_proportion
+        if subtree_target_non_mp_proportion is not None
+        else DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION
+    )
 
     split_section = f"""# Train/test splitting
 create_train_test_split: {str(create_train_test_split)}
@@ -162,12 +190,12 @@ max_trees: {DEFAULT_MAX_TREES}                           # Max trees to extract 
 
 # SPR parameters (for constant/uniform edge distributions)
 spr_radius: {DEFAULT_SPR_RADIUS}                          # Max topological distance for SPR regraft (null = unlimited)
-spr_target_non_mp_proportion: {DEFAULT_SPR_TARGET_NON_MP_PROPORTION}   # Target non-MP edge proportion
+spr_target_non_mp_proportion: {spr_proportion}   # Target non-MP edge proportion
 max_spr_attempts: {DEFAULT_MAX_SPR_ATTEMPTS}                   # Max SPR attempts before stopping
 
 # Subtree replacement parameters
 subtree_max_attempts: {DEFAULT_SUBTREE_MAX_ATTEMPTS}                # Max attempts for subtree replacement
-subtree_target_non_mp_proportion: {DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION}  # Target non-MP edge proportion
+subtree_target_non_mp_proportion: {subtree_proportion}  # Target non-MP edge proportion
 subtree_depth: {DEFAULT_SUBTREE_DEPTH}                        # Subtree depth for replacement (null = tree_depth // 2)
 """
 
@@ -352,29 +380,36 @@ Examples:
     # Create output directory if needed
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # Generate prepare config
-    prepare_config = generate_prepare_config(
-        args.input_data,
-        args.dataset_name,
-        args.larch_command,
-        args.dataset_path,
-        create_train_test_split=not args.no_split,
-        edge_distributions=edge_distributions,
-    )
-
-    # Write prepare config
-    prepare_path = os.path.join(args.output_dir, f"{args.dataset_name}_prepare.yaml")
-    with open(prepare_path, "w") as f:
-        f.write(prepare_config)
-
-    print("Generated config files:")
-    print(f"  {prepare_path}")
-
     # Determine which split types to generate configs for
     split_types = ["filtered"] if args.no_split else ["train", "test"]
 
-    # Generate Phase 3 configs for each split type and proportion
+    print("Generated config files:")
+
+    # Generate configs for each proportion
     for proportion in proportions:
+        # Build suffix for filenames
+        suffix = f"_t{proportion}" if proportion is not None else ""
+
+        # Generate prepare config (for running full pipeline with run_all_on_simulated)
+        prepare_config = generate_prepare_config(
+            args.input_data,
+            args.dataset_name,
+            args.larch_command,
+            args.dataset_path,
+            create_train_test_split=not args.no_split,
+            edge_distributions=edge_distributions,
+            spr_target_non_mp_proportion=proportion,
+            subtree_target_non_mp_proportion=proportion,
+        )
+
+        prepare_path = os.path.join(
+            args.output_dir, f"{args.dataset_name}_prepare{suffix}.yaml"
+        )
+        with open(prepare_path, "w") as f:
+            f.write(prepare_config)
+        print(f"  {prepare_path}")
+
+        # Generate Phase 3 configs for each split type
         for split_type in split_types:
             config = generate_phase3_config(
                 args.dataset_name,
@@ -391,10 +426,7 @@ Examples:
 
             # Build filename with appropriate config type name
             config_type = "generate" if split_type == "filtered" else split_type
-            if proportion is not None:
-                filename = f"{args.dataset_name}_{config_type}_t{proportion}.yaml"
-            else:
-                filename = f"{args.dataset_name}_{config_type}.yaml"
+            filename = f"{args.dataset_name}_{config_type}{suffix}.yaml"
 
             config_path = os.path.join(args.output_dir, filename)
             with open(config_path, "w") as f:

@@ -4,7 +4,6 @@
 
 import sys, os, shutil
 from datetime import datetime
-import papermill as pm
 import itertools
 import pprint as pp
 import json, yaml
@@ -25,6 +24,7 @@ from dpvtex.dpvt_zoo import (
     test_baseline_model,
     aggregate_baseline_data_to_csv,
 )
+from dpvtex.plotting import generate_summary_plots, LabelConfig
 from plot_times import generate_benchmark_plots
 
 
@@ -62,9 +62,6 @@ default_config = {
         "feature_length": [128],
         "dim_mlp_layers": [256],
     },
-    "notebook_paths": [
-        "templates/plot_summary_csv.default.ipynb",
-    ],
 }
 
 
@@ -93,7 +90,10 @@ use_cross_datasets = config["use_cross_datasets"]
 use_hyperparameter_optimize = config["use_hyperparameter_optimize"]
 profiling = config["profiling"]
 hyperparameters = config["hyperparameters"]
-notebook_input_paths = config["notebook_paths"]
+label_config = (
+    LabelConfig(**config["label_config"]) if "label_config" in config else None
+)
+plot_details = False  # set to True to plot more training/testing stats
 
 # Common context for path generation
 ctx = {"device": device, "timestamp": timestamp, "output_dir": output_dir}
@@ -225,14 +225,6 @@ def wildcard_csv_log(with_test_data=True):
     )
 
 
-def get_notebook_output_path(output_dir, notebook_name):
-    return f"{output_dir}/result_csvs_and_pdfs/{os.path.basename(notebook_name)}"
-
-
-def get_notebook_input_path(notebook_dict, notebook_name):
-    return notebook_dict[os.path.basename(notebook_name)]
-
-
 # ==============================================================================
 # Path Generation
 # ==============================================================================
@@ -300,14 +292,8 @@ all_benchmark_paths = train_benchmark_paths + test_benchmark_paths
 timing_plots_dir = f"{run_dir}/timing_plots"
 timing_plots_output = f"{timing_plots_dir}/training_times.pdf"
 
-notebook_output_paths = [
-    get_notebook_output_path(run_dir, nb) for nb in notebook_input_paths
-]
-notebook_dict = {os.path.basename(nb): nb for nb in notebook_input_paths}
-if len(notebook_dict) != len(notebook_input_paths):
-    raise ValueError(
-        f"Duplicate notebook name: all input notebooks in {notebook_input_paths} must have unique names."
-    )
+# Summary plots output path (replaces notebook-based plotting)
+summary_plots_output = f"{run_dir}/result_csvs_and_pdfs/test_auroc_heatmap.pdf"
 
 
 # ==============================================================================
@@ -317,13 +303,13 @@ if len(notebook_dict) != len(notebook_input_paths):
 
 rule all:
     input:
-        notebook_output_paths=notebook_output_paths,
+        summary_plots=summary_plots_output,
         csv_output_path=csv_output_path,
         baseline_csv_output_path=baseline_csv_output_path if baseline_model_list else [],
         timing_plot=timing_plots_output,
 
 
-rule log_metadata_step:
+rule log_metadata:
     output:
         config_output_path=config_output_path,
         data_nicknames_output_path=data_nicknames_output_path,
@@ -333,7 +319,7 @@ rule log_metadata_step:
         shutil.copy(data_nicknames_path, output.data_nicknames_output_path)
 
 
-rule optimize_hyperparameters_step:
+rule optimize_hyperparameters:
     output:
         hyperparameter_path=wildcard_params_json(),
     benchmark:
@@ -357,7 +343,7 @@ rule optimize_hyperparameters_step:
                 file.write(json.dumps(param_dicts[wildcards.param_id]))
 
 
-rule train_model_step:
+rule train_model:
     input:
         hyperparameter_path=wildcard_params_json(),
     output:
@@ -381,7 +367,7 @@ rule train_model_step:
         """
 
 
-rule test_model_step:
+rule test_model:
     input:
         trained_model=wildcard_trained_ckpt(),
         hyperparameter_path=wildcard_params_json(),
@@ -408,7 +394,7 @@ rule test_model_step:
         """
 
 
-rule create_csv_step:
+rule create_csv:
     input:
         tested_model=wildcard_tested_ckpt(),
         trained_model=wildcard_trained_ckpt(),
@@ -435,7 +421,7 @@ rule create_csv_step:
         )
 
 
-rule concat_csvs_step:
+rule concat_csvs:
     input:
         csv_input_paths=csv_single_paths,
     output:
@@ -447,43 +433,30 @@ rule concat_csvs_step:
         )
 
 
-rule run_notebook_step:
+rule generate_summary_plots:
     input:
         csv_output_path=csv_output_path,
         config_output_path=config_output_path,
         data_nicknames_output_path=data_nicknames_output_path,
         baseline_csv_output_path=baseline_csv_output_path if baseline_model_list else [],
     output:
-        notebook_output_path=get_notebook_output_path(
-            output_dir=run_dir,
-            notebook_name="{notebook_name}",
-        ),
+        summary_plots=summary_plots_output,
     run:
-        notebook_input_path = get_notebook_input_path(
-            notebook_dict=notebook_dict,
-            notebook_name=wildcards.notebook_name,
+        generate_summary_plots(
+            summary_csv_path=input.csv_output_path,
+            results_dir=f"{run_dir}/result_csvs_and_pdfs",
+            config_path=input.config_output_path,
+            data_nicknames_path=input.data_nicknames_output_path,
+            baseline_csv_path=(
+                input.baseline_csv_output_path if baseline_model_list else None
+            ),
+            working_dir=working_dir,
+            plot_details=plot_details,
+            label_config=label_config,
         )
-        parameters = {
-            "working_dir": working_dir,
-            "output_dir": run_dir,
-            "results_dir": f"{run_dir}/result_csvs_and_pdfs",
-            "summary_csv_path": input.csv_output_path,
-            "config_path": input.config_output_path,
-            "data_nicknames_path": input.data_nicknames_output_path,
-        }
-
-        try:
-            pm.execute_notebook(
-                input_path=notebook_input_path,
-                output_path=output.notebook_output_path,
-                parameters=parameters,
-                report_mode=False,
-            )
-        except Exception as e:
-            print(f"Notebook execution failed: {e}")
 
 
-rule test_baseline_model_step:
+rule test_baseline_model:
     output:
         result_path=get_baseline_result_path(
             "{model_name}", "{test_data_name}", timestamp, output_dir
@@ -499,7 +472,7 @@ rule test_baseline_model_step:
         )
 
 
-rule create_baseline_csv_step:
+rule create_baseline_csv:
     input:
         result_path=get_baseline_result_path(
             "{model_name}", "{test_data_name}", timestamp, output_dir
@@ -520,7 +493,7 @@ rule create_baseline_csv_step:
         )
 
 
-rule concat_baseline_csvs_step:
+rule concat_baseline_csvs:
     input:
         csv_input_paths=baseline_csv_paths,
     output:
@@ -532,7 +505,7 @@ rule concat_baseline_csvs_step:
         )
 
 
-rule plot_times_step:
+rule plot_times:
     input:
         benchmark_paths=all_benchmark_paths,
     output:

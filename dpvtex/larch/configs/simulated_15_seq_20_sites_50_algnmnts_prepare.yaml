@@ -25,7 +25,7 @@ create_train_test_split: False
 # ============================================================================
 # Phase 3: Training Data Generation Settings
 # ============================================================================
-larch_command: /home/lcollien/work/git/larch/build/bin/larch-usher                   # Command to run larch (can be "larch", "larch-phylo", or a full path)
+larch_command: ../../../larch/build/bin/larch-usher                   # Command to run larch (can be "larch", "larch-phylo", or a full path)
 larch_output: "../../data"
 edge_distributions:
   - "constant"
@@ -34,7 +34,13 @@ num_cores: 8
 
 # Tree extraction parameters
 max_trees: 200                           # Max trees to extract per alignment
-max_spr_moves: 100                       # Max SPR moves per tree
-spr_move_divisor: 10                     # Divisor for constant SPR distribution
+
+# SPR parameters (for constant/uniform edge distributions)
+spr_radius: 2                          # Max topological distance for SPR regraft (null = unlimited)
+spr_target_non_mp_proportion: 0.1   # Target non-MP edge proportion
+max_spr_attempts: 100                   # Max SPR attempts before stopping
+
+# Subtree replacement parameters
 subtree_max_attempts: 100                # Max attempts for subtree replacement
-subtree_target_non_mp_proportion: 0.167  # Target non-MP edge proportion (~1/6)
+subtree_target_non_mp_proportion: 0.1  # Target non-MP edge proportion
+subtree_depth: 3                        # Subtree depth for replacement (null = tree_depth // 2)

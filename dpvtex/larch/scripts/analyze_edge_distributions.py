@@ -293,7 +293,7 @@ def extract_dataset_label(dataset_name):
     Returns:
         Extracted label suitable for plotting.
     """
-    # Scenario (i): simulated datasets with detailed naming structure
+    # simulated datasets with detailed naming structure
     if "_seq_" in dataset_name:
         parts = dataset_name.split("_")
         num_leaves = None

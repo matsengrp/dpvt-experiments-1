@@ -33,6 +33,7 @@ PALETTE = "Dark2"
 HEATMAP_COL_WIDTH = 0.75
 HEATMAP_BASE_WIDTH = 10
 HEATMAP_ROW_HEIGHT = 0.3
+HEATMAP_ROW_HEIGHT_PER_LABEL = 0.15
 HEATMAP_BASE_HEIGHT = 4
 
 # Label positioning (figure fraction coordinates)
@@ -304,15 +305,15 @@ def extract_num_trees(data_name):
 
 def extract_nonmp_fraction(data_name):
     """Extract non-MP edge fraction (e.g. '_t0.1') from a dataset name, or None if not found."""
-    # Match pattern like _t0.1.p or _t0.1 at the end
-    match = re.search(r"_t(\d+\.?\d*)(?:\.p)?$", data_name)
+    # Match pattern like _t0.1.p, _t0.1, or _t0.1_suffix
+    match = re.search(r"_t(\d+\.?\d*)(?:\.p|_|$)", data_name)
     if match:
         return float(match.group(1))
     return None
 
 
 def get_dataset_display_name(
-    data_name, num_leaves=None, num_sites=None, num_trees=None
+    data_name, num_leaves=None, num_sites=None, num_trees=None, nonmp_fraction=None
 ):
     """Get a human-readable display name for a dataset.
 
@@ -324,6 +325,7 @@ def get_dataset_display_name(
         num_leaves: Optional number of leaves to include in label.
         num_sites: Optional number of sites to include in label.
         num_trees: Optional number of trees to include in label.
+        nonmp_fraction: Optional non-MP edge fraction to include in label.
 
     Returns:
         Human-readable dataset label suitable for plotting.
@@ -336,14 +338,17 @@ def get_dataset_display_name(
             break
 
     # Add stats if provided
-    if num_leaves is not None and num_sites is not None and num_trees is not None:
-        return f"{name}\nn={num_leaves}\nN={num_sites}\nT={num_trees}"
-    elif num_leaves is not None and num_sites is not None:
-        return f"{name}\nn={num_leaves}, N={num_sites}"
-    elif num_leaves is not None:
-        return f"{name}\nn={num_leaves}"
+    parts = [name]
+    if num_leaves is not None:
+        parts.append(f"n={num_leaves}")
+    if num_sites is not None:
+        parts.append(f"N={num_sites}")
+    if num_trees is not None:
+        parts.append(f"T={num_trees}")
+    if nonmp_fraction is not None and nonmp_fraction != "default":
+        parts.append(f"t={nonmp_fraction}")
 
-    return name
+    return "\n".join(parts)
 
 
 # =============================================================================
@@ -434,6 +439,12 @@ def _determine_label_visibility(df_sorted, label_config):
             label_config.show_nonmp_fraction,
         )
 
+    # Check for multiple dataset sources in training data
+    flags["mixed_train_sources"] = sum(
+        df_sorted["train_data"].str.contains(key, na=False).any()
+        for key in DATASET_NAMES
+    ) >= 2
+
     # Check for mixed perturbation methods in training data
     train_methods = [
         df_sorted["train_data"].str.contains("spr", na=False).any(),
@@ -484,6 +495,8 @@ def _build_heatmap_columns(flags):
     """
     indices = ["model"]
     extra_cols = []
+    if flags["mixed_train_sources"]:
+        extra_cols.append("train_data_name")
     if flags["train_leaves"]:
         extra_cols.append("train_num_leaves")
     if flags["train_sites"]:
@@ -549,6 +562,7 @@ def _create_heatmap_pivot(df_sorted, indices, test_cols, value_column):
                 row["test_num_leaves"],
                 row["test_num_sites"],
                 row["test_num_trees"],
+                row.get("test_nonmp_fraction"),
             ),
             axis=1,
         )
@@ -591,6 +605,11 @@ def _build_secondary_y_labels(heatmap_data, flags):
         if flags["mixed_training"]:
             perturbation = idx[col_offset] if len(idx) > col_offset else ""
             label_parts.append(str(perturbation))
+            col_offset += 1
+
+        if flags["mixed_train_sources"]:
+            source_name = idx[col_offset] if len(idx) > col_offset else ""
+            label_parts.append(str(source_name))
             col_offset += 1
 
         if flags["train_leaves"]:
@@ -771,6 +790,12 @@ def build_performance_heatmap(
     df_sorted = df.sort_values(by=["model", "train_num_leaves", "train_num_sites"])
     df_sorted, flags = _determine_label_visibility(df_sorted, label_config)
 
+    # Add display name column for training data sources
+    if flags["mixed_train_sources"]:
+        df_sorted["train_data_name"] = df_sorted["train_data"].apply(
+            lambda name: get_dataset_display_name(name)
+        )
+
     # Add perturbation columns
     if flags["mixed_testing"]:
         df_sorted["test_perturbation"] = _extract_perturbation_method(
@@ -789,8 +814,13 @@ def build_performance_heatmap(
     secondary_labels = _build_secondary_y_labels(heatmap_data, flags)
 
     # Render heatmap
+    num_y_labels = sum([
+        flags["train_leaves"], flags["train_sites"], flags["train_trees"],
+        flags["train_nonmp"], flags["mixed_training"], flags["mixed_train_sources"],
+    ])
+    row_height = HEATMAP_ROW_HEIGHT + num_y_labels * HEATMAP_ROW_HEIGHT_PER_LABEL
     fig_width = (len(heatmap_data.columns) * HEATMAP_COL_WIDTH) + HEATMAP_BASE_WIDTH
-    fig_height = (len(heatmap_data) * HEATMAP_ROW_HEIGHT) + HEATMAP_BASE_HEIGHT
+    fig_height = (len(heatmap_data) * row_height) + HEATMAP_BASE_HEIGHT
     fig, ax = plt.subplots(figsize=(fig_width, fig_height))
 
     cmap = sns.color_palette("coolwarm", as_cmap=True)

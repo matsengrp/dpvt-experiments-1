@@ -90,6 +90,15 @@ def main():
     tree_file = sys.argv[3]
     fasta_path = sys.argv[4]
 
+    for path, label in [
+        (dag_file, "DAG file"),
+        (tree_file, "Tree file"),
+        (fasta_path, "FASTA file"),
+    ]:
+        if not os.path.exists(path):
+            print(f"Error: {label} not found: {path}")
+            sys.exit(1)
+
     # Load DAG based on file extension
     if dag_file.endswith(".p"):
         with open(dag_file, "rb") as f:

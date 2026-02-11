@@ -21,8 +21,9 @@ from dpvtex.evaluate_individual_trees import (
     evaluate_individual_trees,
     evaluate_baseline_reversion_on_trees,
     concatenate_tree_eval_files,
-    plot_treesearch_evaluation,
+    extract_alignment_base,
 )
+from dpvtex.treesearch_plots import plot_treesearch_evaluation
 
 # Set threading environment variables to prevent parallel execution
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -65,12 +66,7 @@ regular_models = [model for model in model_names if "Baseline" not in model]
 # Find all test data sets with replicates
 test_data_names_with_reps = []
 for test_data_name in test_data_names:
-    # Extract alignment base name
-    # Handle both old format (alignment_tree_search) and new format (alignment_rep1_tree_search)
-    if "_tree_search" in test_data_name:
-        alignment_base = test_data_name.replace("_tree_search", "").split("_rep")[0]
-    else:
-        alignment_base = test_data_name.split("_rep")[0]
+    alignment_base = extract_alignment_base(test_data_name)
 
     # Find all matching replicate datasets
     # Matches: exact name, or {alignment_base}_rep{i}_tree_search pattern
@@ -465,15 +461,9 @@ rule plot_treesearch_evaluation:
     output:
         plot_model_path="{output_dir}/run.{timestamp}/tree_eval_logs/model_comparison-{test_data_name}-{compare_by}-{fixed_value}.pdf",
     run:
-        # Extract alignment base for matching
-        if "_tree_search" in wildcards.test_data_name:
-            alignment_base = wildcards.test_data_name.replace("_tree_search", "").split(
-                "_rep"
-            )[0]
-        else:
-            alignment_base = wildcards.test_data_name.split("_rep")[0]
+        alignment_base = extract_alignment_base(wildcards.test_data_name)
 
-            # Find matching test datasets (including replicates)
+        # Find matching test datasets (including replicates)
         matching_test_data = [
             name
             for name in test_data_names_with_reps

@@ -2,6 +2,7 @@ import pytest
 import json
 from pathlib import Path
 from dpvtex.dpvt_data import load_nicknames_dict, _extract_prefix
+from dpvtex.evaluate_individual_trees import extract_alignment_base
 
 
 class TestExtractPrefix:
@@ -25,6 +26,20 @@ class TestExtractPrefix:
 
     def test_extract_prefix_colon_takes_precedence(self):
         assert _extract_prefix("prefix_:id*pattern") == "prefix_"
+
+
+class TestExtractAlignmentBase:
+    def test_simple_name(self):
+        assert extract_alignment_base("alignment") == "alignment"
+
+    def test_with_replicate(self):
+        assert extract_alignment_base("alignment_rep1") == "alignment"
+
+    def test_with_tree_search(self):
+        assert extract_alignment_base("alignment_tree_search") == "alignment"
+
+    def test_with_both(self):
+        assert extract_alignment_base("alignment_rep2_tree_search") == "alignment"
 
 
 class TestLoadNicknamesDictWithGlob:

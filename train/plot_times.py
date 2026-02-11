@@ -602,7 +602,6 @@ def plot_available_training_times(
         title="Model",
         fontsize=FONT_MED,
         title_fontsize=FONT_LARGE,
-        # bbox_to_anchor=(1.02, 1),
         loc="upper left",
     )
     plt.xticks(ha="center", fontsize=FONT_LARGE)

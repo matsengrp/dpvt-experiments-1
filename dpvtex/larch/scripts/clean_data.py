@@ -15,8 +15,8 @@ from dpvtex.larch.scripts.utils import (
 )
 
 
-class _NoOpLogger:
-    """No-op logger for when logging is not needed."""
+class _NullLogger:
+    """Null logger for when logging is not needed."""
 
     def log(self, *args, **kwargs):
         pass
@@ -526,7 +526,7 @@ def clean_alignment(
         Returns (0, 0, 0, 0) if cleaning fails
     """
     if logger is None:
-        logger = _NoOpLogger()
+        logger = _NullLogger()
 
     alignment_name = get_alignment_name_from_path(input_filename)
     logger.log_section("CLEANING", f"Starting alignment cleaning for {alignment_name}")

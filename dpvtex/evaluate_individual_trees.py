@@ -13,6 +13,7 @@ from torchmetrics import AUROC
 from torchmetrics.classification import BinaryROC
 from dpvtex.dpvt_data import data_of_nicknames, load_nicknames_dict
 from dpvtex.dpvt_zoo import build_model, prepend_dir_to_path, get_model_str
+from dpvtex.plotting import extract_nonmp_fraction
 from dpvt import models
 
 torch.set_num_threads(1)
@@ -44,6 +45,14 @@ METRIC_LABELS = {
     "tn": "True Negatives",
     "fn": "False Negatives",
 }
+
+NONMP_LINESTYLES = ["-", "--", ":", "-."]
+
+
+def _nonmp_fraction_key(name):
+    """Return a string key for the non-MP fraction in a dataset name."""
+    frac = extract_nonmp_fraction(name)
+    return str(frac) if frac is not None else "default"
 
 
 # =============================================================================
@@ -445,15 +454,17 @@ def concatenate_tree_eval_files(
         path_parts = str(csv_file).split("/")
         file_name = path_parts[-1]
 
-        # Extract information from filename
+        # Extract information from filename.
+        # Sort candidates longest-first so more specific names (e.g.
+        # "..._spr_r2_t0.1") match before less specific prefixes ("..._spr").
         model_name = None
-        for model in model_names:
+        for model in sorted(model_names, key=len, reverse=True):
             if model in file_name:
                 model_name = model
                 break
 
         train_data_name = None
-        for train_data in train_data_names:
+        for train_data in sorted(train_data_names, key=len, reverse=True):
             if train_data in file_name:
                 train_data_name = train_data
                 break
@@ -461,8 +472,8 @@ def concatenate_tree_eval_files(
         # For test data, handle replicates by using regex patterns
         test_data_name = None
 
-        # First, try exact matches with the test data names
-        for test_data in test_data_names:
+        # First, try exact matches with the test data names (longest first)
+        for test_data in sorted(test_data_names, key=len, reverse=True):
             if test_data in file_name:
                 test_data_name = test_data
                 break
@@ -478,7 +489,7 @@ def concatenate_tree_eval_files(
                     break
 
         param_id = None
-        for param in param_ids:
+        for param in sorted(param_ids, key=len, reverse=True):
             if param in file_name:
                 param_id = param
                 break
@@ -587,6 +598,11 @@ def _filter_comparison_data(
         lambda x: x.split("_rep")[0] if "_rep" in x else x
     )
 
+    # Add non-MP fraction column for distinguishing datasets by line style
+    filtered_df["nonmp_fraction"] = filtered_df["base_test_name"].apply(
+        _nonmp_fraction_key
+    )
+
     is_baseline_model = False
 
     if compare_by == "model":
@@ -623,6 +639,7 @@ def _plot_metric_panel(
     comparison_values,
     comparison_column,
     color_dict,
+    linestyle_dict,
     percentiles,
     is_baseline_model,
     is_first_metric,
@@ -637,23 +654,51 @@ def _plot_metric_panel(
         comparison_values: Unique values to compare (models or training datasets).
         comparison_column: Column name for comparison ("model_name" or "train_data_name").
         color_dict: Dictionary mapping comparison values to colors.
+        linestyle_dict: Dictionary mapping non-MP fraction keys to line styles.
         percentiles: List of [lower, upper] percentile values.
         is_baseline_model: Whether plotting a baseline model.
         is_first_metric: Whether this is the first metric (for legend collection).
 
     Returns:
-        tuple: (model_handles, model_labels) for legend creation.
+        tuple: (model_handles, model_labels, style_handles, style_labels)
     """
     metric_label = METRIC_LABELS.get(metric, metric)
     model_handles = []
     model_labels = []
+    style_handles = []
+    style_labels = []
+    seen_values = set()
+    seen_fractions = set()
 
     for value in comparison_values:
         value_df = filtered_df[filtered_df[comparison_column] == value]
         base_test_groups = value_df.groupby("base_test_name")
 
+        # Collect color legend entry once per comparison value (solid proxy)
+        if is_first_metric and not is_baseline_model and value not in seen_values:
+            seen_values.add(value)
+            proxy = plt.Line2D(
+                [0], [0], color=color_dict[value], linestyle="-",
+                linewidth=LINE_WIDTH_MAIN,
+            )
+            model_handles.append(proxy)
+            model_labels.append(value)
+
         for _, group_df in base_test_groups:
             test_datasets = group_df["test_data_name"].unique()
+            frac_key = group_df["nonmp_fraction"].iloc[0]
+            linestyle = linestyle_dict.get(frac_key, "-")
+
+            # Collect style legend entry once per unique fraction
+            if is_first_metric and frac_key not in seen_fractions:
+                seen_fractions.add(frac_key)
+                style_handle = plt.Line2D(
+                    [0], [0], color="gray", linestyle=linestyle,
+                    linewidth=LINE_WIDTH_MAIN,
+                )
+                frac_label = f"t={frac_key}" if frac_key != "default" else "default"
+                style_handles.append(style_handle)
+                style_labels.append(frac_label)
 
             if len(test_datasets) > 1:  # We have replicates
                 replicate_values = []
@@ -677,10 +722,11 @@ def _plot_metric_panel(
                     all_values, percentiles
                 )
 
-                line = ax.plot(
+                ax.plot(
                     common_x,
                     median,
                     color=color_dict[value],
+                    linestyle=linestyle,
                     label=f"{value}",
                     linewidth=LINE_WIDTH_MAIN,
                     alpha=LINE_ALPHA,
@@ -689,36 +735,29 @@ def _plot_metric_panel(
                     common_x, lower, upper, color=color_dict[value], alpha=FILL_ALPHA
                 )
 
-                if is_first_metric and not is_baseline_model:
-                    model_handles.append(line[0])
-                    model_labels.append(f"{value}")
-
             else:  # Single dataset (no replicates)
                 test_dataset = test_datasets[0]
                 test_df = group_df[group_df["test_data_name"] == test_dataset]
                 test_df = test_df.sort_values("tree_idx")
 
                 normalized_x = np.linspace(0, 1, len(test_df))
-                line = ax.plot(
+                ax.plot(
                     normalized_x,
                     test_df[metric].values,
                     color=color_dict[value],
+                    linestyle=linestyle,
                     label=value,
                     alpha=LINE_ALPHA,
                     markersize=MARKER_SIZE,
                     linewidth=LINE_WIDTH_SECONDARY,
                 )
 
-                if is_first_metric and not is_baseline_model:
-                    model_handles.append(line[0])
-                    model_labels.append(value)
-
     ax.set_ylabel(metric_label, fontsize=FONT_SIZE_LABEL)
     ax.set_title(f"{metric_label}", fontsize=FONT_SIZE_TITLE)
     ax.grid(True, linestyle="--", alpha=GRID_ALPHA)
     ax.tick_params(axis="both", which="major", labelsize=FONT_SIZE_TICK)
 
-    return model_handles, model_labels
+    return model_handles, model_labels, style_handles, style_labels
 
 
 def _plot_bottom_panel(
@@ -850,6 +889,8 @@ def _add_legends_and_save(
     all_labels,
     comparison_column,
     is_baseline_model,
+    style_handles=None,
+    style_labels=None,
 ):
     """
     Add legends to the figure and save to file.
@@ -863,6 +904,8 @@ def _add_legends_and_save(
         all_labels: Legend labels for parsimony/non-MP.
         comparison_column: Column name for comparison.
         is_baseline_model: Whether plotting a baseline model.
+        style_handles: Legend handles for non-MP fraction line styles.
+        style_labels: Legend labels for non-MP fraction line styles.
     """
     # Add model/training data legend above plots
     if model_handles and model_labels and not is_baseline_model:
@@ -875,6 +918,11 @@ def _add_legends_and_save(
                 unique_labels.append(label)
                 unique_handles.append(handle)
 
+        # If there are multiple non-MP fractions, append style entries
+        if style_handles and style_labels and len(style_handles) > 1:
+            unique_handles.extend(style_handles)
+            unique_labels.extend(style_labels)
+
         first_legend = fig.legend(
             unique_handles,
             unique_labels,
@@ -883,7 +931,7 @@ def _add_legends_and_save(
             title=comparison_column.replace("_", " ").title(),
             title_fontsize=FONT_SIZE_LABEL,
             fontsize=FONT_SIZE_LEGEND,
-            ncol=min(2, len(unique_labels)),
+            ncol=min(3, len(unique_labels)),
         )
         fig.add_artist(first_legend)
 
@@ -971,6 +1019,16 @@ def plot_treesearch_evaluation(
     parsimony_color = palette[-2]
     nonmp_color = palette[-1]
 
+    # Setup line styles for non-MP fractions (e.g. t0.1, t0.2, default)
+    unique_fractions = sorted(
+        filtered_df["nonmp_fraction"].unique(),
+        key=lambda x: (x != "default", x),
+    )
+    linestyle_dict = {
+        frac: NONMP_LINESTYLES[i % len(NONMP_LINESTYLES)]
+        for i, frac in enumerate(unique_fractions)
+    }
+
     # Create figure
     n_metrics = len(metrics)
     n_rows = n_metrics + 1
@@ -980,15 +1038,18 @@ def plot_treesearch_evaluation(
     # Plot metrics panels
     all_model_handles = []
     all_model_labels = []
+    all_style_handles = []
+    all_style_labels = []
     for i, metric in enumerate(metrics):
         ax = fig.add_subplot(gs[i, 0])
-        handles, labels = _plot_metric_panel(
+        handles, labels, style_handles, style_labels = _plot_metric_panel(
             ax,
             metric,
             filtered_df,
             comparison_values,
             comparison_column,
             color_dict,
+            linestyle_dict,
             percentiles,
             is_baseline_model,
             is_first_metric=(i == 0),
@@ -996,6 +1057,8 @@ def plot_treesearch_evaluation(
         if i == 0:
             all_model_handles = handles
             all_model_labels = labels
+            all_style_handles = style_handles
+            all_style_labels = style_labels
 
         # Set x-axis label only on last metric panel
         if i == n_metrics - 1:
@@ -1025,4 +1088,6 @@ def plot_treesearch_evaluation(
         all_labels,
         comparison_column,
         is_baseline_model,
+        style_handles=all_style_handles,
+        style_labels=all_style_labels,
     )

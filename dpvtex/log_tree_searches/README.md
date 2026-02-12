@@ -122,3 +122,10 @@ The pipeline produces:
   Per-replicate pickle files
 - Updated nicknames JSON file with glob pattern entries for automatic replicate
   discovery
+
+## Next Steps
+
+After generating treesearch data, use `train/treesearch.snakefile` to train
+models and evaluate their performance on the intermediate trees. See the
+"Tree Search Evaluation Workflow" section of the main
+[README](../../README.md) for details.

@@ -49,6 +49,7 @@ timestamp = config["timestamp"]
 metrics = config["metrics"]
 num_replicates = config["replicates"]
 use_hyperparameter_optimize = bool(config["use_hyperparameter_optimize"])
+n_hyperparameter_trials = config.get("n_hyperparameter_trials", 100)
 hyperparameters = config["hyperparameters"]
 
 # Get data directory from nicknames file (raw JSON)

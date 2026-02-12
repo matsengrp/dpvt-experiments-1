@@ -1,6 +1,6 @@
-input_dir: "../../data/simulated_15_seq_20_sites_100_algnmnts_filtered_0.8"
-output_dir: "../../data"
+input_dir: "../../data/treesearch_test_data"
+output_dir: "../../data/treesearch"
 larch_build: "../../../larch/build/bin/larch-usher"
-nicknames: "../../train/data_nicknames.json"
+nicknames: "../../train/treesearch_nicknames.json"
 num_replicates: 3
 start_tree_type: "random"  # "random" (rtree) or "nj" (neighbor joining)

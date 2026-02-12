@@ -1,9 +1,5 @@
-import sys, os, shutil
-from datetime import datetime
-import json, yaml
-from pathlib import Path
-import pandas as pd
-import re
+import os
+import json
 import itertools
 
 from dpvtex.dpvt_zoo import (
@@ -12,7 +8,6 @@ from dpvtex.dpvt_zoo import (
     build_log_path,
     get_trained_model_path,
     get_model_params_path,
-    get_baseline_result_path,
 )
 
 from dpvtex.dpvt_data import load_nicknames_dict
@@ -34,7 +29,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 
 # Import config from main Snakefile
-configfile: "config.yaml"
+configfile: "treesearch_config.yaml"
 
 
 # Config settings
@@ -47,15 +42,9 @@ test_data_names = config["test_data"]
 device = config["device"]
 timestamp = config["timestamp"]
 metrics = config["metrics"]
-num_replicates = config["replicates"]
 use_hyperparameter_optimize = bool(config["use_hyperparameter_optimize"])
 n_hyperparameter_trials = config.get("n_hyperparameter_trials", 100)
 hyperparameters = config["hyperparameters"]
-
-# Get data directory from nicknames file (raw JSON)
-with open(data_nicknames_path, "r") as f:
-    raw_nicknames = json.load(f)
-    data_dir = raw_nicknames["data_dir"]
 
 # Get expanded dataset dict (with glob patterns resolved)
 dataset_dict = load_nicknames_dict(data_nicknames_path)
@@ -84,11 +73,23 @@ for test_data_name in test_data_names:
     test_data_names_with_reps += all_test_datasets
 
 
-if bool(config["use_hyperparameter_optimize"]):
-    param_ids = ["ParamOpt"]
-else:
-    param_ids = ["Param0"]
+def generate_hyperparameter_dicts(hyperparameters, use_hyperparameter_optimize):
+    if use_hyperparameter_optimize:
+        return ["ParamOpt"], {}
 
+    param_dicts = {}
+    keys = hyperparameters.keys()
+    values = list(hyperparameters.values())
+    for id, combination in enumerate(itertools.product(*values)):
+        param_id = f"Param{id}"
+        result_dict = dict(zip(keys, combination))
+        param_dicts[param_id] = result_dict
+    return list(param_dicts.keys()), param_dicts
+
+param_ids, param_dicts = generate_hyperparameter_dicts(
+    hyperparameters=hyperparameters,
+    use_hyperparameter_optimize=use_hyperparameter_optimize,
+)
 
 # Helper functions
 def get_trained_model_ckpt(model, train_data, param_id, device, timestamp, output_dir):
@@ -128,174 +129,53 @@ def get_individual_tree_eval_path(
     return f"{path}.csv"
 
 
-def generate_data_pairs(train_data_names, test_data_names):
-    data_pairs = []
-    for train_data in train_data_names:
-        for test_data in test_data_names:
-            data_pairs.append((train_data, test_data))
-    return data_pairs
-
-
-def generate_individual_tree_eval_paths(
-    model_names,
-    data_pairs,
-    param_ids,
-    device,
-    timestamp,
-    output_dir,
-):
-    eval_paths = [
-        get_individual_tree_eval_path(
-            model_name=model_name,
-            train_data_name=train_data_name,
-            test_data_name=test_data_name,
-            param_id=param_id,
-            device=device,
-            timestamp=timestamp,
-            output_dir=output_dir,
-        )
-        for model_name in model_names
-        for train_data_name, test_data_name in data_pairs
-        for param_id in param_ids
-    ]
-    return eval_paths
-
-
-def generate_individual_tree_eval_plot_paths(
-    model_names,
-    data_pairs,
-    param_ids,
-    device,
-    timestamp,
-    output_dir,
-    metrics=["auroc"],
-):
-    eval_paths = [
-        get_individual_tree_eval_path(
-            model_name=model_name,
-            train_data_name=train_data_name,
-            test_data_name=test_data_name,
-            param_id=param_id,
-            device=device,
-            timestamp=timestamp,
-            output_dir=output_dir,
-        )[:-4]
-        + "_"
-        + metric
-        + ".pdf"
-        for model_name in model_names
-        for train_data_name, test_data_name in data_pairs
-        for param_id in param_ids
-        for metric in metrics
-    ]
-    return eval_paths
-
-
-def generate_comparison_plot_paths(
-    test_data_names,
-    model_names,
-    train_data_names,
-    output_dir=".",
-    timestamp="latest",
-):
-    """Generate paths for model comparison plots."""
-    plot_paths = []
-
-    # Generate paths for comparing different models with fixed training data
-    for test_data in test_data_names:
-        for train_data in train_data_names:
-            plot_paths.append(
-                f"{output_dir}/run.{timestamp}/tree_eval_logs/model_comparison-{test_data}-model-{train_data}.pdf"
-            )
-
-    # Generate paths for comparing different training datasets with fixed model
-    for test_data in test_data_names:
-        for model in model_names:
-            plot_paths.append(
-                f"{output_dir}/run.{timestamp}/tree_eval_logs/model_comparison-{test_data}-training_data-{model}.pdf"
-            )
-    return plot_paths
-
-
-def generate_baseline_eval_paths(
-    baseline_models,
-    test_data_names,
-    timestamp,
-    output_dir,
-):
-    """Generate evaluation paths for baseline models (which don't require training)."""
-    eval_paths = [
-        get_individual_tree_eval_path(
-            model_name=model_name,
-            train_data_name="baseline",  # Use "baseline" instead of a real training dataset
-            test_data_name=test_data_name,
-            param_id="baseline",  # Use "baseline" instead of a real parameter ID
-            device="cpu",  # Baseline models only run on CPU
-            timestamp=timestamp,
-            output_dir=output_dir,
-        )
-        for model_name in baseline_models
-        for test_data_name in test_data_names
-    ]
-    return eval_paths
-
-
 # Generate paths
-data_pairs = generate_data_pairs(train_data_names, test_data_names)
-rep_data_pairs = generate_data_pairs(train_data_names, test_data_names_with_reps)
+rep_data_pairs = list(itertools.product(train_data_names, test_data_names_with_reps))
 
 # Generate paths for regular models (requiring training)
-regular_eval_paths = generate_individual_tree_eval_paths(
-    model_names=regular_models,
-    data_pairs=rep_data_pairs,
-    param_ids=param_ids,
-    device=device,
-    timestamp=timestamp,
-    output_dir=output_dir,
-)
+regular_eval_paths = [
+    get_individual_tree_eval_path(
+        model_name=model_name,
+        train_data_name=train_data_name,
+        test_data_name=test_data_name,
+        param_id=param_id,
+        device=device,
+        timestamp=timestamp,
+        output_dir=output_dir,
+    )
+    for model_name in regular_models
+    for train_data_name, test_data_name in rep_data_pairs
+    for param_id in param_ids
+]
 
 # Generate paths for baseline models (no training required)
-baseline_eval_paths = generate_baseline_eval_paths(
-    baseline_models=baseline_models,
-    test_data_names=test_data_names_with_reps,
-    timestamp=timestamp,
-    output_dir=output_dir,
-)
+baseline_eval_paths = [
+    get_individual_tree_eval_path(
+        model_name=model_name,
+        train_data_name="baseline",
+        test_data_name=test_data_name,
+        param_id="baseline",
+        device="cpu",
+        timestamp=timestamp,
+        output_dir=output_dir,
+    )
+    for model_name in baseline_models
+    for test_data_name in test_data_names_with_reps
+]
 
 # Combine all evaluation paths
 eval_paths = regular_eval_paths + baseline_eval_paths
 
-comparison_plot_paths = generate_comparison_plot_paths(
-    test_data_names=test_data_names,
-    model_names=model_names,
-    train_data_names=train_data_names,
-    output_dir=output_dir,
-    timestamp=timestamp,
-)
+comparison_plot_paths = [
+    f"{output_dir}/run.{timestamp}/tree_eval_logs/model_comparison-{test_data}-{compare_by}-{fixed_value}.pdf"
+    for test_data in test_data_names
+    for compare_by, fixed_value in (
+        [("model", td) for td in train_data_names]
+        + [("training_data", m) for m in model_names]
+    )
+]
 
 
-def generate_hyperparameter_dicts(hyperparameters, use_hyperparameter_optimize):
-    if use_hyperparameter_optimize:
-        return ["ParamOpt"], {}
-
-    param_dicts = {}
-    keys = hyperparameters.keys()
-    values = [x for x in hyperparameters.values()]
-    for id, combination in enumerate(itertools.product(*values)):
-        param_id = f"Param{id}"
-        result_dict = dict(zip(keys, combination))
-        param_dicts[param_id] = result_dict
-    return list(param_dicts.keys()), param_dicts
-
-
-param_ids, param_dicts = generate_hyperparameter_dicts(
-    hyperparameters=hyperparameters,
-    use_hyperparameter_optimize=use_hyperparameter_optimize,
-)
-
-
-# Specify ruleorder - baseline models should be handled by the evaluate_baseline_models rule
-ruleorder: evaluate_baseline_model > evaluate_individual_trees
 
 
 # Rules
@@ -486,7 +366,7 @@ rule plot_treesearch_evaluation:
             csv_file=input.summary_csv,
             data_nicknames_file=data_nicknames_path,
             test_data_name=matching_test_data,
-            output_file=f"{wildcards.output_dir}/run.{wildcards.timestamp}/tree_eval_logs/model_comparison-{wildcards.test_data_name}-{wildcards.compare_by}-{wildcards.fixed_value}.pdf",
+            output_file=output.plot_model_path,
             fasta_dir=fasta_dir,
             metrics=metrics,
             compare_by=wildcards.compare_by,

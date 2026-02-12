@@ -192,10 +192,8 @@ def evaluate_individual_trees(
     Returns:
         pandas.DataFrame: DataFrame containing evaluation metrics for each tree.
     """
-    # Load the test data
+    # Load the test data and model
     test_data = data_of_nicknames(test_data_name, device, data_nicknames_path)
-
-    # Load model and move to appropriate device
     model, device = load_model(
         model_name, hyperparameter_path, trained_model_ckpt, device
     )
@@ -206,12 +204,9 @@ def evaluate_individual_trees(
     # Process each tree individually
     for i in range(len(test_data)):
         # For TraversalDataset, extract the data for a single tree
-        traversal = test_data.traversal[
-            i : i + 1
-        ]  # Keep batch dimension but select single tree
-        mutations = test_data.mutations[
-            i : i + 1
-        ]  # Keep batch dimension but select single tree
+        # Keep batch dimension but select single tree
+        traversal = test_data.traversal[i : i + 1]
+        mutations = test_data.mutations[i : i + 1]
         labels = test_data.labels[i]
         mask = test_data.mask[i]
 

@@ -1,0 +1,44 @@
+# Default config for treesearch evaluation using git-tracked datasets
+# Use with: snakemake --snakefile treesearch.snakefile --configfile treesearch_config.yaml -c4
+# Make sure to update according to your filepaths + specifications
+
+models:
+  - "TraverseNN"
+  - "TraverseMaxPooling"
+  - "TraverseAvgPooling"
+  - "BaselineReversion"
+
+# Training data (100 alignments, tracked in git)
+train_data:
+  - "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_spr"
+  - "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_subtree"
+
+# Test data (not tracked in git)
+test_data:
+  - "random_treesearch_treesearch_PF05036-dna"
+  - "random_treesearch_treesearch_PF05299-dna"
+  - "random_treesearch_treesearch_PF05532-dna"
+
+device: "cpu"
+timestamp: "treesearch"
+output_dir: "_output"
+data_nicknames_path: "treesearch_nicknames.json"
+
+# Path to directory containing alignment subdirs for treesearch test trees
+# with input.fasta files (not tracked in git)
+fasta_dir: "../data/treesearch_test_data"
+
+metrics:
+  - "auroc"
+
+# Hyperparameter settings
+use_hyperparameter_optimize: False
+n_hyperparameter_trials: 50
+
+hyperparameters:
+  learning_rate: [0.00005]
+  batch_size: [4]
+  accum_grad_batches: [2]
+  epochs: [200]
+  feature_length: [64]
+  dim_mlp_layers: [256]

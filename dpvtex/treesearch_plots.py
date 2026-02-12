@@ -3,19 +3,83 @@
 import os
 import pickle
 
+import historydag
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from Bio import SeqIO
 
 from dpvtex.dpvt_data import load_nicknames_dict
-from dpvtex.evaluate_individual_trees import (
-    extract_alignment_base,
-    calculate_percentile_bands,
-    get_parsimony_scores,
-    interpolate_to_common_grid,
-)
+from dpvtex.evaluate_individual_trees import extract_alignment_base
 from dpvtex.plotting import extract_nonmp_fraction
+
+
+# =============================================================================
+# Statistical / Interpolation Helpers
+# =============================================================================
+def interpolate_to_common_grid(values_list, max_length):
+    """
+    Interpolate multiple value arrays to a common normalized grid.
+
+    Args:
+        values_list: List of arrays, each containing values from one replicate.
+        max_length: Length of the common grid to interpolate onto.
+
+    Returns:
+        tuple: (common_x, interpolated_array) where common_x is the normalized
+               x-axis [0, 1] and interpolated_array is a 2D numpy array with
+               each row being one interpolated replicate.
+    """
+    common_x = np.linspace(0, 1, max_length)
+    interpolated = []
+
+    for values in values_list:
+        if len(values) == 0:
+            continue
+        dataset_x = np.linspace(0, 1, len(values))
+        interp_values = np.interp(
+            common_x, dataset_x, values, left=np.nan, right=np.nan
+        )
+        interpolated.append(interp_values)
+
+    if not interpolated:
+        return common_x, np.array([])
+
+    return common_x, np.array(interpolated)
+
+
+def calculate_percentile_bands(values_array, percentiles):
+    """
+    Calculate median and percentile bands from an array of replicate values.
+
+    Args:
+        values_array: 2D numpy array with replicates as rows.
+        percentiles: List of [lower, upper] percentile values (e.g., [2.5, 97.5]).
+
+    Returns:
+        tuple: (median, lower_band, upper_band) arrays.
+    """
+    median = np.nanmedian(values_array, axis=0)
+    lower = np.nanpercentile(values_array, percentiles[0], axis=0)
+    upper = np.nanpercentile(values_array, percentiles[1], axis=0)
+    return median, lower, upper
+
+
+def get_parsimony_scores(tree_list, fasta_path):
+    """Calculate parsimony scores for a list of trees using sequence data."""
+    pscore_list = []
+    sequences = {}
+    for record in SeqIO.parse(fasta_path, "fasta"):
+        sequences[record.id] = str(record.seq)
+    for tree in tree_list:
+        for node in tree.get_leaves():
+            node.add_feature("sequence", sequences[node.name])
+        historydag.parsimony.disambiguate(tree)
+        pscore = historydag.parsimony.parsimony_score(tree)
+        pscore_list.append(pscore)
+    return pscore_list
+
 
 # =============================================================================
 # Plotting Constants

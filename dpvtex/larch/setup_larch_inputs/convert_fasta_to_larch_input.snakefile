@@ -23,7 +23,7 @@ files, compatible with a larch-usher run:
 """
 
 from Bio import AlignIO
-from Bio.Align import AlignInfo
+from Bio.Align import AlignInfo, MultipleSeqAlignment
 from collections import Counter
 
 snakefile_dir = workflow.basedir
@@ -67,6 +67,12 @@ rule create_reference_sequence_file:
     run:
         with open(input.input_file, "r") as f:
             algmnt = next(AlignIO.parse(f, "fasta"))
+
+        # Filter out any existing unambiguous_root_seq to avoid duplicates
+        filtered_records = [rec for rec in algmnt if rec.id != "unambiguous_root_seq"]
+        if len(filtered_records) < len(algmnt):
+            print(f"Filtered out existing unambiguous_root_seq from input")
+            algmnt = MultipleSeqAlignment(filtered_records)
 
         def get_most_common_value(idx):
             vals = Counter(algmnt[:,idx])
@@ -132,7 +138,10 @@ rule create_fasta_with_cleaned_names:
         """
         sed "s/\-/N/g; s/\?/N/g; s/|/\_/g" {input.fasta_with_ignored_sites} > {base_filename}.fasta
         rootseq=$(awk 'NR == 1' {input.refseq_file})
-        sed -i "1s/^/> unambiguous_root_seq\\n$rootseq\\n/g" {base_filename}.fasta
+        # Only add unambiguous_root_seq if it doesn't already exist
+        if ! grep -q "^> unambiguous_root_seq" {base_filename}.fasta; then
+            sed -i "1s/^/> unambiguous_root_seq\\n$rootseq\\n/g" {base_filename}.fasta
+        fi
         seq1="$(awk 'NR == 1' {base_filename}.fasta)"
         seq2="$(awk 'NR == 3' {base_filename}.fasta)"
         ss1=$(echo "$seq1" | sed "s/>//g" | tr -d '[:space:]')

@@ -1,0 +1,6 @@
+input_dir: "../../data/treesearch_test_data"
+output_dir: "../../data/treesearch"
+larch_build: "../../../larch/build/bin/larch-usher"
+nicknames: "../../train/treesearch_nicknames.json"
+num_replicates: 3
+start_tree_type: "random"  # "random" (rtree) or "nj" (neighbor joining)

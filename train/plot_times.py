@@ -96,19 +96,16 @@ class PlotConfig:
 
 def _parse_time_to_seconds(time_str: str) -> float:
     """Parse time string to seconds. Supports 'HH:MM:SS' and 'X day(s), HH:MM:SS' formats."""
-    try:
-        days = 0
-        time_part = time_str
+    days = 0
+    time_part = time_str
 
-        # Handle "X day(s), HH:MM:SS" format
-        if "day" in time_str:
-            day_part, time_part = time_str.split(", ", 1)
-            days = int(day_part.split()[0])
+    # Handle "X day(s), HH:MM:SS" format
+    if "day" in time_str:
+        day_part, time_part = time_str.split(", ", 1)
+        days = int(day_part.split()[0])
 
-        h, m, s = time_part.split(":")
-        return days * 86400 + int(h) * 3600 + int(m) * 60 + float(s)
-    except (ValueError, AttributeError) as e:
-        raise ValueError(f"Expected time format 'HH:MM:SS' or 'X day(s), HH:MM:SS', got '{time_str}'") from e
+    h, m, s = time_part.split(":")
+    return days * 86400 + int(h) * 3600 + int(m) * 60 + float(s)
 
 
 def _is_simulated(name: str) -> bool:
@@ -326,7 +323,9 @@ def plot_training_times(
         ax=ax,
     )
     ax.set_xlabel(
-        "Training dataset (avg number of leaves, avg number of sites, number of trees)", fontsize=FONT_LARGE, labelpad=15
+        "Training dataset (avg number of leaves, avg number of sites, number of trees)",
+        fontsize=FONT_LARGE,
+        labelpad=15,
     )
     ax.set_ylabel("Time (minutes)", fontsize=FONT_LARGE)
     ax.tick_params(labelsize=FONT_MED)
@@ -527,13 +526,15 @@ def plot_available_training_times(
             continue
 
         seconds = _parse_time_to_seconds(df.iloc[0, 1])
-        data.append({
-            "model": model,
-            "model_label": MODEL_NAMES.get(model, model),
-            "train_data": train_data,
-            "train_label": train_data,
-            "time_seconds": seconds,
-        })
+        data.append(
+            {
+                "model": model,
+                "model_label": MODEL_NAMES.get(model, model),
+                "train_data": train_data,
+                "train_label": train_data,
+                "time_seconds": seconds,
+            }
+        )
 
     if not data:
         raise ValueError("No matching benchmark data found for specified datasets")
@@ -601,7 +602,6 @@ def plot_available_training_times(
         title="Model",
         fontsize=FONT_MED,
         title_fontsize=FONT_LARGE,
-        # bbox_to_anchor=(1.02, 1),
         loc="upper left",
     )
     plt.xticks(ha="center", fontsize=FONT_LARGE)

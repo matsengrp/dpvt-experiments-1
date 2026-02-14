@@ -5,8 +5,14 @@ platforms = ["linux-64"]
 
 [system-requirements]
 linux = "4.15"
-# cuda = "12.4"
 libc = { family="glibc", version="2.17" }
+
+[feature.cuda.system-requirements]
+cuda = "12.4"
+
+[environments]
+default = { features = ["cuda"], solve-group = "default" }
+cpu = { features = [], solve-group = "default" }
 
 [dependencies]
 python = ">=3.11.9,<3.12"
@@ -34,7 +40,23 @@ papermill = "*"
 pytorch = ">=2.0.0,<3"
 lightning = ">=2.3.3,<3"
 torchmetrics = ">=1.8.2,<2"
+r-base = ">=4.4.0,<4.5"
+r-optparse = ">=1.7.5,<2"
+r-remotes = ">=2.5.0,<3"
+# phangorn dependencies (phangorn itself installed via `pixi run install-phangorn`)
+r-ape = ">=5.8"
+r-checkmate = "*"
+r-digest = "*"
+r-fastmatch = "*"
+r-generics = "*"
+r-igraph = ">=1.0"
+r-quadprog = "*"
+r-rcpp = "*"
+r-rcpparmadillo = "*"
 
 [pypi-dependencies]
 dpvt = { path = "../dpvt", editable = true }
 dpvtex = { path = ".", editable = true }
+
+[tasks]
+install-phangorn = "Rscript -e \"remotes::install_git('https://github.com/lenacoll/phangorn.git', ref='log-mp-search-trees', lib=.libPaths()[1], dependencies=FALSE)\""

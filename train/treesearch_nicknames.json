@@ -1,0 +1,8 @@
+{
+  "data_dir": "../data",
+  "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_spr": "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_spr.p",
+  "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_subtree": "simulated_15_seq_20_sites_100_algnmnts_filtered_0.8_subtree.p",
+  "random_treesearch_treesearch_PF05036-dna": "treesearch/random_starting/PF05036-dna/*_tree_search.p",
+  "random_treesearch_treesearch_PF05299-dna": "treesearch/random_starting/PF05299-dna/*_tree_search.p",
+  "random_treesearch_treesearch_PF05532-dna": "treesearch/random_starting/PF05532-dna/*_tree_search.p"
+}

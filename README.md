@@ -30,6 +30,12 @@ pixi install
 pixi shell
 ```
 
+Finally, install the custom phangorn fork (required for tree search logging):
+
+```bash
+pixi run install-phangorn
+```
+
 
 ## Standard Training Workflow
 
@@ -110,6 +116,38 @@ edge is in a Maximum Parsimony tree and `1` indicates that it is not.
 Nicknames for datasets and paths to those datasets must be provided in the json
 file that is provided as `data_nicknames_path` in the config.
 
+#### Nicknames JSON format
+
+The nicknames JSON file maps dataset nicknames to file paths:
+
+```json
+{
+  "data_dir": "../data",
+  "my_train_data": "my_train_data.p",
+  "my_test_data": "my_test_data.p"
+}
+```
+
+The `data_dir` key specifies the base directory for all paths. All other keys are
+nicknames that can be used in `train_data` and `test_data` config options.
+
+**Glob pattern support for treesearch replicates:** Values can contain glob
+patterns (`*`, `?`, `**`) which are automatically expanded. This is useful for
+treesearch datasets with multiple replicates per alignment:
+
+```json
+{
+  "data_dir": "../data",
+  "random_treesearch_my_dataset_alignment1": "treesearch/my_dataset/random_starting/alignment1/*_tree_search.p",
+  "random_treesearch_my_dataset_alignment2": "treesearch/my_dataset/random_starting/alignment2/*_tree_search.p"
+}
+```
+
+For example, if `alignment1/` contains `alignment1_rep1_tree_search.p` and
+`alignment1_rep2_tree_search.p`, they expand to
+`random_treesearch_my_dataset_alignment1_rep1_tree_search` and
+`random_treesearch_my_dataset_alignment1_rep2_tree_search`.
+
 #### Data format
 We assume that each dataset is provided by one file that contains a pickled
 dictionary. The keys of this dictionary shall be trees and their values lists of
@@ -138,6 +176,87 @@ config file, we train on the GPU. A detailed explanation of this can be found in
 [dpvt](https://github.com/matsengrp/dpvt). Note that the `BaselineReversion`
 model is required to run on a cpu, so if you want to use it, make sure to
 provide `cpu` as device in the config.
+
+## Tree Search Evaluation Workflow
+
+The `treesearch.snakefile` provides a workflow for training models and evaluating
+them on tree search data (intermediate trees from MP tree searches). This workflow
+trains models, evaluates their performance on individual trees, and generates
+comparison plots.
+
+### Configuration
+
+Create a config file (e.g., `treesearch_config.yaml`) with the following settings:
+
+```yaml
+# Models to train and evaluate
+models: ["TraverseNN", "TraverseMaxPooling", "TraverseAvgPooling", "BaselineReversion"]
+
+# Training and test datasets (nicknames from data_nicknames_path)
+train_data: ["my_train_data_spr", "my_train_data_subtree"]
+test_data: ["my_test_data_spr", "my_test_data_subtree"]
+
+# Device: "cpu", "gpu", or "cuda"
+device: "cpu"
+
+# Output settings
+output_dir: "_output"
+timestamp: "my_experiment"
+
+# Path to dataset nicknames JSON file
+data_nicknames_path: "data_nicknames.json"
+
+# Path to directory containing FASTA files (for plotting sequence counts)
+fasta_dir: "../data/alignments"
+
+# Evaluation metrics to plot
+metrics: ["auroc", "auprc"]
+
+# Number of test data replicates (if test data has _rep1, _rep2, etc. suffixes)
+replicates: 3
+
+# Hyperparameter optimization
+use_hyperparameter_optimize: False
+n_hyperparameter_trials: 50
+
+# Default hyperparameters (used when use_hyperparameter_optimize is False)
+hyperparameters:
+  learning_rate: [0.00005]
+  batch_size: [2]
+  accum_grad_batches: [4]
+  epochs: [200]
+  feature_length: [64]
+  dim_mlp_layers: [128]
+```
+
+### Running the Tree Search Workflow
+
+From the `train` directory:
+
+```bash
+# Run with custom config
+snakemake --snakefile treesearch.snakefile --configfile treesearch_config.yaml -c4
+
+# Dry run to see what will be executed
+snakemake --snakefile treesearch.snakefile --configfile treesearch_config.yaml -n
+```
+
+### Workflow Steps
+
+1. **Hyperparameter optimization** (optional): Uses Optuna to find optimal hyperparameters
+2. **Model training**: Trains each model on each training dataset
+3. **Individual tree evaluation**: Evaluates trained models on each tree in the test datasets
+4. **Baseline evaluation**: Evaluates baseline models (no training required)
+5. **Result aggregation**: Concatenates evaluation results into a summary CSV
+6. **Plotting**: Generates comparison plots across models and training datasets
+
+### Output
+
+The workflow produces:
+- Trained model checkpoints in `{output_dir}/run.{timestamp}/checkpoint_logs/`
+- Per-tree evaluation CSVs in `{output_dir}/run.{timestamp}/tree_eval_logs/`
+- Summary CSV: `{output_dir}/run.{timestamp}/tree_eval_logs/tree_eval_summary.csv`
+- Comparison plots: `{output_dir}/run.{timestamp}/tree_eval_logs/model_comparison-*.pdf`
 
 ## Logging training
 

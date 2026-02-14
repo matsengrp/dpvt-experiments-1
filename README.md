@@ -30,6 +30,12 @@ pixi install
 pixi shell
 ```
 
+Finally, install the custom phangorn fork (required for tree search logging):
+
+```bash
+pixi run install-phangorn
+```
+
 
 ## Standard Training Workflow
 

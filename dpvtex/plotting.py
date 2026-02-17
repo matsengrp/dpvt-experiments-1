@@ -207,8 +207,9 @@ def get_stats_from_data(data_path, take_first=True):
     data_dict = load_data(data_path)
 
     for i, (tree, vec) in enumerate(data_dict.items()):
-        num_leaves = [len(tree.get_leaves()) + 1]  # add one for root leaf
-        num_sites = [len(x.sequence) for x in tree.get_leaves()]
+        leaves = tree.get_leaves()
+        num_leaves = [len(leaves) + 1]  # add one for root leaf
+        num_sites = [len(leaves[0].sequence)]
 
         data_stats["num_leaves"] += num_leaves
         data_stats["num_sites"] += num_sites
@@ -1114,7 +1115,9 @@ def _add_data_stats_columns(
                     summary_df[f"{prefix}_data"].apply(extractor), errors="coerce"
                 )
     else:
-        data_stats = build_data_stats_dict(summary_df, nicknames_dict, working_dir)
+        data_stats = build_data_stats_dict(
+            summary_df, nicknames_dict, working_dir, take_first=False
+        )
         for prefix in ("train", "test"):
             for stat in extractors:
                 summary_df[f"{prefix}_{stat}"] = [

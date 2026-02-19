@@ -113,6 +113,7 @@ def generate_prepare_config(
     edge_distributions=None,
     spr_target_non_mp_proportion=None,
     subtree_target_non_mp_proportion=None,
+    max_trees=DEFAULT_MAX_TREES,
 ):
     """Generate Phase 1 & 2 config (prepare).
 
@@ -186,7 +187,7 @@ larch_output: "{dataset_path}"
 num_cores: {DEFAULT_NUM_CORES}
 
 # Tree extraction parameters
-max_trees: {DEFAULT_MAX_TREES}                           # Max trees to extract per alignment
+max_trees: {max_trees}                           # Max trees to extract per alignment
 
 # SPR parameters (for constant/uniform edge distributions)
 spr_radius: {DEFAULT_SPR_RADIUS}                          # Max topological distance for SPR regraft (null = unlimited)
@@ -210,6 +211,8 @@ def generate_phase3_config(
     spr_target_non_mp_proportion=None,
     subtree_target_non_mp_proportion=None,
     input_dir_override=None,
+    proportion_suffix="",
+    max_trees=DEFAULT_MAX_TREES,
 ):
     """Generate Phase 3 config for train, test, or filtered (no-split) data.
 
@@ -225,6 +228,8 @@ def generate_phase3_config(
             replacement. If None, uses DEFAULT_SUBTREE_TARGET_NON_MP_PROPORTION.
         input_dir_override: If provided, use this path for input_data instead of
             constructing it from dataset_name and split_type.
+        proportion_suffix: Suffix to append to the output dataset name (e.g., "_t0.05")
+            to distinguish outputs generated with different target proportions.
     """
     if edge_distributions is None:
         edge_distributions = ["constant"]
@@ -256,13 +261,17 @@ def generate_phase3_config(
         # Output goes to parent directory of input
         output_data_path = os.path.dirname(input_dir_override.rstrip("/"))
         # Extract dataset name from the override path for output naming
-        output_dataset_name = os.path.basename(input_dir_override.rstrip("/"))
+        output_dataset_name = (
+            os.path.basename(input_dir_override.rstrip("/")) + proportion_suffix
+        )
     else:
         input_data_path = (
             f"{dataset_path}/{dataset_name}_{split_type}_{min_frac_sites_retained}"
         )
         output_data_path = dataset_path
-        output_dataset_name = f"{dataset_name}_{split_type}_{min_frac_sites_retained}"
+        output_dataset_name = (
+            f"{dataset_name}_{split_type}_{min_frac_sites_retained}{proportion_suffix}"
+        )
 
     return f"""# Phase 3 Config: {split_name} for {dataset_name}
 # This config points to the {comment}
@@ -283,7 +292,7 @@ num_cores: {DEFAULT_NUM_CORES}
 remove_duplicate_site_patterns: False
 
 # Tree extraction parameters
-max_trees: {DEFAULT_MAX_TREES}                           # Max trees to extract per alignment
+max_trees: {max_trees}                           # Max trees to extract per alignment
 
 # SPR parameters (for constant/uniform edge distributions)
 spr_radius: {DEFAULT_SPR_RADIUS}                          # Max topological distance for SPR regraft (null = unlimited)
@@ -368,6 +377,12 @@ Examples:
         "--p3-input-dir",
         help="Override the Phase 3 input directory path (for pre-existing data that doesn't follow naming convention)",
     )
+    parser.add_argument(
+        "--max-trees",
+        type=int,
+        default=DEFAULT_MAX_TREES,
+        help=f"Max trees to extract per alignment (default: {DEFAULT_MAX_TREES})",
+    )
 
     args = parser.parse_args()
 
@@ -400,6 +415,7 @@ Examples:
             edge_distributions=edge_distributions,
             spr_target_non_mp_proportion=proportion,
             subtree_target_non_mp_proportion=proportion,
+            max_trees=args.max_trees,
         )
 
         prepare_path = os.path.join(
@@ -422,6 +438,8 @@ Examples:
                 input_dir_override=(
                     args.p3_input_dir if split_type == "filtered" else None
                 ),
+                proportion_suffix=suffix,
+                max_trees=args.max_trees,
             )
 
             # Build filename with appropriate config type name

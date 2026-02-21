@@ -21,6 +21,7 @@ import argparse
 import os
 import pickle
 import random
+import re
 from glob import glob
 
 DEFAULT_PATTERN = "orthomam_train_filtered_0.5_t*_spr_r2_t*.p"
@@ -42,8 +43,11 @@ def find_proportion_pickles(data_root, pattern):
     for path in paths:
         basename = os.path.basename(path)
         # Extract proportion from filename like "..._t0.05_spr_r2_t0.05.p"
-        # The proportion appears after the last "_t" before ".p"
+        # or "..._t0.1_spr_r2_t0.1_m1.p" (with max_trees suffix)
+        # The proportion appears after the last "_t" before ".p" or "_m{N}.p"
         name = basename[:-2]  # strip ".p"
+        # Strip optional _m{N} suffix before parsing proportion
+        name = re.sub(r"_m\d+$", "", name)
         parts = name.rsplit("_t", 1)
         if len(parts) == 2:
             try:
@@ -90,10 +94,12 @@ def report_nonmp_stats(combined_dict):
     """Report non-MP edge fraction statistics for the combined dataset."""
     fractions = []
     for tree, labels in combined_dict.items():
-        # Skip first 2 labels (masked root + first child)
-        edge_labels = labels[2:]
-        if len(edge_labels) > 0:
-            frac = sum(edge_labels) / len(edge_labels)
+        num_leaves = len(tree)
+        # Internal edges excluding masked root + first child
+        num_internal = len(labels) - 2 - num_leaves
+        num_nonmp = sum(labels[2:])  # leaves are always 0, so sum is just non-MP internals
+        if num_internal > 0:
+            frac = num_nonmp / num_internal
             fractions.append(frac)
 
     if not fractions:

@@ -36,7 +36,7 @@ scripts_dir = os.path.join(snakefile_dir, "scripts")
 if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
-from utils import EDGE_DIST_TO_SUFFIX, SUFFIX_TO_EDGE_DIST, get_dup_sites_suffix, get_full_edge_suffix
+from utils import EDGE_DIST_TO_SUFFIX, SUFFIX_TO_EDGE_DIST, get_dup_sites_suffix, get_full_edge_suffix, get_max_trees_suffix
 
 # Config file can be specified via --configfile on command line
 default_config_path = os.path.join(snakefile_dir, "config.yaml")
@@ -68,6 +68,9 @@ spr_radius = config.get("spr_radius", None)  # None means unlimited
 spr_target_non_mp_proportion = config.get("spr_target_non_mp_proportion", 0.1)
 max_spr_attempts = config.get("max_spr_attempts", 100)
 
+# Tree extraction parameters
+max_trees = config.get("max_trees", 200)
+
 # Subtree replacement parameters
 subtree_max_attempts = config.get("subtree_max_attempts", 100)
 subtree_target_non_mp_proportion = config.get("subtree_target_non_mp_proportion", 1/6)
@@ -84,7 +87,7 @@ dup_sites_suffix = get_dup_sites_suffix(remove_site_patterns)
 # Build full edge suffixes including SPR/subtree parameters
 FULL_EDGE_SUFFIX = {
     ed: get_full_edge_suffix(ed, spr_radius, spr_target_non_mp_proportion,
-                             subtree_target_non_mp_proportion)
+                             subtree_target_non_mp_proportion, max_trees)
     for ed in edge_distributions
 }
 FULL_SUFFIX_TO_EDGE_DIST = {v: k for k, v in FULL_EDGE_SUFFIX.items()}
@@ -171,6 +174,8 @@ rule generate_dpvt_data:
         spr_radius=spr_radius,
         spr_target_non_mp_proportion=spr_target_non_mp_proportion,
         max_spr_attempts=max_spr_attempts,
+        # Tree extraction parameters
+        max_trees=max_trees,
         # Subtree parameters
         subtree_max_attempts=subtree_max_attempts,
         subtree_target_non_mp_proportion=subtree_target_non_mp_proportion,
@@ -196,6 +201,7 @@ rule generate_dpvt_data:
                 subtree_max_attempts={params.subtree_max_attempts} \
                 subtree_target_non_mp_proportion={params.subtree_target_non_mp_proportion} \
                 subtree_depth={subtree_depth_str} \
+                max_trees={params.max_trees} \
             --rerun-incomplete \
             --nolock
         """)

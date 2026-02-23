@@ -8,8 +8,10 @@ import argparse
 import os
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.colors import Normalize
 
 from dpvtex.plotting import DATASET_NAMES, DPI, FONT_LARGE, FONT_MED, FONT_SMALL
 
@@ -49,7 +51,14 @@ def _make_strip_panel(ax, df, y_col, title, ylabel):
     ax.set_xlabel("")
     ax.tick_params(axis="x", labelsize=FONT_SMALL, rotation=30)
     ax.tick_params(axis="y", labelsize=FONT_SMALL)
-    ax.legend(title="Start type", fontsize=FONT_SMALL - 2, title_fontsize=FONT_SMALL - 1)
+    ax.legend(
+        title="Start type",
+        fontsize=FONT_SMALL - 2,
+        title_fontsize=FONT_SMALL - 1,
+        bbox_to_anchor=(1.02, 1),
+        loc="upper left",
+        borderaxespad=0,
+    )
 
 
 def plot_labeling_problem(df, output_dir):
@@ -95,6 +104,94 @@ def plot_labeling_problem(df, output_dir):
     print(f"Saved figure to {output_path}")
 
 
+def plot_labeling_problem_all_trees(df, output_dir):
+    """Scatter plot of frac_non_dag_edges for every intermediate tree.
+
+    Layout: one row per dataset, one column per start_type.
+    x-axis = replicate, y-axis = frac_non_dag_edges.
+    Color = normalized_tree_index (viridis: dark=start, yellow=end).
+
+    Args:
+        df: DataFrame with tree_index and normalized_tree_index columns.
+        output_dir: Directory to save the output figure.
+    """
+    df = df.copy()
+    df["dataset_display"] = df["dataset"].map(_get_display_name)
+
+    datasets = df["dataset_display"].unique()
+    start_types = df["start_type"].unique()
+    n_rows = len(datasets)
+    n_cols = len(start_types)
+
+    fig, axes = plt.subplots(
+        n_rows,
+        n_cols,
+        figsize=(5 * n_cols + 1, 4 * n_rows),
+        squeeze=False,
+        sharey=True,
+        layout="constrained",
+    )
+
+    cmap = plt.cm.viridis
+    norm = Normalize(vmin=0, vmax=1)
+
+    for row_idx, dataset_disp in enumerate(datasets):
+        for col_idx, st in enumerate(start_types):
+            ax = axes[row_idx, col_idx]
+            sub = df[(df["dataset_display"] == dataset_disp) & (df["start_type"] == st)]
+
+            if sub.empty:
+                ax.set_visible(False)
+                continue
+
+            # Assign integer x-position per replicate (sorted)
+            reps = sorted(sub["replicate"].unique())
+            rep_to_x = {r: i for i, r in enumerate(reps)}
+            x = sub["replicate"].map(rep_to_x)
+
+            sc = ax.scatter(
+                x + np.random.default_rng(42).uniform(-0.2, 0.2, size=len(x)),
+                sub["frac_non_dag_edges"],
+                c=sub["normalized_tree_index"],
+                cmap=cmap,
+                norm=norm,
+                s=12,
+                alpha=0.7,
+                edgecolors="none",
+            )
+
+            ax.set_xticks(range(len(reps)))
+            ax.set_xticklabels(
+                [r.replace("_tree_search.p", "") for r in reps],
+                fontsize=FONT_SMALL - 2,
+                rotation=45,
+                ha="right",
+            )
+            ax.tick_params(axis="y", labelsize=FONT_SMALL)
+
+            if row_idx == 0:
+                ax.set_title(st, fontsize=FONT_LARGE)
+            if col_idx == 0:
+                ax.set_ylabel(
+                    f"{dataset_disp}\nFrac non-DAG edges",
+                    fontsize=FONT_MED,
+                )
+
+    cbar = fig.colorbar(
+        plt.cm.ScalarMappable(norm=norm, cmap=cmap),
+        ax=axes,
+        location="right",
+        shrink=0.6,
+        pad=0.04,
+    )
+    cbar.set_label("Search progress (0=start, 1=end)", fontsize=FONT_MED)
+    cbar.ax.tick_params(labelsize=FONT_SMALL)
+    output_path = os.path.join(output_dir, "labeling_problem_all_trees.pdf")
+    fig.savefig(output_path, dpi=DPI, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved figure to {output_path}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Plot labeling problem metrics from quantify_labeling_problem CSVs."
@@ -121,7 +218,19 @@ def main():
     df = pd.concat(dfs, ignore_index=True)
 
     print(f"Loaded {len(df)} rows across {df['dataset'].nunique()} datasets")
-    plot_labeling_problem(df, args.output_dir)
+
+    if "tree_index" in df.columns:
+        # All-trees CSV: produce scatter plot and summary strip plot
+        plot_labeling_problem_all_trees(df, args.output_dir)
+        # Filter to last tree per replicate for the summary strip plot
+        last_tree_mask = (
+            df.groupby(["dataset", "start_type", "replicate"])["tree_index"]
+            .transform("max")
+            == df["tree_index"]
+        )
+        plot_labeling_problem(df[last_tree_mask], args.output_dir)
+    else:
+        plot_labeling_problem(df, args.output_dir)
 
 
 if __name__ == "__main__":

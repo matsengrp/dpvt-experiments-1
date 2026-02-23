@@ -144,6 +144,18 @@ python quantify_labeling_problem.py \
 The output CSV is named automatically based on the datasets (e.g.
 `labeling_problem_influenzaC_fluC_M_rotavirusA_H_H2.csv`).
 
+Use `--all-trees` to analyze every intermediate tree in the search (not just the
+final tree). This produces a CSV with one row per tree per replicate, including
+`tree_index` and `normalized_tree_index` columns:
+
+```bash
+python quantify_labeling_problem.py \
+  --data-root ../../shared_data \
+  --output-dir ../../shared_data/treesearch \
+  --datasets influenzaC_fluC_M \
+  --start-types nj random --all-trees
+```
+
 ## Next Steps
 
 After generating treesearch data, use `train/treesearch.snakefile` to train

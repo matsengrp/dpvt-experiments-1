@@ -129,9 +129,8 @@ The pipeline produces:
 
 Compares phangorn's best parsimony scores against larch's DAG optimum to
 identify trees where edge labels may be incorrect. For each replicate, it
-computes the score gap between phangorn and larch, counts trees at or below the
-MP score, and measures the fraction of suspect (non-MP) labels in MP-score
-trees.
+computes the score gap between phangorn's last tree and larch's MP score, and
+measures the fraction of edges not supported by the DAG (non-DAG edges).
 
 ```bash
 python quantify_labeling_problem.py \

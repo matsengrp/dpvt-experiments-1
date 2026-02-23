@@ -194,14 +194,57 @@ of searches.
 - Trees early in the search may dominate the dataset (searches log many early
   trees before converging)
 
+### E. Threshold tuning / probability calibration
+
+**Description**: The current models have good ranking ability (AUROC 0.71-0.82)
+but are severely miscalibrated: predicted probabilities are in the 0.01-0.04
+range, so the default 0.5 classification threshold produces near-zero recall.
+TraverseAvgPooling never predicts a single positive edge across the entire
+evaluation set. Recalibrating the decision threshold or the probabilities
+themselves would recover usable classification performance from the existing
+models without retraining.
+
+**Expected benefit**: Medium. Immediately improves precision/recall/F1 from the
+existing trained models. Does not address the underlying distribution mismatch
+(AUROC still degrades late in the search), but makes the current models usable
+for classification.
+
+**Implementation options**:
+
+- **Threshold tuning**: Compute the ROC curve on a validation set and pick the
+  threshold that maximizes Youden's J (sensitivity + specificity - 1) or F1.
+  The optimal threshold will likely be around 0.01-0.03 rather than 0.5. This
+  is a standard post-processing step for imbalanced classification.
+- **Temperature scaling**: Learn a single temperature parameter T on a
+  validation set, then use `sigmoid(logit / T)` instead of `sigmoid(logit)`.
+  This recalibrates probabilities so that a prediction of 0.3 actually means
+  ~30% chance of being non-DAG. Standard method from Guo et al. 2017.
+- **Per-stage thresholds**: Since class balance shifts dramatically during tree
+  search (97% non-DAG at start, 4% at end), a single threshold may not work
+  well across all stages. Could learn separate thresholds for early/mid/late
+  search, or use the predicted non-DAG fraction to adapt the threshold.
+
+**Considerations**:
+
+- This is independent of ideas A-D and can be applied on top of any training
+  approach
+- Requires a held-out validation set (some of the treesearch evaluation data
+  could serve this role)
+- Threshold tuning is the simplest option and should be tried first
+- Even with perfect calibration, the model still struggles in the late-search
+  regime (AUROC drops from 0.87 to 0.78 for TraverseMaxPooling), so this
+  complements rather than replaces training improvements
+
 ---
 
 ## Suggested issue structure and order
 
-These should be split into three separate issues:
+These should be split into separate issues:
 
-1. **Idea A** (feasibility experiment) - cheap and answers whether the model can
+1. **Idea E** (threshold tuning) - cheapest of all, no retraining needed. Apply
+   to existing models immediately to get usable classification.
+2. **Idea A** (feasibility experiment) - cheap and answers whether the model can
    learn the near-MP regime at all. If it can't, the other ideas won't help.
-2. **Idea B** (seed larch with phangorn's tree) - can start in parallel with A.
+3. **Idea B** (seed larch with phangorn's tree) - can start in parallel with A.
    Improves label correctness and data relevance for everything downstream.
-3. **Ideas C or D** (broader coverage) - pick based on results from A and B.
+4. **Ideas C or D** (broader coverage) - pick based on results from A and B.

@@ -123,6 +123,27 @@ The pipeline produces:
 - Updated nicknames JSON file with glob pattern entries for automatic replicate
   discovery
 
+## Standalone Scripts
+
+### `quantify_labeling_problem.py`
+
+Compares phangorn's best parsimony scores against larch's DAG optimum to
+identify trees where edge labels may be incorrect. For each replicate, it
+computes the score gap between phangorn and larch, counts trees at or below the
+MP score, and measures the fraction of suspect (non-MP) labels in MP-score
+trees.
+
+```bash
+python quantify_labeling_problem.py \
+  --data-root ../../shared_data \
+  --output-dir ../../shared_data/treesearch \
+  --datasets influenzaC_fluC_M rotavirusA_H_H2 \
+  --start-types nj random
+```
+
+The output CSV is named automatically based on the datasets (e.g.
+`labeling_problem_influenzaC_fluC_M_rotavirusA_H_H2.csv`).
+
 ## Next Steps
 
 After generating treesearch data, use `train/treesearch.snakefile` to train

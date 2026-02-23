@@ -7,6 +7,7 @@ docs/quantify_labeling_plan.md for full context.
 
 import argparse
 import glob
+import math
 import os
 import pickle
 import sys
@@ -87,6 +88,57 @@ def analyze_replicate(pickle_path, fasta_path, mp_score):
     }
 
 
+def analyze_replicate_all_trees(pickle_path, fasta_path, mp_score):
+    """Analyze all trees in a single replicate for labeling problems.
+
+    Returns one row per tree. ``frac_non_dag_edges`` is computed cheaply from
+    labels for every tree.  ``score_gap`` is only computed for the **last**
+    tree (parsimony scoring is expensive); other trees get NaN.
+
+    Args:
+        pickle_path: Path to tree search pickle (dict of ete3.Tree -> list[int]).
+        fasta_path: Path to FASTA alignment file.
+        mp_score: The larch DAG's MP parsimony score.
+
+    Returns:
+        list[dict] | None: One dict per tree with keys tree_index,
+            normalized_tree_index, score_gap, num_non_dag_edges,
+            frac_non_dag_edges.
+    """
+    with open(pickle_path, "rb") as f:
+        data_dict = pickle.load(f)
+
+    trees = list(data_dict.keys())
+    labels_list = list(data_dict.values())
+    num_trees = len(trees)
+
+    if num_trees == 0:
+        return None
+
+    # Compute score_gap only for the last tree
+    last_tree = trees[-1]
+    last_score = get_parsimony_scores([last_tree], fasta_path)[0]
+    last_score_gap = last_score - mp_score
+
+    rows = []
+    for i, (tree, labels) in enumerate(zip(trees, labels_list)):
+        num_non_dag = sum(labels)
+        total_edges = len(tree) - 2
+        frac_non_dag = num_non_dag / total_edges if total_edges > 0 else 0.0
+
+        rows.append(
+            {
+                "tree_index": i,
+                "normalized_tree_index": i / (num_trees - 1) if num_trees > 1 else 1.0,
+                "score_gap": last_score_gap if i == num_trees - 1 else math.nan,
+                "num_non_dag_edges": num_non_dag,
+                "frac_non_dag_edges": frac_non_dag,
+            }
+        )
+
+    return rows
+
+
 def discover_replicates(data_root, datasets, start_types):
     """Discover all replicate pickle files.
 
@@ -139,6 +191,13 @@ def main():
         nargs="+",
         required=True,
         help="Start types to analyze",
+    )
+    parser.add_argument(
+        "--all-trees",
+        action="store_true",
+        help="Analyze all intermediate trees (not just the last one). "
+        "Output has one row per tree per replicate with tree_index and "
+        "normalized_tree_index columns.",
     )
     args = parser.parse_args()
 
@@ -201,21 +260,37 @@ def main():
         if mp_score is None:
             continue
 
-        metrics = analyze_replicate(pickle_path, fasta_path, mp_score)
-        if metrics is None:
-            print("  Warning: empty pickle, skipping")
-            continue
-
-        metrics["dataset"] = dataset
-        metrics["start_type"] = start_type
-        metrics["replicate"] = rep_name
-        metrics["mp_score"] = mp_score
-        results.append(metrics)
-
-        print(
-            f"  score_gap={metrics['score_gap']}, "
-            f"frac_non_dag_edges={metrics['frac_non_dag_edges']:.4f}"
-        )
+        if args.all_trees:
+            rows = analyze_replicate_all_trees(pickle_path, fasta_path, mp_score)
+            if rows is None:
+                print("  Warning: empty pickle, skipping")
+                continue
+            for row in rows:
+                row["dataset"] = dataset
+                row["start_type"] = start_type
+                row["replicate"] = rep_name
+                row["mp_score"] = mp_score
+                results.append(row)
+            last = rows[-1]
+            print(
+                f"  {len(rows)} trees, "
+                f"last: score_gap={last['score_gap']}, "
+                f"frac_non_dag_edges={last['frac_non_dag_edges']:.4f}"
+            )
+        else:
+            metrics = analyze_replicate(pickle_path, fasta_path, mp_score)
+            if metrics is None:
+                print("  Warning: empty pickle, skipping")
+                continue
+            metrics["dataset"] = dataset
+            metrics["start_type"] = start_type
+            metrics["replicate"] = rep_name
+            metrics["mp_score"] = mp_score
+            results.append(metrics)
+            print(
+                f"  score_gap={metrics['score_gap']}, "
+                f"frac_non_dag_edges={metrics['frac_non_dag_edges']:.4f}"
+            )
 
     if not results:
         print("\nNo results collected.")
@@ -223,7 +298,7 @@ def main():
 
     # Build DataFrame and save
     df = pd.DataFrame(results)
-    column_order = [
+    base_cols = [
         "dataset",
         "start_type",
         "replicate",
@@ -232,16 +307,27 @@ def main():
         "num_non_dag_edges",
         "frac_non_dag_edges",
     ]
+    if args.all_trees:
+        column_order = base_cols[:3] + ["tree_index", "normalized_tree_index"] + base_cols[3:]
+    else:
+        column_order = base_cols
     df = df[column_order]
     dataset_tag = "_".join(datasets)
-    output_csv = os.path.join(args.output_dir, f"labeling_problem_{dataset_tag}.csv")
+    suffix = "_all_trees" if args.all_trees else ""
+    output_csv = os.path.join(
+        args.output_dir, f"labeling_problem_{dataset_tag}{suffix}.csv"
+    )
     df.to_csv(output_csv, index=False)
     print(f"\nResults saved to {output_csv}")
 
-    # Print summary
+    # Print summary (use last tree per replicate for all-trees mode)
+    if args.all_trees:
+        summary_df = df[df.groupby(["dataset", "start_type", "replicate"])["tree_index"].transform("max") == df["tree_index"]]
+    else:
+        summary_df = df
     print("\n=== Summary by dataset (last tree per replicate) ===")
-    for dataset in df["dataset"].unique():
-        ddf = df[df["dataset"] == dataset]
+    for dataset in summary_df["dataset"].unique():
+        ddf = summary_df[summary_df["dataset"] == dataset]
         print(f"\n{dataset}:")
         print(f"  MP score (larch):            {ddf['mp_score'].iloc[0]}")
         print(f"  Avg score gap:               {ddf['score_gap'].mean():.1f}")

@@ -111,10 +111,10 @@ Also directly addresses the failure mode.
 
 **Status**: Deprioritized based on findings in issue #50. The analysis showed
 that while phangorn routinely matches or beats larch (see phangorn-larch
-comparison analysis), it does **not** explain the late-search AUROC degradation. The dataset
-with the cleanest labels (fluC_PB2) shows the worst AUROC drop, while the
-noisiest (rotavirusA_H_H2) shows the least. The dominant driver is class
-imbalance shift during search, which this idea does not address. Effort is
+comparison analysis), it does **not** explain the late-search AUROC degradation.
+The dataset with the cleanest labels (fluC_PB2) shows the worst AUROC drop,
+while the noisiest (rotavirusA_H_H2) shows the least. The dominant driver is
+class imbalance shift during search, which this idea does not address. Effort is
 better spent on Ideas A, C, and D which directly target the distribution
 mismatch.
 
@@ -151,9 +151,9 @@ including the critical low-fraction regime.
 
 **Implementation options**:
 
-- **Multiple pipeline runs**: Use the existing `-p` flag in `generate_configs.py`
-  to generate training data at several targets (e.g., 1%, 5%, 10%, 20%, 50%)
-  and combine the resulting pickle files
+- **Multiple pipeline runs**: Use the existing `-p` flag in
+  `generate_configs.py` to generate training data at several targets (e.g., 1%,
+  5%, 10%, 20%, 50%) and combine the resulting pickle files
 - **Tune `treesearch_mimic`**: First test the current `treesearch_mimic` as-is.
   If the low non-MP regime is still underrepresented, adjust the split in
   `generate_perturbed_trees_with_labels()` in
@@ -223,23 +223,23 @@ models without retraining.
 
 **Expected benefit**: ~~Medium.~~ Low for now. Immediately improves
 precision/recall/F1 from the existing trained models, but does not address the
-underlying distribution mismatch (AUROC still degrades late in the search).
-Only relevant when the model is actually deployed for classification.
+underlying distribution mismatch (AUROC still degrades late in the search). Only
+relevant when the model is actually deployed for classification.
 
 **Implementation options**:
 
 - **Threshold tuning**: Compute the ROC curve on a validation set and pick the
-  threshold that maximizes Youden's J (sensitivity + specificity - 1) or F1.
-  The optimal threshold will likely be around 0.01-0.03 rather than 0.5. This
-  is a standard post-processing step for imbalanced classification.
+  threshold that maximizes Youden's J (sensitivity + specificity - 1) or F1. The
+  optimal threshold will likely be around 0.01-0.03 rather than 0.5. This is a
+  standard post-processing step for imbalanced classification.
 - **Temperature scaling**: Learn a single temperature parameter T on a
   validation set, then use `sigmoid(logit / T)` instead of `sigmoid(logit)`.
   This recalibrates probabilities so that a prediction of 0.3 actually means
   ~30% chance of being non-DAG. Standard method from Guo et al. 2017.
 - **Per-stage thresholds**: Since class balance shifts dramatically during tree
-  search (97% non-DAG at start, 4% at end), a single threshold may not work
-  well across all stages. Could learn separate thresholds for early/mid/late
-  search, or use the predicted non-DAG fraction to adapt the threshold.
+  search (97% non-DAG at start, 4% at end), a single threshold may not work well
+  across all stages. Could learn separate thresholds for early/mid/late search,
+  or use the predicted non-DAG fraction to adapt the threshold.
 
 **Considerations**:
 
@@ -318,10 +318,12 @@ compromising across all of them.
 
 These should be split into separate issues:
 
-1. **Idea A** (feasibility experiment) - cheap and answers whether the model can
+1. **Idea E** (threshold tuning) - cheapest of all, no retraining needed. Apply
+   to existing models immediately to get usable classification.
+2. **Idea A** (feasibility experiment) - cheap and answers whether the model can
    learn the near-MP regime at all. If it can't, the other ideas won't help.
-2. **Ideas C or D** (broader coverage) - pick based on results from A.
-3. ~~**Idea B**~~ (deprioritized) - label correctness is not the driver of the
+3. **Ideas C or D** (broader coverage) - pick based on results from A.
+4. ~~**Idea B**~~ (deprioritized) - label correctness is not the driver of the
    evaluation problem (see issue #50).
-4. ~~**Idea E**~~ (deprioritized) - AUROC already captures ranking ability;
+5. ~~**Idea E**~~ (deprioritized) - AUROC already captures ranking ability;
    threshold tuning only matters when deploying for classification.

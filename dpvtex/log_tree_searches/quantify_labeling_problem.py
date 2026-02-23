@@ -11,9 +11,12 @@ import os
 import pickle
 import sys
 
-import historydag as hdag
 import pandas as pd
 
+from dpvtex.larch.scripts.extract_data_from_hdag import (
+    _load_dag_from_file,
+    _prepare_dag_for_extraction,
+)
 from dpvtex.treesearch_plots import get_parsimony_scores
 
 
@@ -27,14 +30,9 @@ def get_dag_mp_score(dag_path, fasta_path):
     Returns:
         int: The parsimony score of an optimal tree from the DAG.
     """
-    dag = hdag.mutation_annotated_dag.load_MAD_protobuf_file(
-        dag_path, compact_genomes=True
-    )
-    dag.trim_optimal_weight()
-    seq_dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
-    seq_dag.unlabel()
+    dag = _load_dag_from_file(dag_path)
+    seq_dag = _prepare_dag_for_extraction(dag)
 
-    # Extract one tree and compute its parsimony score
     tree = next(seq_dag.get_histories()).to_ete(
         name_func=lambda n: n.label.node_id, features=["sequence"]
     )
@@ -43,7 +41,10 @@ def get_dag_mp_score(dag_path, fasta_path):
 
 
 def analyze_replicate(pickle_path, fasta_path, mp_score):
-    """Analyze a single replicate for labeling problems.
+    """Analyze the last tree of a single replicate for labeling problems.
+
+    All metrics are computed on the last tree in the pickle (the final output
+    of phangorn's tree search).
 
     Args:
         pickle_path: Path to tree search pickle (dict of ete3.Tree -> list[int]).
@@ -51,67 +52,38 @@ def analyze_replicate(pickle_path, fasta_path, mp_score):
         mp_score: The larch DAG's MP parsimony score.
 
     Returns:
-        dict: Metrics for this replicate:
-            - score_gap: phangorn best - larch MP (negative = phangorn beats larch)
-            - num_at_or_below_mp: trees with parsimony score <= larch MP
-            - num_below_mp: trees that strictly beat larch
-            - frac_late_search_at_mp: fraction of last 20% of trees at/below MP
-            - total_nonmp_labels_in_mp_trees: suspect non-MP labels in MP-score trees
-            - frac_suspect_labels: suspect labels / total edges in those trees
+        dict: Metrics for this replicate (all based on the last tree):
+            - score_gap: last tree score - larch MP (negative = phangorn beats larch)
+            - num_non_dag_edges: edges not supported by DAG in the last tree
+            - frac_non_dag_edges: non-DAG edges / total edges in the last tree
     """
     with open(pickle_path, "rb") as f:
         data_dict = pickle.load(f)
 
     trees = list(data_dict.keys())
     labels_list = list(data_dict.values())
-    num_trees = len(trees)
 
-    if num_trees == 0:
+    if len(trees) == 0:
         return None
 
-    # Compute parsimony scores for all trees
-    pscores = get_parsimony_scores(trees, fasta_path)
-    best_score = min(pscores)
-    score_gap = best_score - mp_score
+    # Use the last tree (final output of tree search)
+    last_tree = trees[-1]
+    last_labels = labels_list[-1]
 
-    # Count trees at or below MP
-    num_at_or_below_mp = sum(1 for s in pscores if s <= mp_score)
-    num_below_mp = sum(1 for s in pscores if s < mp_score)
+    # Compute parsimony score for the last tree
+    pscores = get_parsimony_scores([last_tree], fasta_path)
+    last_score = pscores[0]
+    score_gap = last_score - mp_score
 
-    # Late-search statistics (last 20% of trees)
-    late_start = int(num_trees * 0.8)
-    late_scores = pscores[late_start:]
-    frac_late_search_at_mp = (
-        sum(1 for s in late_scores if s <= mp_score) / len(late_scores)
-        if late_scores
-        else 0.0
-    )
-
-    # Count suspect labels: non-MP labels in trees with score <= MP
-    # Positions 0-1 are masked root/first-child (always labeled 0), so skip them
-    total_suspect_labels = 0
-    total_edges_in_mp_trees = 0
-    for i, score in enumerate(pscores):
-        if score <= mp_score:
-            labels = labels_list[i]
-            # Count non-MP labels at positions 2+ (skip masked root/first-child)
-            suspect = sum(1 for label in labels[2:] if label == 1)
-            total_suspect_labels += suspect
-            total_edges_in_mp_trees += len(labels) - 2  # exclude masked positions
-
-    frac_suspect_labels = (
-        total_suspect_labels / total_edges_in_mp_trees
-        if total_edges_in_mp_trees > 0
-        else 0.0
-    )
+    # Count non-DAG edges in the last tree (label 1 = not supported by DAG)
+    num_non_dag = sum(last_labels)
+    total_edges = len(last_tree) - 2  # exclude masked positions
+    frac_non_dag = num_non_dag / total_edges if total_edges > 0 else 0.0
 
     return {
         "score_gap": score_gap,
-        "num_at_or_below_mp": num_at_or_below_mp,
-        "num_below_mp": num_below_mp,
-        "frac_late_search_at_mp": frac_late_search_at_mp,
-        "total_nonmp_labels_in_mp_trees": total_suspect_labels,
-        "frac_suspect_labels": frac_suspect_labels,
+        "num_non_dag_edges": num_non_dag,
+        "frac_non_dag_edges": frac_non_dag,
     }
 
 
@@ -195,7 +167,7 @@ def main():
     print(f"Datasets: {datasets}")
     print(f"Start types: {start_types}")
 
-    # Cache DAG MP scores per dataset
+    # Cache DAG MP score per dataset
     mp_score_cache = {}
     results = []
 
@@ -242,8 +214,7 @@ def main():
 
         print(
             f"  score_gap={metrics['score_gap']}, "
-            f"at_or_below_mp={metrics['num_at_or_below_mp']}, "
-            f"frac_suspect={metrics['frac_suspect_labels']:.4f}"
+            f"frac_non_dag_edges={metrics['frac_non_dag_edges']:.4f}"
         )
 
     if not results:
@@ -258,11 +229,8 @@ def main():
         "replicate",
         "mp_score",
         "score_gap",
-        "num_at_or_below_mp",
-        "num_below_mp",
-        "frac_late_search_at_mp",
-        "total_nonmp_labels_in_mp_trees",
-        "frac_suspect_labels",
+        "num_non_dag_edges",
+        "frac_non_dag_edges",
     ]
     df = df[column_order]
     dataset_tag = "_".join(datasets)
@@ -271,16 +239,14 @@ def main():
     print(f"\nResults saved to {output_csv}")
 
     # Print summary
-    print("\n=== Summary by dataset ===")
+    print("\n=== Summary by dataset (last tree per replicate) ===")
     for dataset in df["dataset"].unique():
         ddf = df[df["dataset"] == dataset]
         print(f"\n{dataset}:")
         print(f"  MP score (larch):            {ddf['mp_score'].iloc[0]}")
         print(f"  Avg score gap:               {ddf['score_gap'].mean():.1f}")
         print(f"  Replicates with gap <= 0:    {(ddf['score_gap'] <= 0).sum()} / {len(ddf)}")
-        print(f"  Avg trees at/below MP:       {ddf['num_at_or_below_mp'].mean():.1f}")
-        print(f"  Avg frac late search at MP:  {ddf['frac_late_search_at_mp'].mean():.3f}")
-        print(f"  Avg frac suspect labels:     {ddf['frac_suspect_labels'].mean():.4f}")
+        print(f"  Avg frac non-DAG edges:      {ddf['frac_non_dag_edges'].mean():.4f}")
 
 
 if __name__ == "__main__":

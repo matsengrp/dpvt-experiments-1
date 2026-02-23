@@ -18,6 +18,17 @@ from dpvtex.plotting import DATASET_NAMES, DPI, FONT_LARGE, FONT_MED, FONT_SMALL
 PALETTE = "Dark2"
 
 
+def _filter_last_tree_per_replicate(df):
+    """Keep only the last tree (max tree_index) per replicate."""
+    mask = (
+        df.groupby(["dataset", "start_type", "replicate"])["tree_index"].transform(
+            "max"
+        )
+        == df["tree_index"]
+    )
+    return df[mask]
+
+
 def _get_display_name(dataset):
     """Map raw dataset name to a human-readable display name."""
     return DATASET_NAMES.get(dataset, dataset)
@@ -80,7 +91,9 @@ def plot_labeling_problem(df, output_dir):
         df["frac_non_dag_edges"] = df["frac_suspect_labels"]
 
     # Determine which optional panels to include
-    has_non_dag = "frac_non_dag_edges" in df.columns and df["frac_non_dag_edges"].notna().any()
+    has_non_dag = (
+        "frac_non_dag_edges" in df.columns and df["frac_non_dag_edges"].notna().any()
+    )
 
     panels = [
         ("score_gap", "Score gap (phangorn best − larch MP)", "Score gap"),
@@ -223,12 +236,7 @@ def main():
         # All-trees CSV: produce scatter plot and summary strip plot
         plot_labeling_problem_all_trees(df, args.output_dir)
         # Filter to last tree per replicate for the summary strip plot
-        last_tree_mask = (
-            df.groupby(["dataset", "start_type", "replicate"])["tree_index"]
-            .transform("max")
-            == df["tree_index"]
-        )
-        plot_labeling_problem(df[last_tree_mask], args.output_dir)
+        plot_labeling_problem(_filter_last_tree_per_replicate(df), args.output_dir)
     else:
         plot_labeling_problem(df, args.output_dir)
 

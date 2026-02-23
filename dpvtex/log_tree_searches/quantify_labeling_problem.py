@@ -1,8 +1,7 @@
 """Quantify labeling problems in tree search evaluation data.
 
 Compares phangorn's best parsimony scores against larch's DAG optimum
-to identify trees where edge labels may be incorrect. See
-docs/quantify_labeling_plan.md for full context.
+to identify trees where edge labels may be incorrect.
 """
 
 import argparse
@@ -139,6 +138,17 @@ def analyze_replicate_all_trees(pickle_path, fasta_path, mp_score):
     return rows
 
 
+def _filter_last_tree_per_replicate(df):
+    """Keep only the last tree (max tree_index) per replicate."""
+    mask = (
+        df.groupby(["dataset", "start_type", "replicate"])["tree_index"].transform(
+            "max"
+        )
+        == df["tree_index"]
+    )
+    return df[mask]
+
+
 def discover_replicates(data_root, datasets, start_types):
     """Discover all replicate pickle files.
 
@@ -216,7 +226,9 @@ def main():
     if errors:
         print(f"Error: --data-root '{data_root}' does not have the expected layout.")
         print("Expected subdirectories:")
-        print(f"  {{data-root}}/treesearch/{{start_type}}_starting/{{dataset}}/  (pickle files)")
+        print(
+            f"  {{data-root}}/treesearch/{{start_type}}_starting/{{dataset}}/  (pickle files)"
+        )
         print(f"  {{data-root}}/viral/treesearch/{{dataset}}/           (FASTA + DAG)")
         print("Missing:")
         for e in errors:
@@ -308,7 +320,9 @@ def main():
         "frac_non_dag_edges",
     ]
     if args.all_trees:
-        column_order = base_cols[:3] + ["tree_index", "normalized_tree_index"] + base_cols[3:]
+        column_order = (
+            base_cols[:3] + ["tree_index", "normalized_tree_index"] + base_cols[3:]
+        )
     else:
         column_order = base_cols
     df = df[column_order]
@@ -322,7 +336,7 @@ def main():
 
     # Print summary (use last tree per replicate for all-trees mode)
     if args.all_trees:
-        summary_df = df[df.groupby(["dataset", "start_type", "replicate"])["tree_index"].transform("max") == df["tree_index"]]
+        summary_df = _filter_last_tree_per_replicate(df)
     else:
         summary_df = df
     print("\n=== Summary by dataset (last tree per replicate) ===")
@@ -331,7 +345,9 @@ def main():
         print(f"\n{dataset}:")
         print(f"  MP score (larch):            {ddf['mp_score'].iloc[0]}")
         print(f"  Avg score gap:               {ddf['score_gap'].mean():.1f}")
-        print(f"  Replicates with gap <= 0:    {(ddf['score_gap'] <= 0).sum()} / {len(ddf)}")
+        print(
+            f"  Replicates with gap <= 0:    {(ddf['score_gap'] <= 0).sum()} / {len(ddf)}"
+        )
         print(f"  Avg frac non-DAG edges:      {ddf['frac_non_dag_edges'].mean():.4f}")
 
 

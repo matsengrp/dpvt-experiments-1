@@ -5,59 +5,66 @@ platforms = ["linux-64"]
 
 [system-requirements]
 linux = "4.15"
-libc = { family="glibc", version="2.17" }
+libc = { family="glibc", version="2.39" }
 
 [feature.cuda.system-requirements]
 cuda = "12.4"
 
 [environments]
 default = { features = ["cuda"], solve-group = "default" }
-cpu = { features = [], solve-group = "default" }
+cpu = { features = ["bio"], solve-group = "cpu" }
 
 [dependencies]
-python = ">=3.11.9,<3.12"
-biopython = "*"
-black = "*"
-ete3 = "*"
-git-lfs = "*"
-historydag = "*"
-ipykernel = "*"
-matplotlib = "*"
-notebook = "*"
-numpy = "*"
-optuna = "*"
-pandas = "*"
-pytest = "*"
-scikit-learn = "*"
-snakefmt = "*"
-snakemake = "*"
-tensorboard = "*"
-iqtree = "*"
-usher = "<=0.6.5"
-tbparse = "*"
-seaborn = "*"
-papermill = "*"
-pytorch = ">=2.0.0,<3"
-lightning = ">=2.3.3,<3"
-torchmetrics = ">=1.8.2,<2"
-r-base = ">=4.4.0,<4.5"
+python = ">=3.12.12,<3.13"
+biopython = ">=1.86,<2"
+black = ">=24.10.0,<25"
+ete3 = ">=3.1.3,<4"
+git-lfs = ">=3.7.1,<4"
+historydag = ">=1.3.0,<2"
+ipykernel = ">=7.2.0,<8"
+matplotlib = ">=3.10.8,<4"
+notebook = ">=7.5.4,<8"
+numpy = ">=2.4.2,<3"
+optuna = ">=4.7.0,<5"
+pandas = ">=3.0.1,<4"
+pytest = ">=9.0.2,<10"
+scikit-learn = ">=1.8.0,<2"
+snakefmt = ">=0.11.4,<0.12"
+snakemake = ">=9.16.2,<10"
+tensorboard = ">=2.20.0,<3"
+iqtree = ">=3.0.1,<4"
+tbparse = ">=0.0.9,<0.0.10"
+seaborn = ">=0.13.2,<0.14"
+papermill = ">=2.6.0,<3"
+r-base = ">=4.5.2,<4.6"
 r-optparse = ">=1.7.5,<2"
 r-remotes = ">=2.5.0,<3"
-# phangorn dependencies (phangorn itself installed via `pixi run install-phangorn`)
-r-ape = ">=5.8"
-r-checkmate = "*"
-r-digest = "*"
-r-fastmatch = "*"
-r-generics = "*"
-r-igraph = ">=1.0"
-r-quadprog = "*"
-r-rcpp = "*"
-r-rcpparmadillo = "*"
+r-ape = ">=5.8_1,<6"
+r-checkmate = ">=2.3.3,<3"
+r-digest = ">=0.6.39,<0.7"
+r-fastmatch = ">=1.1_8,<2"
+r-generics = ">=0.1.4,<0.2"
+r-igraph = ">=2.1.4,<3"
+r-quadprog = ">=1.5_8,<2"
+r-rcpp = ">=1.1.1,<2"
+r-rcpparmadillo = ">=15.2.3_1,<16"
 setuptools = "<82"
+
+# usher requires protobuf <4 which conflicts with py3.12 in CUDA solves
+[feature.bio.dependencies]
+usher = ">=0.6.6,<0.7"
 
 [pypi-dependencies]
 dpvt = { path = "../dpvt", editable = true }
 dpvtex = { path = ".", editable = true }
+lightning = ">=2.6.1,<3"
+torchmetrics = ">=1.8.2,<2"
+
+[feature.cuda.pypi-dependencies]
+torch = { version = ">=2.4.1,<3", index = "https://download.pytorch.org/whl/cu124" }
+
+[feature.bio.pypi-dependencies]
+torch = ">=2.4.1,<3"
 
 [tasks]
 install-phangorn = "Rscript -e \"remotes::install_git('https://github.com/lenacoll/phangorn.git', ref='log-mp-search-trees', lib=.libPaths()[1], dependencies=FALSE)\""

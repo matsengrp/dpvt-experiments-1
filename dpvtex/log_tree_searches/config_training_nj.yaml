@@ -1,0 +1,6 @@
+input_dir: "../../shared_data/orthomam_train_0.5"
+output_dir: "../../shared_data/treesearch_training"
+larch_build: "../../../larch/build/bin/larch-usher"
+nicknames: "../../train/my_treesearch_nicknames.json"
+num_replicates: 1
+start_tree_type: "nj"

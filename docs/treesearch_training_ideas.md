@@ -110,11 +110,11 @@ Also directly addresses the failure mode.
 ### B. Seed larch with phangorn's best tree — deprioritized
 
 **Status**: Deprioritized based on findings in issue #50. The analysis showed
-that while phangorn routinely matches or beats larch (see phangorn-larch
-comparison analysis), it does **not** explain the late-search AUROC degradation.
-The dataset with the cleanest labels (fluC_PB2) shows the worst AUROC drop,
-while the noisiest (rotavirusA_H_H2) shows the least. The dominant driver is
-class imbalance shift during search, which this idea does not address. Effort is
+that while the labeling problem is real (phangorn routinely matches or beats
+larch), it does **not** explain the late-search AUROC degradation. The dataset
+with the cleanest labels (fluC_PB2) shows the worst AUROC drop, while the
+noisiest (rotavirusA_H_H2) shows the least. The dominant driver is class
+imbalance shift during search, which this idea does not address. Effort is
 better spent on Ideas A, C, and D which directly target the distribution
 mismatch.
 
@@ -318,12 +318,10 @@ compromising across all of them.
 
 These should be split into separate issues:
 
-1. **Idea E** (threshold tuning) - cheapest of all, no retraining needed. Apply
-   to existing models immediately to get usable classification.
-2. **Idea A** (feasibility experiment) - cheap and answers whether the model can
+1. **Idea A** (feasibility experiment) - cheap and answers whether the model can
    learn the near-MP regime at all. If it can't, the other ideas won't help.
-3. **Ideas C or D** (broader coverage) - pick based on results from A.
-4. ~~**Idea B**~~ (deprioritized) - label correctness is not the driver of the
+2. **Ideas C or D** (broader coverage) - pick based on results from A.
+3. ~~**Idea B**~~ (deprioritized) - label correctness is not the driver of the
    evaluation problem (see issue #50).
-5. ~~**Idea E**~~ (deprioritized) - AUROC already captures ranking ability;
+4. ~~**Idea E**~~ (deprioritized) - AUROC already captures ranking ability;
    threshold tuning only matters when deploying for classification.

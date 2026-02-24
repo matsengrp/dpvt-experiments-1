@@ -13,20 +13,12 @@ import pandas as pd
 import seaborn as sns
 from matplotlib.colors import Normalize
 
+from dpvtex.log_tree_searches.quantify_labeling_problem import (
+    _filter_last_tree_per_replicate,
+)
 from dpvtex.plotting import DATASET_NAMES, DPI, FONT_LARGE, FONT_MED, FONT_SMALL
 
 PALETTE = "Dark2"
-
-
-def _filter_last_tree_per_replicate(df):
-    """Keep only the last tree (max tree_index) per replicate."""
-    mask = (
-        df.groupby(["dataset", "start_type", "replicate"])["tree_index"].transform(
-            "max"
-        )
-        == df["tree_index"]
-    )
-    return df[mask]
 
 
 def _get_display_name(dataset):

@@ -7,12 +7,11 @@ import pandas as pd
 import pytest
 
 from dpvtex.log_tree_searches.plot_labeling_problem import (
-    _filter_last_tree_per_replicate as plot_filter,
     plot_labeling_problem,
     plot_labeling_problem_all_trees,
 )
 from dpvtex.log_tree_searches.quantify_labeling_problem import (
-    _filter_last_tree_per_replicate as quant_filter,
+    _filter_last_tree_per_replicate,
     discover_replicates,
 )
 
@@ -23,7 +22,7 @@ from dpvtex.log_tree_searches.quantify_labeling_problem import (
 
 
 class TestFilterLastTreePerReplicate:
-    """Tests for _filter_last_tree_per_replicate (both copies)."""
+    """Tests for _filter_last_tree_per_replicate."""
 
     def _make_df(self, rows):
         return pd.DataFrame(
@@ -41,10 +40,9 @@ class TestFilterLastTreePerReplicate:
                 ("ds1", "random", "rep2", 5, "e"),
             ]
         )
-        for fn in (quant_filter, plot_filter):
-            result = fn(df)
-            assert len(result) == 2
-            assert set(result["value"]) == {"c", "e"}
+        result = _filter_last_tree_per_replicate(df)
+        assert len(result) == 2
+        assert set(result["value"]) == {"c", "e"}
 
     def test_single_tree_per_replicate_returns_all(self):
         df = self._make_df(
@@ -54,9 +52,8 @@ class TestFilterLastTreePerReplicate:
                 ("ds1", "parsimony", "rep1", 0, "c"),
             ]
         )
-        for fn in (quant_filter, plot_filter):
-            result = fn(df)
-            assert len(result) == 3
+        result = _filter_last_tree_per_replicate(df)
+        assert len(result) == 3
 
     def test_filters_correctly_per_group(self):
         df = self._make_df(
@@ -69,10 +66,9 @@ class TestFilterLastTreePerReplicate:
                 ("ds1", "parsimony", "rep1", 7, "f"),
             ]
         )
-        for fn in (quant_filter, plot_filter):
-            result = fn(df)
-            assert len(result) == 3
-            assert set(result["value"]) == {"b", "d", "f"}
+        result = _filter_last_tree_per_replicate(df)
+        assert len(result) == 3
+        assert set(result["value"]) == {"b", "d", "f"}
 
 
 # =============================================================================

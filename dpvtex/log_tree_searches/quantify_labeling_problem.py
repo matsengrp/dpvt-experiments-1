@@ -44,7 +44,8 @@ def analyze_replicate(pickle_path, fasta_path, mp_score):
     """Analyze the last tree of a single replicate for labeling problems.
 
     All metrics are computed on the last tree in the pickle (the final output
-    of phangorn's tree search).
+    of phangorn's tree search).  Delegates to :func:`analyze_replicate_all_trees`
+    and returns only the last-tree row.
 
     Args:
         pickle_path: Path to tree search pickle (dict of ete3.Tree -> list[int]).
@@ -57,33 +58,14 @@ def analyze_replicate(pickle_path, fasta_path, mp_score):
             - num_non_dag_edges: edges not supported by DAG in the last tree
             - frac_non_dag_edges: non-DAG edges / total edges in the last tree
     """
-    with open(pickle_path, "rb") as f:
-        data_dict = pickle.load(f)
-
-    trees = list(data_dict.keys())
-    labels_list = list(data_dict.values())
-
-    if len(trees) == 0:
+    rows = analyze_replicate_all_trees(pickle_path, fasta_path, mp_score)
+    if rows is None:
         return None
-
-    # Use the last tree (final output of tree search)
-    last_tree = trees[-1]
-    last_labels = labels_list[-1]
-
-    # Compute parsimony score for the last tree
-    pscores = get_parsimony_scores([last_tree], fasta_path)
-    last_score = pscores[0]
-    score_gap = last_score - mp_score
-
-    # Count non-DAG edges in the last tree (label 1 = not supported by DAG)
-    num_non_dag = sum(last_labels)
-    total_edges = len(last_tree) - 2  # exclude masked positions
-    frac_non_dag = num_non_dag / total_edges if total_edges > 0 else 0.0
-
+    last = rows[-1]
     return {
-        "score_gap": score_gap,
-        "num_non_dag_edges": num_non_dag,
-        "frac_non_dag_edges": frac_non_dag,
+        "score_gap": last["score_gap"],
+        "num_non_dag_edges": last["num_non_dag_edges"],
+        "frac_non_dag_edges": last["frac_non_dag_edges"],
     }
 
 

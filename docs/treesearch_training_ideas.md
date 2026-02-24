@@ -107,7 +107,16 @@ Also directly addresses the failure mode.
 - Small perturbations may not create diverse enough training signal
 - If this works, combine with broader approaches (C or D) for full coverage
 
-### B. Seed larch with phangorn's best tree
+### B. Seed larch with phangorn's best tree — deprioritized
+
+**Status**: Deprioritized based on findings in issue #50. The analysis showed
+that while the labeling problem is real (phangorn routinely matches or beats
+larch), it does **not** explain the late-search AUROC degradation. The dataset
+with the cleanest labels (fluC_PB2) shows the worst AUROC drop, while the
+noisiest (rotavirusA_H_H2) shows the least. The dominant driver is class
+imbalance shift during search, which this idea does not address. Effort is
+better spent on Ideas A, C, and D which directly target the distribution
+mismatch.
 
 **Description**: Start the larch run from the best tree found by phangorn
 (rather than building the DAG independently). The resulting DAG contains MP
@@ -115,9 +124,8 @@ trees from the same region of tree space that phangorn converges to, so
 perturbations of those trees better represent what the model encounters during
 treesearch evaluation. This also resolves the labeling concern above.
 
-**Expected benefit**: Medium-high. Improves both label correctness and the
-relevance of synthetically perturbed training data. Complements ideas C-D and
-resolves the labeling concern for idea D.
+**Expected benefit**: ~~Medium-high.~~ Low, given issue #50 findings. Improves
+label correctness but this is not the driver of the evaluation problem.
 
 **Implementation**:
 
@@ -194,7 +202,16 @@ of searches.
 - Trees early in the search may dominate the dataset (searches log many early
   trees before converging)
 
-### E. Threshold tuning / probability calibration
+### E. Threshold tuning / probability calibration — deprioritized
+
+**Status**: Deprioritized. AUROC already captures the model's ranking ability,
+which is the core metric. If the model can rank non-MP edges above MP edges
+(good AUROC), a working threshold exists in principle; if it can't (bad AUROC),
+no threshold will fix it. Additionally, the optimal threshold shifts during
+search as class balance changes (97% non-MP early vs 3% late), so a single
+calibrated threshold won't generalize across search stages. This only becomes
+relevant when deploying the model for classification in a real tree search,
+which is a downstream concern.
 
 **Description**: The current models have good ranking ability (AUROC 0.71-0.82)
 but are severely miscalibrated: predicted probabilities are in the 0.01-0.04
@@ -204,10 +221,10 @@ evaluation set. Recalibrating the decision threshold or the probabilities
 themselves would recover usable classification performance from the existing
 models without retraining.
 
-**Expected benefit**: Medium. Immediately improves precision/recall/F1 from the
-existing trained models. Does not address the underlying distribution mismatch
-(AUROC still degrades late in the search), but makes the current models usable
-for classification.
+**Expected benefit**: ~~Medium.~~ Low for now. Immediately improves
+precision/recall/F1 from the existing trained models, but does not address the
+underlying distribution mismatch (AUROC still degrades late in the search).
+Only relevant when the model is actually deployed for classification.
 
 **Implementation options**:
 
@@ -241,10 +258,10 @@ for classification.
 
 These should be split into separate issues:
 
-1. **Idea E** (threshold tuning) - cheapest of all, no retraining needed. Apply
-   to existing models immediately to get usable classification.
-2. **Idea A** (feasibility experiment) - cheap and answers whether the model can
+1. **Idea A** (feasibility experiment) - cheap and answers whether the model can
    learn the near-MP regime at all. If it can't, the other ideas won't help.
-3. **Idea B** (seed larch with phangorn's tree) - can start in parallel with A.
-   Improves label correctness and data relevance for everything downstream.
-4. **Ideas C or D** (broader coverage) - pick based on results from A and B.
+2. **Ideas C or D** (broader coverage) - pick based on results from A.
+3. ~~**Idea B**~~ (deprioritized) - label correctness is not the driver of the
+   evaluation problem (see issue #50).
+4. ~~**Idea E**~~ (deprioritized) - AUROC already captures ranking ability;
+   threshold tuning only matters when deploying for classification.

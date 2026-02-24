@@ -99,13 +99,11 @@ Also directly addresses the failure mode.
   achieve very low non-MP fractions
 - Generate a dedicated training set and evaluate on treesearch data
 
-**Considerations**:
-
-- With very low targets, many trees may end up with 0% non-MP edges if the
-  perturbation can't find valid SPR moves that introduce exactly the right
-  number of non-MP edges
-- Small perturbations may not create diverse enough training signal
-- If this works, combine with broader approaches (C or D) for full coverage
+**Result**: Training on near-MP trees alone does not work. Simulated data at
+t=0.05 and OrthoMaM at ~10% non-MP both produce degenerate models (all edges
+predicted as MP). OrthoMaM at ~50% non-MP predicts ~20% of edges as non-MP but
+with no discrimination across search stages. The model needs a broad range of
+non-MP fractions during training, not just the low end.
 
 ### B. Seed larch with phangorn's best tree — deprioritized
 
@@ -171,36 +169,26 @@ including the critical low-fraction regime.
 - Synthetic perturbations may not capture all structural properties of real
   search intermediates
 
-### D. Use real treesearch intermediates as training data
+### D. Use real treesearch intermediates as training data → issue #52
 
-**Description**: Run the `log_tree_searches` pipeline on training alignments
-(not just test alignments) and use the resulting labeled intermediate trees
-directly as training data. This gives the model exposure to the exact
-distribution of non-MP edges it will encounter during evaluation.
+**Description**: Run the `log_tree_searches` pipeline on OrthoMaM training
+alignments (filtered to retain 50% of sites) and use the resulting labeled
+intermediate trees directly as training data. This gives the model exposure to
+the exact distribution of non-MP edges it will encounter during evaluation.
 
 **Expected benefit**: High. The model would train on trees that look exactly
 like what it's tested on, including the critical low non-MP regime near the end
 of searches.
 
-**Implementation**:
+**Implementation**: See issue #52 for the full plan. Key decisions:
 
-- The `dpvtex/log_tree_searches/Snakefile` pipeline already handles the full
-  workflow: run phangorn tree search, run larch for the MP DAG, label edges via
-  `create_testing_data.py`
-- Would need to run this on training alignments (currently only run on test
-  alignments)
-- The `add_to_dataset_nicknames.py` script handles registering the output
-  datasets
-- Main work: running the pipeline on training data and configuring the training
-  workflow to use the output
-
-**Considerations**:
-
-- Tree searches are expensive (R phangorn + larch per alignment)
-- Training and test data should use different alignments to avoid data leakage
-- The number of trees per search varies; may need to balance across alignments
-- Trees early in the search may dominate the dataset (searches log many early
-  trees before converging)
+- Use the existing `log_tree_searches` pipeline with new config files (no new
+  pipeline needed)
+- Run on ~150 OrthoMaM training alignments, starting with NJ trees
+  (deterministic, no replicates needed), then adding random starting trees with
+  3 replicates
+- Merge per-alignment pickles into a single training dataset per starting tree
+  type via a small post-processing script
 
 ### E. Threshold tuning / probability calibration — deprioritized
 
@@ -318,10 +306,11 @@ compromising across all of them.
 
 These should be split into separate issues:
 
-1. **Idea A** (feasibility experiment) - cheap and answers whether the model can
-   learn the near-MP regime at all. If it can't, the other ideas won't help.
-2. **Ideas C or D** (broader coverage) - pick based on results from A.
-3. ~~**Idea B**~~ (deprioritized) - label correctness is not the driver of the
-   evaluation problem (see issue #50).
-4. ~~**Idea E**~~ (deprioritized) - AUROC already captures ranking ability;
+1. **Idea A** → #48 (closed) — feasibility experiment showed near-MP regime
+   alone doesn't work; model degenerates or doesn't discriminate.
+2. **Idea C** → #49 (open) — varied non-MP proportions with OrthoMaM data.
+3. **Idea D** → #52 (open) — real treesearch intermediates as training data.
+4. ~~**Idea B**~~ (deprioritized) — label correctness is not the driver of the
+   evaluation problem (see #50).
+5. ~~**Idea E**~~ (deprioritized) — AUROC already captures ranking ability;
    threshold tuning only matters when deploying for classification.

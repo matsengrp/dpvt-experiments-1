@@ -107,7 +107,16 @@ Also directly addresses the failure mode.
 - Small perturbations may not create diverse enough training signal
 - If this works, combine with broader approaches (C or D) for full coverage
 
-### B. Seed larch with phangorn's best tree
+### B. Seed larch with phangorn's best tree — deprioritized
+
+**Status**: Deprioritized based on findings in issue #50. The analysis showed
+that while phangorn routinely matches or beats larch (see phangorn-larch
+comparison analysis), it does **not** explain the late-search AUROC degradation. The dataset
+with the cleanest labels (fluC_PB2) shows the worst AUROC drop, while the
+noisiest (rotavirusA_H_H2) shows the least. The dominant driver is class
+imbalance shift during search, which this idea does not address. Effort is
+better spent on Ideas A, C, and D which directly target the distribution
+mismatch.
 
 **Description**: Start the larch run from the best tree found by phangorn
 (rather than building the DAG independently). The resulting DAG contains MP
@@ -115,9 +124,8 @@ trees from the same region of tree space that phangorn converges to, so
 perturbations of those trees better represent what the model encounters during
 treesearch evaluation. This also resolves the labeling concern above.
 
-**Expected benefit**: Medium-high. Improves both label correctness and the
-relevance of synthetically perturbed training data. Complements ideas C-D and
-resolves the labeling concern for idea D.
+**Expected benefit**: ~~Medium-high.~~ Low, given issue #50 findings. Improves
+label correctness but this is not the driver of the evaluation problem.
 
 **Implementation**:
 
@@ -194,14 +202,66 @@ of searches.
 - Trees early in the search may dominate the dataset (searches log many early
   trees before converging)
 
+### E. Threshold tuning / probability calibration — deprioritized
+
+**Status**: Deprioritized. AUROC already captures the model's ranking ability,
+which is the core metric. If the model can rank non-MP edges above MP edges
+(good AUROC), a working threshold exists in principle; if it can't (bad AUROC),
+no threshold will fix it. Additionally, the optimal threshold shifts during
+search as class balance changes (97% non-MP early vs 3% late), so a single
+calibrated threshold won't generalize across search stages. This only becomes
+relevant when deploying the model for classification in a real tree search,
+which is a downstream concern.
+
+**Description**: The current models have good ranking ability (AUROC 0.71-0.82)
+but are severely miscalibrated: predicted probabilities are in the 0.01-0.04
+range, so the default 0.5 classification threshold produces near-zero recall.
+TraverseAvgPooling never predicts a single positive edge across the entire
+evaluation set. Recalibrating the decision threshold or the probabilities
+themselves would recover usable classification performance from the existing
+models without retraining.
+
+**Expected benefit**: ~~Medium.~~ Low for now. Immediately improves
+precision/recall/F1 from the existing trained models, but does not address the
+underlying distribution mismatch (AUROC still degrades late in the search).
+Only relevant when the model is actually deployed for classification.
+
+**Implementation options**:
+
+- **Threshold tuning**: Compute the ROC curve on a validation set and pick the
+  threshold that maximizes Youden's J (sensitivity + specificity - 1) or F1.
+  The optimal threshold will likely be around 0.01-0.03 rather than 0.5. This
+  is a standard post-processing step for imbalanced classification.
+- **Temperature scaling**: Learn a single temperature parameter T on a
+  validation set, then use `sigmoid(logit / T)` instead of `sigmoid(logit)`.
+  This recalibrates probabilities so that a prediction of 0.3 actually means
+  ~30% chance of being non-DAG. Standard method from Guo et al. 2017.
+- **Per-stage thresholds**: Since class balance shifts dramatically during tree
+  search (97% non-DAG at start, 4% at end), a single threshold may not work
+  well across all stages. Could learn separate thresholds for early/mid/late
+  search, or use the predicted non-DAG fraction to adapt the threshold.
+
+**Considerations**:
+
+- This is independent of ideas A-D and can be applied on top of any training
+  approach
+- Requires a held-out validation set (some of the treesearch evaluation data
+  could serve this role)
+- Threshold tuning is the simplest option and should be tried first
+- Even with perfect calibration, the model still struggles in the late-search
+  regime (AUROC drops from 0.87 to 0.78 for TraverseMaxPooling), so this
+  complements rather than replaces training improvements
+
 ---
 
 ## Suggested issue structure and order
 
-These should be split into three separate issues:
+These should be split into separate issues:
 
 1. **Idea A** (feasibility experiment) - cheap and answers whether the model can
    learn the near-MP regime at all. If it can't, the other ideas won't help.
-2. **Idea B** (seed larch with phangorn's tree) - can start in parallel with A.
-   Improves label correctness and data relevance for everything downstream.
-3. **Ideas C or D** (broader coverage) - pick based on results from A and B.
+2. **Ideas C or D** (broader coverage) - pick based on results from A.
+3. ~~**Idea B**~~ (deprioritized) - label correctness is not the driver of the
+   evaluation problem (see issue #50).
+4. ~~**Idea E**~~ (deprioritized) - AUROC already captures ranking ability;
+   threshold tuning only matters when deploying for classification.

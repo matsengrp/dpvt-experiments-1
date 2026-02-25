@@ -123,6 +123,61 @@ The pipeline produces:
 - Updated nicknames JSON file with glob pattern entries for automatic replicate
   discovery
 
+## Standalone Scripts
+
+### `quantify_phangorn_larch_comparison.py`
+
+Compares phangorn's best parsimony scores against larch's DAG optimum to
+identify trees where edge labels may be incorrect. For each replicate, it
+computes the score gap between phangorn's last tree and larch's MP score, and
+measures the fraction of edges not supported by the DAG (non-DAG edges).
+
+```bash
+python quantify_phangorn_larch_comparison.py \
+  --data-root ../../shared_data \
+  --output-dir ../../shared_data/treesearch \
+  --datasets influenzaC_fluC_M rotavirusA_H_H2 \
+  --start-types nj random
+```
+
+The output CSV is named automatically based on the datasets (e.g.
+`phangorn_larch_comparison_influenzaC_fluC_M_rotavirusA_H_H2.csv`).
+
+Use `--all-trees` to analyze every intermediate tree in the search (not just the
+final tree). This produces a CSV with one row per tree per replicate, including
+`tree_index` and `normalized_tree_index` columns:
+
+```bash
+python quantify_phangorn_larch_comparison.py \
+  --data-root ../../shared_data \
+  --output-dir ../../shared_data/treesearch \
+  --datasets influenzaC_fluC_M \
+  --start-types nj random --all-trees
+```
+
+### `plot_phangorn_larch_comparison.py`
+
+Visualizes the CSVs produced by `quantify_phangorn_larch_comparison.py`. Pass one
+or more CSV files to combine results across datasets or runs:
+
+```bash
+python plot_phangorn_larch_comparison.py \
+  --csv-files phangorn_larch_comparison/phangorn_larch_comparison_influenzaC_fluC_M_all_trees.csv \
+              phangorn_larch_comparison/phangorn_larch_comparison_rotavirusA_H_H2.csv \
+  --output-dir phangorn_larch_comparison/
+```
+
+This produces:
+
+- `phangorn_larch_comparison_summary.pdf` — strip plots of score gap and fraction
+  of non-DAG edges per dataset (using the last tree per replicate)
+- `phangorn_larch_comparison_all_trees.pdf` — scatter plot of fraction of non-DAG
+  edges for every intermediate tree (only for CSVs produced with `--all-trees`)
+
+CSV files with different column sets (all-trees vs summary) can be mixed freely.
+Summary-only CSVs appear in the summary plot but are skipped in the all-trees
+scatter plot.
+
 ## Next Steps
 
 After generating treesearch data, use `train/treesearch.snakefile` to train

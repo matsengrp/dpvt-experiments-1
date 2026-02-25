@@ -80,7 +80,7 @@ and not a new bias introduced by this choice.
 
 ## Ideas
 
-### A. Target the hard regime: near-MP trees (try first)
+### A. Target the hard regime: near-MP trees (try first) — done (#48)
 
 **Description**: Generate a training set specifically focused on trees with very
 low non-MP fractions (1-5%). This is the cheapest experiment to check whether
@@ -139,7 +139,7 @@ label correctness but this is not the driver of the evaluation problem.
 - Ties the MP definition to phangorn's search neighborhood (see note above)
 - Requires a pipeline change to connect phangorn output to larch input
 
-### C. Generate training data with diverse non-MP fractions
+### C. Generate training data with diverse non-MP fractions — done (#49)
 
 **Description**: Instead of generating all training data at a single target
 proportion (10%), cover the full range of non-MP fractions seen during tree
@@ -253,6 +253,20 @@ Only relevant when the model is actually deployed for classification.
   complements rather than replaces training improvements
 
 ---
+
+## Status
+
+**Idea A** did not work (#48): training on near-MP trees alone produced a
+dataset too unbalanced (very few non-MP edges per tree) for the model to learn
+anything useful — it either degenerated to predicting all edges as MP or failed
+to discriminate based on treesearch position.
+
+**Idea C** has been implemented as the `orthomam_varied_proportions` dataset
+(#49): orthomam training data with non-MP edge proportions varied from 5% to
+100% in 5% increments, ~50 trees per level. This is the best-performing model
+across all test datasets and search regimes (overall AUROC 0.862 vs 0.780 for
+the next best). Late-search performance (0.788) still lags behind early search
+(0.931). See #49 for full results and possible next steps.
 
 ## Suggested issue structure and order
 

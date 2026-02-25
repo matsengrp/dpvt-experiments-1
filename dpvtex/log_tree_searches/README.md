@@ -155,6 +155,29 @@ python quantify_phangorn_larch_comparison.py \
   --start-types nj random --all-trees
 ```
 
+### `plot_phangorn_larch_comparison.py`
+
+Visualizes the CSVs produced by `quantify_phangorn_larch_comparison.py`. Pass one
+or more CSV files to combine results across datasets or runs:
+
+```bash
+python plot_phangorn_larch_comparison.py \
+  --csv-files phangorn_larch_comparison/phangorn_larch_comparison_influenzaC_fluC_M_all_trees.csv \
+              phangorn_larch_comparison/phangorn_larch_comparison_rotavirusA_H_H2.csv \
+  --output-dir phangorn_larch_comparison/
+```
+
+This produces:
+
+- `phangorn_larch_comparison_summary.pdf` — strip plots of score gap and fraction
+  of non-DAG edges per dataset (using the last tree per replicate)
+- `phangorn_larch_comparison_all_trees.pdf` — scatter plot of fraction of non-DAG
+  edges for every intermediate tree (only for CSVs produced with `--all-trees`)
+
+CSV files with different column sets (all-trees vs summary) can be mixed freely.
+Summary-only CSVs appear in the summary plot but are skipped in the all-trees
+scatter plot.
+
 ## Next Steps
 
 After generating treesearch data, use `train/treesearch.snakefile` to train

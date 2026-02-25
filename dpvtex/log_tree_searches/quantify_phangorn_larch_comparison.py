@@ -194,6 +194,77 @@ def print_summary(df, all_trees):
         print(f"  Avg frac non-DAG edges:      {ddf['frac_non_dag_edges'].mean():.4f}")
 
 
+def get_or_compute_mp_score(data_root, dataset, fasta_path, mp_score_cache):
+    """Return the DAG MP score for a dataset, computing and caching it if needed.
+
+    Returns:
+        int | None: The MP score, or None if the DAG file is missing.
+    """
+    if dataset not in mp_score_cache:
+        dag_path = os.path.join(
+            data_root, "viral", "treesearch", dataset, "larch-output.pb"
+        )
+        if not os.path.exists(dag_path):
+            print(f"  Warning: DAG not found: {dag_path}, skipping dataset")
+            mp_score_cache[dataset] = None
+        else:
+            print(f"  Computing DAG MP score for {dataset} ...")
+            mp_score_cache[dataset] = get_dag_mp_score(dag_path, fasta_path)
+            print(f"  DAG MP score: {mp_score_cache[dataset]}")
+    return mp_score_cache[dataset]
+
+
+def collect_results(data_root, datasets, start_types, all_trees):
+    """Iterate over all replicates and collect comparison rows.
+
+    Returns:
+        list[dict]: One dict per tree (or per last-tree if not all_trees).
+    """
+    mp_score_cache = {}
+    results = []
+
+    for dataset, start_type, pickle_path in discover_replicates(
+        data_root, datasets, start_types
+    ):
+        rep_name = os.path.basename(pickle_path)
+        print(f"\nProcessing {dataset} / {start_type} / {rep_name} ...")
+
+        fasta_path = os.path.join(
+            data_root, "viral", "treesearch", dataset, "input.fasta"
+        )
+        if not os.path.exists(fasta_path):
+            print(f"  Warning: FASTA not found: {fasta_path}, skipping")
+            continue
+
+        mp_score = get_or_compute_mp_score(
+            data_root, dataset, fasta_path, mp_score_cache
+        )
+        if mp_score is None:
+            continue
+
+        rows = analyze_replicate(pickle_path, fasta_path, mp_score)
+        if rows is None:
+            print("  Warning: empty pickle, skipping")
+            continue
+
+        if not all_trees:
+            rows = [rows[-1]]
+
+        for row in rows:
+            row["dataset"] = dataset
+            row["start_type"] = start_type
+            row["replicate"] = rep_name
+            row["mp_score"] = mp_score
+            results.append(row)
+        last = rows[-1]
+        print(
+            f"  score_gap={last['score_gap']}, "
+            f"frac_non_dag_edges={last['frac_non_dag_edges']:.4f}"
+        )
+
+    return results
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Compare phangorn and larch trees in tree search evaluation data."
@@ -238,59 +309,7 @@ def main():
     print(f"Datasets: {datasets}")
     print(f"Start types: {start_types}")
 
-    # Cache DAG MP score per dataset
-    mp_score_cache = {}
-    results = []
-
-    for dataset, start_type, pickle_path in discover_replicates(
-        data_root, datasets, start_types
-    ):
-        rep_name = os.path.basename(pickle_path)
-        print(f"\nProcessing {dataset} / {start_type} / {rep_name} ...")
-
-        fasta_path = os.path.join(
-            data_root, "viral", "treesearch", dataset, "input.fasta"
-        )
-        if not os.path.exists(fasta_path):
-            print(f"  Warning: FASTA not found: {fasta_path}, skipping")
-            continue
-
-        # Get or compute DAG MP score
-        if dataset not in mp_score_cache:
-            dag_path = os.path.join(
-                data_root, "viral", "treesearch", dataset, "larch-output.pb"
-            )
-            if not os.path.exists(dag_path):
-                print(f"  Warning: DAG not found: {dag_path}, skipping dataset")
-                mp_score_cache[dataset] = None
-                continue
-            print(f"  Computing DAG MP score for {dataset} ...")
-            mp_score_cache[dataset] = get_dag_mp_score(dag_path, fasta_path)
-            print(f"  DAG MP score: {mp_score_cache[dataset]}")
-
-        mp_score = mp_score_cache[dataset]
-        if mp_score is None:
-            continue
-
-        rows = analyze_replicate(pickle_path, fasta_path, mp_score)
-        if rows is None:
-            print("  Warning: empty pickle, skipping")
-            continue
-
-        if not args.all_trees:
-            rows = [rows[-1]]
-
-        for row in rows:
-            row["dataset"] = dataset
-            row["start_type"] = start_type
-            row["replicate"] = rep_name
-            row["mp_score"] = mp_score
-            results.append(row)
-        last = rows[-1]
-        print(
-            f"  score_gap={last['score_gap']}, "
-            f"frac_non_dag_edges={last['frac_non_dag_edges']:.4f}"
-        )
+    results = collect_results(data_root, datasets, start_types, args.all_trees)
 
     if not results:
         print("\nNo results collected.")

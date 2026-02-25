@@ -118,6 +118,82 @@ def discover_replicates(data_root, datasets, start_types):
                 yield dataset, start_type, pickle_path
 
 
+def validate_data_root(data_root):
+    """Check that data_root has the expected treesearch/ and viral/treesearch/ subdirs."""
+    treesearch_dir = os.path.join(data_root, "treesearch")
+    viral_treesearch_dir = os.path.join(data_root, "viral", "treesearch")
+    errors = []
+    if not os.path.isdir(treesearch_dir):
+        errors.append(f"  Pickle directory not found: {treesearch_dir}")
+    if not os.path.isdir(viral_treesearch_dir):
+        errors.append(f"  FASTA/DAG directory not found: {viral_treesearch_dir}")
+    if errors:
+        print(f"Error: --data-root '{data_root}' does not have the expected layout.")
+        print("Expected subdirectories:")
+        print(
+            f"  {{data-root}}/treesearch/{{start_type}}_starting/{{dataset}}/  (pickle files)"
+        )
+        print(f"  {{data-root}}/viral/treesearch/{{dataset}}/           (FASTA + DAG)")
+        print("Missing:")
+        for e in errors:
+            print(e)
+        sys.exit(1)
+
+
+def save_results_csv(results, datasets, all_trees, output_dir):
+    """Build a DataFrame from results and save to CSV.
+
+    Returns:
+        pd.DataFrame: The saved DataFrame.
+    """
+    df = pd.DataFrame(results)
+    base_cols = [
+        "dataset",
+        "start_type",
+        "replicate",
+        "mp_score",
+        "score_gap",
+        "num_non_dag_edges",
+        "frac_non_dag_edges",
+    ]
+    if all_trees:
+        column_order = (
+            base_cols[:3] + ["tree_index", "normalized_tree_index"] + base_cols[3:]
+        )
+    else:
+        column_order = base_cols
+    df = df[column_order]
+    dataset_tag = "_".join(datasets)
+    suffix = "_all_trees" if all_trees else ""
+    output_csv = os.path.join(
+        output_dir, f"phangorn_larch_comparison_{dataset_tag}{suffix}.csv"
+    )
+    df.to_csv(output_csv, index=False)
+    print(f"\nResults saved to {output_csv}")
+    return df
+
+
+def print_summary(df, all_trees):
+    """Print per-dataset summary statistics for the last tree per replicate."""
+    if all_trees:
+        max_idx = df.groupby(["dataset", "start_type", "replicate"])[
+            "tree_index"
+        ].transform("max")
+        summary_df = df[max_idx == df["tree_index"]]
+    else:
+        summary_df = df
+    print("\n=== Summary by dataset (last tree per replicate) ===")
+    for dataset in summary_df["dataset"].unique():
+        ddf = summary_df[summary_df["dataset"] == dataset]
+        print(f"\n{dataset}:")
+        print(f"  MP score (larch):            {ddf['mp_score'].iloc[0]}")
+        print(f"  Avg score gap:               {ddf['score_gap'].mean():.1f}")
+        print(
+            f"  Replicates with gap <= 0:    {(ddf['score_gap'] <= 0).sum()} / {len(ddf)}"
+        )
+        print(f"  Avg frac non-DAG edges:      {ddf['frac_non_dag_edges'].mean():.4f}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Compare phangorn and larch trees in tree search evaluation data."
@@ -157,25 +233,7 @@ def main():
     datasets = args.datasets
     start_types = args.start_types
 
-    # Validate expected directory structure
-    treesearch_dir = os.path.join(data_root, "treesearch")
-    viral_treesearch_dir = os.path.join(data_root, "viral", "treesearch")
-    errors = []
-    if not os.path.isdir(treesearch_dir):
-        errors.append(f"  Pickle directory not found: {treesearch_dir}")
-    if not os.path.isdir(viral_treesearch_dir):
-        errors.append(f"  FASTA/DAG directory not found: {viral_treesearch_dir}")
-    if errors:
-        print(f"Error: --data-root '{data_root}' does not have the expected layout.")
-        print("Expected subdirectories:")
-        print(
-            f"  {{data-root}}/treesearch/{{start_type}}_starting/{{dataset}}/  (pickle files)"
-        )
-        print(f"  {{data-root}}/viral/treesearch/{{dataset}}/           (FASTA + DAG)")
-        print("Missing:")
-        for e in errors:
-            print(e)
-        sys.exit(1)
+    validate_data_root(data_root)
 
     print(f"Datasets: {datasets}")
     print(f"Start types: {start_types}")
@@ -238,50 +296,8 @@ def main():
         print("\nNo results collected.")
         sys.exit(1)
 
-    # Build DataFrame and save
-    df = pd.DataFrame(results)
-    base_cols = [
-        "dataset",
-        "start_type",
-        "replicate",
-        "mp_score",
-        "score_gap",
-        "num_non_dag_edges",
-        "frac_non_dag_edges",
-    ]
-    if args.all_trees:
-        column_order = (
-            base_cols[:3] + ["tree_index", "normalized_tree_index"] + base_cols[3:]
-        )
-    else:
-        column_order = base_cols
-    df = df[column_order]
-    dataset_tag = "_".join(datasets)
-    suffix = "_all_trees" if args.all_trees else ""
-    output_csv = os.path.join(
-        args.output_dir, f"phangorn_larch_comparison_{dataset_tag}{suffix}.csv"
-    )
-    df.to_csv(output_csv, index=False)
-    print(f"\nResults saved to {output_csv}")
-
-    # Print summary (use last tree per replicate for all-trees mode)
-    if args.all_trees:
-        max_idx = df.groupby(["dataset", "start_type", "replicate"])[
-            "tree_index"
-        ].transform("max")
-        summary_df = df[max_idx == df["tree_index"]]
-    else:
-        summary_df = df
-    print("\n=== Summary by dataset (last tree per replicate) ===")
-    for dataset in summary_df["dataset"].unique():
-        ddf = summary_df[summary_df["dataset"] == dataset]
-        print(f"\n{dataset}:")
-        print(f"  MP score (larch):            {ddf['mp_score'].iloc[0]}")
-        print(f"  Avg score gap:               {ddf['score_gap'].mean():.1f}")
-        print(
-            f"  Replicates with gap <= 0:    {(ddf['score_gap'] <= 0).sum()} / {len(ddf)}"
-        )
-        print(f"  Avg frac non-DAG edges:      {ddf['frac_non_dag_edges'].mean():.4f}")
+    df = save_results_csv(results, datasets, args.all_trees, args.output_dir)
+    print_summary(df, args.all_trees)
 
 
 if __name__ == "__main__":

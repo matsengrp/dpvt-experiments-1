@@ -53,6 +53,7 @@ r-igraph = ">=1.0"
 r-quadprog = "*"
 r-rcpp = "*"
 r-rcpparmadillo = "*"
+setuptools = "<82"
 
 [pypi-dependencies]
 dpvt = { path = "../dpvt", editable = true }

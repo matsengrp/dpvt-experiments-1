@@ -1,4 +1,4 @@
-"""Visualize labeling problem metrics from quantify_labeling_problem.py CSVs.
+"""Visualize phangorn-larch comparison metrics from quantify_phangorn_larch_comparison.py CSVs.
 
 Produces a multi-panel summary figure with strip plots for score gap
 and fraction of non-DAG edges.
@@ -13,7 +13,7 @@ import pandas as pd
 import seaborn as sns
 from matplotlib.colors import Normalize
 
-from dpvtex.log_tree_searches.quantify_labeling_problem import (
+from dpvtex.log_tree_searches.quantify_phangorn_larch_comparison import (
     _filter_last_tree_per_replicate,
 )
 from dpvtex.plotting import DATASET_NAMES, DPI, FONT_LARGE, FONT_MED, FONT_SMALL
@@ -64,15 +64,15 @@ def _make_strip_panel(ax, df, y_col, title, ylabel):
     )
 
 
-def plot_labeling_problem(df, output_dir):
-    """Create a multi-panel summary figure from labeling problem metrics.
+def plot_phangorn_larch_comparison(df, output_dir):
+    """Create a multi-panel summary figure from phangorn-larch comparison metrics.
 
     Panels are:
     1. Score gap by dataset (always shown)
     2. Fraction of non-DAG edges by dataset (if column present)
 
     Args:
-        df: DataFrame loaded from one or more quantify_labeling_problem CSVs.
+        df: DataFrame loaded from one or more quantify_phangorn_larch_comparison CSVs.
         output_dir: Directory to save the output figure.
     """
     df = df.copy()
@@ -103,13 +103,13 @@ def plot_labeling_problem(df, output_dir):
         _make_strip_panel(ax, df, col, title, ylabel)
 
     fig.tight_layout(h_pad=3.0)
-    output_path = os.path.join(output_dir, "labeling_problem_summary.pdf")
+    output_path = os.path.join(output_dir, "phangorn_larch_comparison_summary.pdf")
     fig.savefig(output_path, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved figure to {output_path}")
 
 
-def plot_labeling_problem_all_trees(df, output_dir):
+def plot_phangorn_larch_comparison_all_trees(df, output_dir):
     """Scatter plot of frac_non_dag_edges for every intermediate tree.
 
     Layout: one row per dataset, one column per start_type.
@@ -191,7 +191,7 @@ def plot_labeling_problem_all_trees(df, output_dir):
     )
     cbar.set_label("Search progress (0=start, 1=end)", fontsize=FONT_MED)
     cbar.ax.tick_params(labelsize=FONT_SMALL)
-    output_path = os.path.join(output_dir, "labeling_problem_all_trees.pdf")
+    output_path = os.path.join(output_dir, "phangorn_larch_comparison_all_trees.pdf")
     fig.savefig(output_path, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved figure to {output_path}")
@@ -199,13 +199,13 @@ def plot_labeling_problem_all_trees(df, output_dir):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Plot labeling problem metrics from quantify_labeling_problem CSVs."
+        description="Plot phangorn-larch comparison metrics from quantify_phangorn_larch_comparison CSVs."
     )
     parser.add_argument(
         "--csv-files",
         nargs="+",
         required=True,
-        help="One or more CSV files produced by quantify_labeling_problem.py",
+        help="One or more CSV files produced by quantify_phangorn_larch_comparison.py",
     )
     parser.add_argument(
         "--output-dir",
@@ -226,11 +226,13 @@ def main():
 
     if "tree_index" in df.columns:
         # All-trees CSV: produce scatter plot and summary strip plot
-        plot_labeling_problem_all_trees(df, args.output_dir)
+        plot_phangorn_larch_comparison_all_trees(df, args.output_dir)
         # Filter to last tree per replicate for the summary strip plot
-        plot_labeling_problem(_filter_last_tree_per_replicate(df), args.output_dir)
+        plot_phangorn_larch_comparison(
+            _filter_last_tree_per_replicate(df), args.output_dir
+        )
     else:
-        plot_labeling_problem(df, args.output_dir)
+        plot_phangorn_larch_comparison(df, args.output_dir)
 
 
 if __name__ == "__main__":

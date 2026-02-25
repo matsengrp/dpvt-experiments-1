@@ -125,7 +125,7 @@ The pipeline produces:
 
 ## Standalone Scripts
 
-### `quantify_labeling_problem.py`
+### `quantify_phangorn_larch_comparison.py`
 
 Compares phangorn's best parsimony scores against larch's DAG optimum to
 identify trees where edge labels may be incorrect. For each replicate, it
@@ -133,7 +133,7 @@ computes the score gap between phangorn's last tree and larch's MP score, and
 measures the fraction of edges not supported by the DAG (non-DAG edges).
 
 ```bash
-python quantify_labeling_problem.py \
+python quantify_phangorn_larch_comparison.py \
   --data-root ../../shared_data \
   --output-dir ../../shared_data/treesearch \
   --datasets influenzaC_fluC_M rotavirusA_H_H2 \
@@ -141,14 +141,14 @@ python quantify_labeling_problem.py \
 ```
 
 The output CSV is named automatically based on the datasets (e.g.
-`labeling_problem_influenzaC_fluC_M_rotavirusA_H_H2.csv`).
+`phangorn_larch_comparison_influenzaC_fluC_M_rotavirusA_H_H2.csv`).
 
 Use `--all-trees` to analyze every intermediate tree in the search (not just the
 final tree). This produces a CSV with one row per tree per replicate, including
 `tree_index` and `normalized_tree_index` columns:
 
 ```bash
-python quantify_labeling_problem.py \
+python quantify_phangorn_larch_comparison.py \
   --data-root ../../shared_data \
   --output-dir ../../shared_data/treesearch \
   --datasets influenzaC_fluC_M \

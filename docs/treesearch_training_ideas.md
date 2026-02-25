@@ -110,8 +110,8 @@ Also directly addresses the failure mode.
 ### B. Seed larch with phangorn's best tree — deprioritized
 
 **Status**: Deprioritized based on findings in issue #50. The analysis showed
-that while the labeling problem is real (phangorn routinely matches or beats
-larch), it does **not** explain the late-search AUROC degradation. The dataset
+that while phangorn routinely matches or beats larch (see phangorn-larch
+comparison analysis), it does **not** explain the late-search AUROC degradation. The dataset
 with the cleanest labels (fluC_PB2) shows the worst AUROC drop, while the
 noisiest (rotavirusA_H_H2) shows the least. The dominant driver is class
 imbalance shift during search, which this idea does not address. Effort is

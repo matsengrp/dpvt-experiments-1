@@ -1,4 +1,4 @@
-"""Quantify labeling problems in tree search evaluation data.
+"""Compare phangorn and larch trees in tree search evaluation data.
 
 Compares phangorn's best parsimony scores against larch's DAG optimum
 to identify trees where edge labels may be incorrect.
@@ -160,7 +160,7 @@ def discover_replicates(data_root, datasets, start_types):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Quantify labeling problems in tree search evaluation data."
+        description="Compare phangorn and larch trees in tree search evaluation data."
     )
     parser.add_argument(
         "--data-root",
@@ -311,7 +311,7 @@ def main():
     dataset_tag = "_".join(datasets)
     suffix = "_all_trees" if args.all_trees else ""
     output_csv = os.path.join(
-        args.output_dir, f"labeling_problem_{dataset_tag}{suffix}.csv"
+        args.output_dir, f"phangorn_larch_comparison_{dataset_tag}{suffix}.csv"
     )
     df.to_csv(output_csv, index=False)
     print(f"\nResults saved to {output_csv}")

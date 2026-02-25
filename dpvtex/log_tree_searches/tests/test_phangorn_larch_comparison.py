@@ -66,23 +66,6 @@ def test_plot_phangorn_larch_comparison_creates_pdf():
         )
 
 
-def test_plot_phangorn_larch_comparison_backward_compat_frac_suspect_labels():
-    df = pd.DataFrame(
-        {
-            "dataset": ["ds1", "ds1"],
-            "start_type": ["random", "random"],
-            "replicate": ["rep0", "rep1"],
-            "score_gap": [1, 2],
-            "frac_suspect_labels": [0.1, 0.2],
-        }
-    )
-    with tempfile.TemporaryDirectory() as tmpdir:
-        plot_phangorn_larch_comparison(df, tmpdir)
-        assert os.path.isfile(
-            os.path.join(tmpdir, "phangorn_larch_comparison_summary.pdf")
-        )
-
-
 # =============================================================================
 # plot_phangorn_larch_comparison_all_trees
 # =============================================================================

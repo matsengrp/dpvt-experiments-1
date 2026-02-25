@@ -70,10 +70,6 @@ def plot_phangorn_larch_comparison(df, output_dir):
     df = df.copy()
     df["dataset_display"] = df["dataset"].map(lambda ds: DATASET_NAMES.get(ds, ds))
 
-    # Handle old CSVs that used "frac_suspect_labels" instead of "frac_non_dag_edges"
-    if "frac_non_dag_edges" not in df.columns and "frac_suspect_labels" in df.columns:
-        df["frac_non_dag_edges"] = df["frac_suspect_labels"]
-
     # Determine which optional panels to include
     has_non_dag = (
         "frac_non_dag_edges" in df.columns and df["frac_non_dag_edges"].notna().any()

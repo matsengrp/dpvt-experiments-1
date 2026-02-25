@@ -120,17 +120,6 @@ def analyze_replicate_all_trees(pickle_path, fasta_path, mp_score):
     return rows
 
 
-def _filter_last_tree_per_replicate(df):
-    """Keep only the last tree (max tree_index) per replicate."""
-    mask = (
-        df.groupby(["dataset", "start_type", "replicate"])["tree_index"].transform(
-            "max"
-        )
-        == df["tree_index"]
-    )
-    return df[mask]
-
-
 def discover_replicates(data_root, datasets, start_types):
     """Discover all replicate pickle files.
 
@@ -318,7 +307,10 @@ def main():
 
     # Print summary (use last tree per replicate for all-trees mode)
     if args.all_trees:
-        summary_df = _filter_last_tree_per_replicate(df)
+        max_idx = df.groupby(["dataset", "start_type", "replicate"])[
+            "tree_index"
+        ].transform("max")
+        summary_df = df[max_idx == df["tree_index"]]
     else:
         summary_df = df
     print("\n=== Summary by dataset (last tree per replicate) ===")

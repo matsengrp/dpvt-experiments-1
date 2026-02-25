@@ -10,64 +10,8 @@ from dpvtex.log_tree_searches.plot_phangorn_larch_comparison import (
     plot_phangorn_larch_comparison_all_trees,
 )
 from dpvtex.log_tree_searches.quantify_phangorn_larch_comparison import (
-    _filter_last_tree_per_replicate,
     discover_replicates,
 )
-
-
-def _make_filter_df(rows):
-    return pd.DataFrame(
-        rows,
-        columns=["dataset", "start_type", "replicate", "tree_index", "value"],
-    )
-
-
-# =============================================================================
-# _filter_last_tree_per_replicate
-# =============================================================================
-
-
-def test_filter_keeps_max_tree_index_per_group():
-    df = _make_filter_df(
-        [
-            ("ds1", "random", "rep1", 0, "a"),
-            ("ds1", "random", "rep1", 1, "b"),
-            ("ds1", "random", "rep1", 2, "c"),
-            ("ds1", "random", "rep2", 0, "d"),
-            ("ds1", "random", "rep2", 5, "e"),
-        ]
-    )
-    result = _filter_last_tree_per_replicate(df)
-    assert len(result) == 2
-    assert set(result["value"]) == {"c", "e"}
-
-
-def test_filter_single_tree_per_replicate_returns_all():
-    df = _make_filter_df(
-        [
-            ("ds1", "random", "rep1", 0, "a"),
-            ("ds1", "random", "rep2", 0, "b"),
-            ("ds1", "nj", "rep1", 0, "c"),
-        ]
-    )
-    result = _filter_last_tree_per_replicate(df)
-    assert len(result) == 3
-
-
-def test_filter_correctly_per_group():
-    df = _make_filter_df(
-        [
-            ("ds1", "random", "rep1", 0, "a"),
-            ("ds1", "random", "rep1", 3, "b"),
-            ("ds2", "nj", "rep1", 0, "c"),
-            ("ds2", "nj", "rep1", 1, "d"),
-            ("ds1", "nj", "rep1", 0, "e"),
-            ("ds1", "nj", "rep1", 7, "f"),
-        ]
-    )
-    result = _filter_last_tree_per_replicate(df)
-    assert len(result) == 3
-    assert set(result["value"]) == {"b", "d", "f"}
 
 
 # =============================================================================

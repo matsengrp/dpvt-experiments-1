@@ -13,17 +13,9 @@ import pandas as pd
 import seaborn as sns
 from matplotlib.colors import Normalize
 
-from dpvtex.log_tree_searches.quantify_phangorn_larch_comparison import (
-    _filter_last_tree_per_replicate,
-)
 from dpvtex.plotting import DATASET_NAMES, DPI, FONT_LARGE, FONT_MED, FONT_SMALL
 
 PALETTE = "Dark2"
-
-
-def _get_display_name(dataset):
-    """Map raw dataset name to a human-readable display name."""
-    return DATASET_NAMES.get(dataset, dataset)
 
 
 def _make_strip_panel(ax, df, y_col, title, ylabel):
@@ -76,7 +68,7 @@ def plot_phangorn_larch_comparison(df, output_dir):
         output_dir: Directory to save the output figure.
     """
     df = df.copy()
-    df["dataset_display"] = df["dataset"].map(_get_display_name)
+    df["dataset_display"] = df["dataset"].map(lambda ds: DATASET_NAMES.get(ds, ds))
 
     # Handle old CSVs that used "frac_suspect_labels" instead of "frac_non_dag_edges"
     if "frac_non_dag_edges" not in df.columns and "frac_suspect_labels" in df.columns:
@@ -121,7 +113,7 @@ def plot_phangorn_larch_comparison_all_trees(df, output_dir):
         output_dir: Directory to save the output figure.
     """
     df = df.copy()
-    df["dataset_display"] = df["dataset"].map(_get_display_name)
+    df["dataset_display"] = df["dataset"].map(lambda ds: DATASET_NAMES.get(ds, ds))
 
     datasets = df["dataset_display"].unique()
     start_types = df["start_type"].unique()
@@ -228,9 +220,10 @@ def main():
         # All-trees CSV: produce scatter plot and summary strip plot
         plot_phangorn_larch_comparison_all_trees(df, args.output_dir)
         # Filter to last tree per replicate for the summary strip plot
-        plot_phangorn_larch_comparison(
-            _filter_last_tree_per_replicate(df), args.output_dir
-        )
+        max_idx = df.groupby(["dataset", "start_type", "replicate"])[
+            "tree_index"
+        ].transform("max")
+        plot_phangorn_larch_comparison(df[max_idx == df["tree_index"]], args.output_dir)
     else:
         plot_phangorn_larch_comparison(df, args.output_dir)
 

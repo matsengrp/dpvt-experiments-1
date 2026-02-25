@@ -129,6 +129,21 @@ def get_individual_tree_eval_path(
     return f"{path}.csv"
 
 
+def get_benchmark_path(step_name, model_name, train_data_name, test_data_name, param_id, device, timestamp, output_dir):
+    path = build_log_path(
+        model_name=model_name,
+        train_data_name=train_data_name,
+        test_data_name=test_data_name,
+        param_id=param_id,
+        device=device,
+        timestamp=timestamp,
+        log_name="benchmarks",
+        step_name=step_name,
+        output_dir=output_dir,
+    )
+    return f"{path}.tsv"
+
+
 # Generate paths
 rep_data_pairs = list(itertools.product(train_data_names, test_data_names_with_reps))
 
@@ -232,6 +247,17 @@ rule train_model_step:
             timestamp=timestamp,
             output_dir=output_dir,
         ),
+    benchmark:
+        get_benchmark_path(
+            step_name="train_model",
+            model_name="{model_name}",
+            train_data_name="{train_data_name}",
+            test_data_name="none",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
     run:
         train_model(
             model_name=wildcards.model_name,
@@ -275,6 +301,17 @@ rule evaluate_individual_trees:
             timestamp=timestamp,
             output_dir=output_dir,
         ),
+    benchmark:
+        get_benchmark_path(
+            step_name="evaluate_individual_trees",
+            model_name="{model_name}",
+            train_data_name="{train_data_name}",
+            test_data_name="{test_data_name}",
+            param_id="{param_id}",
+            device=device,
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
     wildcard_constraints:
         # Exclude baseline models from this rule
         model_name="(?!.*Baseline).*",
@@ -302,6 +339,17 @@ rule evaluate_baseline_model:
             timestamp=timestamp,
             output_dir=output_dir,
         ),
+    benchmark:
+        get_benchmark_path(
+            step_name="evaluate_baseline",
+            model_name="{baseline_model}",
+            train_data_name="baseline",
+            test_data_name="{test_data_name}",
+            param_id="baseline",
+            device="cpu",
+            timestamp=timestamp,
+            output_dir=output_dir,
+        )
     wildcard_constraints:
         # only use rule for baseline model
         baseline_model="|".join(baseline_models),

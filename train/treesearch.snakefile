@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import itertools
 
 from dpvtex.dpvt_zoo import (
@@ -45,6 +46,7 @@ metrics = config["metrics"]
 use_hyperparameter_optimize = bool(config["use_hyperparameter_optimize"])
 n_hyperparameter_trials = config.get("n_hyperparameter_trials", 100)
 hyperparameters = config["hyperparameters"]
+write_benchmarks = config.get("write_benchmarks", True)
 
 # Get expanded dataset dict (with glob patterns resolved)
 dataset_dict = load_nicknames_dict(data_nicknames_path)
@@ -142,6 +144,17 @@ def get_benchmark_path(step_name, model_name, train_data_name, test_data_name, p
         output_dir=output_dir,
     )
     return f"{path}.tsv"
+
+
+def write_benchmark_file(benchmark_path, elapsed_seconds):
+    """Write a Snakemake-compatible benchmark TSV with elapsed wall clock time."""
+    os.makedirs(os.path.dirname(benchmark_path), exist_ok=True)
+    h = int(elapsed_seconds // 3600)
+    m = int((elapsed_seconds % 3600) // 60)
+    s = elapsed_seconds % 60
+    with open(benchmark_path, "w") as f:
+        f.write("s\th:m:s\tmax_rss\tmax_vms\tmax_uss\tmax_pss\tio_in\tio_out\tmean_load\tcpu_time\n")
+        f.write(f"{elapsed_seconds:.4f}\t{h}:{m:02d}:{s:05.2f}\t-\t-\t-\t-\t-\t-\t-\t-\n")
 
 
 # Generate paths
@@ -247,18 +260,8 @@ rule train_model_step:
             timestamp=timestamp,
             output_dir=output_dir,
         ),
-    benchmark:
-        get_benchmark_path(
-            step_name="train_model",
-            model_name="{model_name}",
-            train_data_name="{train_data_name}",
-            test_data_name="none",
-            param_id="{param_id}",
-            device=device,
-            timestamp=timestamp,
-            output_dir=output_dir,
-        )
     run:
+        start = time.time()
         train_model(
             model_name=wildcards.model_name,
             data_name=wildcards.train_data_name,
@@ -271,6 +274,11 @@ rule train_model_step:
             output_dir=output_dir,
             data_nicknames_path=data_nicknames_path,
         )
+        if write_benchmarks:
+            write_benchmark_file(
+                get_benchmark_path("train_model", wildcards.model_name, wildcards.train_data_name, "none", wildcards.param_id, device, timestamp, output_dir),
+                time.time() - start,
+            )
 
 
 rule evaluate_individual_trees:
@@ -301,21 +309,11 @@ rule evaluate_individual_trees:
             timestamp=timestamp,
             output_dir=output_dir,
         ),
-    benchmark:
-        get_benchmark_path(
-            step_name="evaluate_individual_trees",
-            model_name="{model_name}",
-            train_data_name="{train_data_name}",
-            test_data_name="{test_data_name}",
-            param_id="{param_id}",
-            device=device,
-            timestamp=timestamp,
-            output_dir=output_dir,
-        )
     wildcard_constraints:
         # Exclude baseline models from this rule
         model_name="(?!.*Baseline).*",
     run:
+        start = time.time()
         evaluate_individual_trees(
             model_name=wildcards.model_name,
             train_data_name=wildcards.train_data_name,
@@ -326,6 +324,11 @@ rule evaluate_individual_trees:
             output_file=output.eval_path,
             data_nicknames_path=data_nicknames_path,
         )
+        if write_benchmarks:
+            write_benchmark_file(
+                get_benchmark_path("evaluate_individual_trees", wildcards.model_name, wildcards.train_data_name, wildcards.test_data_name, wildcards.param_id, device, timestamp, output_dir),
+                time.time() - start,
+            )
 
 
 rule evaluate_baseline_model:
@@ -339,26 +342,21 @@ rule evaluate_baseline_model:
             timestamp=timestamp,
             output_dir=output_dir,
         ),
-    benchmark:
-        get_benchmark_path(
-            step_name="evaluate_baseline",
-            model_name="{baseline_model}",
-            train_data_name="baseline",
-            test_data_name="{test_data_name}",
-            param_id="baseline",
-            device="cpu",
-            timestamp=timestamp,
-            output_dir=output_dir,
-        )
     wildcard_constraints:
         # only use rule for baseline model
         baseline_model="|".join(baseline_models),
     run:
+        start = time.time()
         evaluate_baseline_reversion_on_trees(
             test_data_name=wildcards.test_data_name,
             output_file=output.eval_path,
             data_nicknames_path=data_nicknames_path,
         )
+        if write_benchmarks:
+            write_benchmark_file(
+                get_benchmark_path("evaluate_baseline", wildcards.baseline_model, "baseline", wildcards.test_data_name, "baseline", "cpu", timestamp, output_dir),
+                time.time() - start,
+            )
 
 
 rule concat_tree_eval:

@@ -213,13 +213,23 @@ def main():
     print(f"Loaded {len(df)} rows across {df['dataset'].nunique()} datasets")
 
     if "tree_index" in df.columns:
-        # All-trees CSV: produce scatter plot and summary strip plot
-        plot_phangorn_larch_comparison_all_trees(df, args.output_dir)
-        # Filter to last tree per replicate for the summary strip plot
-        max_idx = df.groupby(["dataset", "start_type", "replicate"])[
+        has_tree_index = df["tree_index"].notna()
+        # All-trees scatter plot: only rows that have tree_index data
+        if has_tree_index.any():
+            plot_phangorn_larch_comparison_all_trees(
+                df[has_tree_index], args.output_dir
+            )
+        # Summary strip plot: keep summary rows (no tree_index) as-is,
+        # and filter all-trees rows to the last tree per replicate
+        all_trees_part = df[has_tree_index]
+        max_idx = all_trees_part.groupby(["dataset", "start_type", "replicate"])[
             "tree_index"
         ].transform("max")
-        plot_phangorn_larch_comparison(df[max_idx == df["tree_index"]], args.output_dir)
+        last_trees = all_trees_part[max_idx == all_trees_part["tree_index"]]
+        summary_part = df[~has_tree_index]
+        plot_phangorn_larch_comparison(
+            pd.concat([summary_part, last_trees], ignore_index=True), args.output_dir
+        )
     else:
         plot_phangorn_larch_comparison(df, args.output_dir)
 

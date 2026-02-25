@@ -41,36 +41,7 @@ def get_dag_mp_score(dag_path, fasta_path):
 
 
 def analyze_replicate(pickle_path, fasta_path, mp_score):
-    """Analyze the last tree of a single replicate for labeling problems.
-
-    All metrics are computed on the last tree in the pickle (the final output
-    of phangorn's tree search).  Delegates to :func:`analyze_replicate_all_trees`
-    and returns only the last-tree row.
-
-    Args:
-        pickle_path: Path to tree search pickle (dict of ete3.Tree -> list[int]).
-        fasta_path: Path to FASTA alignment file.
-        mp_score: The larch DAG's MP parsimony score.
-
-    Returns:
-        dict: Metrics for this replicate (all based on the last tree):
-            - score_gap: last tree score - larch MP (negative = phangorn beats larch)
-            - num_non_dag_edges: edges not supported by DAG in the last tree
-            - frac_non_dag_edges: non-DAG edges / total edges in the last tree
-    """
-    rows = analyze_replicate_all_trees(pickle_path, fasta_path, mp_score)
-    if rows is None:
-        return None
-    last = rows[-1]
-    return {
-        "score_gap": last["score_gap"],
-        "num_non_dag_edges": last["num_non_dag_edges"],
-        "frac_non_dag_edges": last["frac_non_dag_edges"],
-    }
-
-
-def analyze_replicate_all_trees(pickle_path, fasta_path, mp_score):
-    """Analyze all trees in a single replicate for labeling problems.
+    """Analyze all trees in a single replicate.
 
     Returns one row per tree. ``frac_non_dag_edges`` is computed cheaply from
     labels for every tree.  ``score_gap`` is only computed for the **last**
@@ -243,37 +214,25 @@ def main():
         if mp_score is None:
             continue
 
-        if args.all_trees:
-            rows = analyze_replicate_all_trees(pickle_path, fasta_path, mp_score)
-            if rows is None:
-                print("  Warning: empty pickle, skipping")
-                continue
-            for row in rows:
-                row["dataset"] = dataset
-                row["start_type"] = start_type
-                row["replicate"] = rep_name
-                row["mp_score"] = mp_score
-                results.append(row)
-            last = rows[-1]
-            print(
-                f"  {len(rows)} trees, "
-                f"last: score_gap={last['score_gap']}, "
-                f"frac_non_dag_edges={last['frac_non_dag_edges']:.4f}"
-            )
-        else:
-            metrics = analyze_replicate(pickle_path, fasta_path, mp_score)
-            if metrics is None:
-                print("  Warning: empty pickle, skipping")
-                continue
-            metrics["dataset"] = dataset
-            metrics["start_type"] = start_type
-            metrics["replicate"] = rep_name
-            metrics["mp_score"] = mp_score
-            results.append(metrics)
-            print(
-                f"  score_gap={metrics['score_gap']}, "
-                f"frac_non_dag_edges={metrics['frac_non_dag_edges']:.4f}"
-            )
+        rows = analyze_replicate(pickle_path, fasta_path, mp_score)
+        if rows is None:
+            print("  Warning: empty pickle, skipping")
+            continue
+
+        if not args.all_trees:
+            rows = [rows[-1]]
+
+        for row in rows:
+            row["dataset"] = dataset
+            row["start_type"] = start_type
+            row["replicate"] = rep_name
+            row["mp_score"] = mp_score
+            results.append(row)
+        last = rows[-1]
+        print(
+            f"  score_gap={last['score_gap']}, "
+            f"frac_non_dag_edges={last['frac_non_dag_edges']:.4f}"
+        )
 
     if not results:
         print("\nNo results collected.")

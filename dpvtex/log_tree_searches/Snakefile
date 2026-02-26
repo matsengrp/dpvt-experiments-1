@@ -166,6 +166,7 @@ rule run_larch_usher:
     shell:
         """
         {larch_build} -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
+        rm -f intermediate_newick*.pb.gz before_optimize.pb after_optimize.pb
         """
 
 

@@ -192,6 +192,8 @@ rule run_larch:
         set -e
         # Run larch with timeout
         timeout {params.timeout} {larch_command} -i {input.pb} -r {input.txt} -v {input.vcf} -o {output.pb} -l {params.log} -S
+        # Clean up larch-usher intermediate files left in CWD
+        rm -f intermediate_newick*.pb.gz before_optimize.pb after_optimize.pb
         """
 
         try:

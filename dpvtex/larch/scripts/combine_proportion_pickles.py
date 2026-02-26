@@ -45,7 +45,7 @@ def find_proportion_pickles(data_root, pattern):
         # Extract proportion from filename like "..._t0.05_spr_r2_t0.05.p"
         # or "..._t0.1_spr_r2_t0.1_m1.p" (with max_trees suffix)
         # The proportion appears after the last "_t" before ".p" or "_m{N}.p"
-        name = basename[:-2]  # strip ".p"
+        name, _ = os.path.splitext(basename)
         # Strip optional _m{N} suffix before parsing proportion
         name = re.sub(r"_m\d+$", "", name)
         parts = name.rsplit("_t", 1)
@@ -54,7 +54,9 @@ def find_proportion_pickles(data_root, pattern):
                 proportion = float(parts[1])
                 results.append((proportion, path))
             except ValueError:
-                print(f"  WARNING: Could not parse proportion from {basename}, skipping")
+                print(
+                    f"  WARNING: Could not parse proportion from {basename}, skipping"
+                )
         else:
             print(f"  WARNING: Unexpected filename format: {basename}, skipping")
 
@@ -97,7 +99,9 @@ def report_nonmp_stats(combined_dict):
         num_leaves = len(tree)
         # Internal edges excluding masked root + first child
         num_internal = len(labels) - 2 - num_leaves
-        num_nonmp = sum(labels[2:])  # leaves are always 0, so sum is just non-MP internals
+        num_nonmp = sum(
+            labels[2:]
+        )  # leaves are always 0, so sum is just non-MP internals
         if num_internal > 0:
             frac = num_nonmp / num_internal
             fractions.append(frac)
@@ -195,9 +199,7 @@ def main():
         print(
             f"\nWARNING: {len(skipped)} file(s) exceed {args.max_file_size_gb} GB and will be skipped."
         )
-        print(
-            "  These may be from earlier pipeline runs without max_trees=1."
-        )
+        print("  These may be from earlier pipeline runs without max_trees=1.")
         print(
             "  Use --max-file-size-gb to adjust the threshold, or re-run the pipeline for these proportions."
         )

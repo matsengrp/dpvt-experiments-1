@@ -136,9 +136,17 @@ def get_full_edge_suffix(
 
     if edge_distribution in ("constant", "uniform", "treesearch_mimic"):
         if spr_radius is not None or spr_target_proportion is not None:
-            return base_suffix + get_spr_param_suffix(spr_radius, spr_target_proportion) + get_max_trees_suffix(max_trees)
+            return (
+                base_suffix
+                + get_spr_param_suffix(spr_radius, spr_target_proportion)
+                + get_max_trees_suffix(max_trees)
+            )
     elif edge_distribution == "random_subtree":
         if subtree_target_proportion is not None:
-            return base_suffix + get_subtree_param_suffix(subtree_target_proportion) + get_max_trees_suffix(max_trees)
+            return (
+                base_suffix
+                + get_subtree_param_suffix(subtree_target_proportion)
+                + get_max_trees_suffix(max_trees)
+            )
 
     return base_suffix + get_max_trees_suffix(max_trees)

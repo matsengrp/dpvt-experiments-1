@@ -2,7 +2,7 @@
 # Imports
 # ==============================================================================
 
-import sys, os, shutil, time
+import sys, os, shutil
 from datetime import datetime
 import itertools
 import pprint as pp
@@ -148,17 +148,6 @@ def get_benchmark_path(rule_name, model, train_data, test_data, param_id):
         **ctx,
     )
     return f"{path}.tsv"
-
-
-def write_benchmark_file(benchmark_path, elapsed_seconds):
-    """Write a Snakemake-compatible benchmark TSV with elapsed wall clock time."""
-    os.makedirs(os.path.dirname(benchmark_path), exist_ok=True)
-    h = int(elapsed_seconds // 3600)
-    m = int((elapsed_seconds % 3600) // 60)
-    s = elapsed_seconds % 60
-    with open(benchmark_path, "w") as f:
-        f.write("s\th:m:s\tmax_rss\tmax_vms\tmax_uss\tmax_pss\tio_in\tio_out\tmean_load\tcpu_time\n")
-        f.write(f"{elapsed_seconds:.4f}\t{h}:{m:02d}:{s:05.2f}\t-\t-\t-\t-\t-\t-\t-\t-\n")
 
 
 def get_csv_log_path(model_name, train_data_name, test_data_name, param_id):
@@ -335,8 +324,9 @@ rule log_metadata:
 rule optimize_hyperparameters:
     output:
         hyperparameter_path=wildcard_params_json(),
+    benchmark:
+        wildcard_benchmark("optimize_hyperparameters")
     run:
-        start = time.time()
         if use_hyperparameter_optimize:
             optimize_hyperparameters(
                 model_name=wildcards.model_name,
@@ -353,11 +343,6 @@ rule optimize_hyperparameters:
         else:
             with open(output.hyperparameter_path, "w") as file:
                 file.write(json.dumps(param_dicts[wildcards.param_id]))
-        if write_benchmarks:
-            write_benchmark_file(
-                get_benchmark_path("optimize_hyperparameters", wildcards.model_name, wildcards.train_data_name, None, wildcards.param_id),
-                time.time() - start,
-            )
 
 
 rule train_model:
@@ -365,27 +350,23 @@ rule train_model:
         hyperparameter_path=wildcard_params_json(),
     output:
         trained_model=wildcard_trained_ckpt(),
-    run:
-        start = time.time()
-        shell("""
-            python -c "from dpvtex.dpvt_zoo import train_model; train_model(
-                model_name='{wildcards.model_name}',
-                data_name='{wildcards.train_data_name}',
-                train_checkpoint='{output.trained_model}',
-                device='{device}',
-                hyperparameter_path='{input.hyperparameter_path}',
-                profiling={profiling},
-                timestamp='{timestamp}',
-                param_id='{wildcards.param_id}',
-                output_dir='{output_dir}',
-                data_nicknames_path='{data_nicknames_path}',
-            )"
-        """)
-        if write_benchmarks:
-            write_benchmark_file(
-                get_benchmark_path("train_model", wildcards.model_name, wildcards.train_data_name, None, wildcards.param_id),
-                time.time() - start,
-            )
+    benchmark:
+        wildcard_benchmark("train_model")
+    shell:
+        """
+        python -c "from dpvtex.dpvt_zoo import train_model; train_model(
+            model_name='{wildcards.model_name}',
+            data_name='{wildcards.train_data_name}',
+            train_checkpoint='{output.trained_model}',
+            device='{device}',
+            hyperparameter_path='{input.hyperparameter_path}',
+            profiling={profiling},
+            timestamp='{timestamp}',
+            param_id='{wildcards.param_id}',
+            output_dir='{output_dir}',
+            data_nicknames_path='{data_nicknames_path}',
+        )"
+        """
 
 
 rule test_model:
@@ -394,29 +375,25 @@ rule test_model:
         hyperparameter_path=wildcard_params_json(),
     output:
         tested_model=wildcard_tested_ckpt(),
-    run:
-        start = time.time()
-        shell("""
-            python -c "from dpvtex.dpvt_zoo import test_model; test_model(
-                trained_model_name='{wildcards.model_name}',
-                train_data_name='{wildcards.train_data_name}',
-                trained_model_ckpt='{input.trained_model}',
-                test_data_name='{wildcards.test_data_name}',
-                test_checkpoint='{output.tested_model}',
-                device='{device}',
-                hyperparameter_path='{input.hyperparameter_path}',
-                profiling={profiling},
-                timestamp='{timestamp}',
-                param_id='{wildcards.param_id}',
-                output_dir='{output_dir}',
-                data_nicknames_path='{data_nicknames_path}',
-            )"
-        """)
-        if write_benchmarks:
-            write_benchmark_file(
-                get_benchmark_path("test_model", wildcards.model_name, wildcards.train_data_name, wildcards.test_data_name, wildcards.param_id),
-                time.time() - start,
-            )
+    benchmark:
+        wildcard_benchmark("test_model", with_test_data=True)
+    shell:
+        """
+        python -c "from dpvtex.dpvt_zoo import test_model; test_model(
+            trained_model_name='{wildcards.model_name}',
+            train_data_name='{wildcards.train_data_name}',
+            trained_model_ckpt='{input.trained_model}',
+            test_data_name='{wildcards.test_data_name}',
+            test_checkpoint='{output.tested_model}',
+            device='{device}',
+            hyperparameter_path='{input.hyperparameter_path}',
+            profiling={profiling},
+            timestamp='{timestamp}',
+            param_id='{wildcards.param_id}',
+            output_dir='{output_dir}',
+            data_nicknames_path='{data_nicknames_path}',
+        )"
+        """
 
 
 rule create_csv:

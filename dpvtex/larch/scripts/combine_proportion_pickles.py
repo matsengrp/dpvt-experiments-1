@@ -2,9 +2,10 @@
 """
 Combine per-proportion pickle files into a single training set.
 
-Step 3 of issue #49: loads per-proportion pickle files (one per target non-MP
-edge proportion), subsamples each to a target number of trees, and combines
-into a single training pickle.
+The larch pipeline generates separate pickle files for each target non-MP edge
+proportion (e.g., 5%, 10%, ..., 100%). This script loads those per-proportion
+pickles, subsamples each to a target number of trees, and combines them into a
+single training pickle with uniform coverage across proportion levels.
 
 Usage:
     python scripts/combine_proportion_pickles.py \

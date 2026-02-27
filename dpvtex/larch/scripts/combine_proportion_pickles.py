@@ -10,12 +10,15 @@ single training pickle with uniform coverage across proportion levels.
 Usage:
     python scripts/combine_proportion_pickles.py \
         --data-root ../../shared_data/orthomam_varied_prop_max1 \
+        --pattern 'orthomam_train_filtered_0.5_t*_spr_r2_t*.p' \
         --output ../../shared_data/orthomam_varied_proportions.p \
         --trees-per-level 50
 
     # Dry run to inspect tree counts without loading large files:
     python scripts/combine_proportion_pickles.py \
-        --data-root ../../shared_data/orthomam_varied_prop_max1 --dry-run
+        --data-root ../../shared_data/orthomam_varied_prop_max1 \
+        --pattern 'orthomam_train_filtered_0.5_t*_spr_r2_t*.p' \
+        --dry-run
 """
 
 import argparse
@@ -25,8 +28,6 @@ import random
 import re
 from glob import glob
 
-DEFAULT_PATTERN = "orthomam_train_filtered_0.5_t*_spr_r2_t*.p"
-DEFAULT_DATA_ROOT = "../../shared_data/orthomam_varied_prop_max1"
 DEFAULT_TREES_PER_LEVEL = 50
 DEFAULT_MAX_FILE_SIZE_GB = 10
 
@@ -126,13 +127,13 @@ def main():
     )
     parser.add_argument(
         "--data-root",
-        default=DEFAULT_DATA_ROOT,
-        help=f"Directory containing the per-proportion pickle files (default: {DEFAULT_DATA_ROOT})",
+        required=True,
+        help="Directory containing the per-proportion pickle files",
     )
     parser.add_argument(
         "--pattern",
-        default=DEFAULT_PATTERN,
-        help=f"Glob pattern for per-proportion pickles (default: {DEFAULT_PATTERN})",
+        required=True,
+        help="Glob pattern for per-proportion pickles (e.g., '*_t*.p')",
     )
     parser.add_argument(
         "--output",

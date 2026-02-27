@@ -90,21 +90,6 @@ def get_subtree_param_suffix(subtree_target_proportion):
     return f"_t{subtree_target_proportion}"
 
 
-def get_max_trees_suffix(max_trees):
-    """Generate suffix like '_m1' for the max_trees parameter.
-
-    Args:
-        max_trees: Maximum number of trees to extract per alignment.
-            If None, no suffix is added (unlimited extraction).
-
-    Returns:
-        Parameter suffix string (e.g., '_m1', '_m200') or empty string if None.
-    """
-    if max_trees is None:
-        return ""
-    return f"_m{max_trees}"
-
-
 def get_full_edge_suffix(
     edge_distribution,
     spr_radius=None,
@@ -139,14 +124,14 @@ def get_full_edge_suffix(
             return (
                 base_suffix
                 + get_spr_param_suffix(spr_radius, spr_target_proportion)
-                + get_max_trees_suffix(max_trees)
+                + (f"_m{max_trees}" if max_trees is not None else "")
             )
     elif edge_distribution == "random_subtree":
         if subtree_target_proportion is not None:
             return (
                 base_suffix
                 + get_subtree_param_suffix(subtree_target_proportion)
-                + get_max_trees_suffix(max_trees)
+                + (f"_m{max_trees}" if max_trees is not None else "")
             )
 
-    return base_suffix + get_max_trees_suffix(max_trees)
+    return base_suffix + (f"_m{max_trees}" if max_trees is not None else "")

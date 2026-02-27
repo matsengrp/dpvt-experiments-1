@@ -36,7 +36,7 @@ scripts_dir = os.path.join(snakefile_dir, "scripts")
 if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
-from utils import EDGE_DIST_TO_SUFFIX, SUFFIX_TO_EDGE_DIST, get_dup_sites_suffix, get_full_edge_suffix, get_max_trees_suffix
+from utils import EDGE_DIST_TO_SUFFIX, SUFFIX_TO_EDGE_DIST, get_dup_sites_suffix, get_full_edge_suffix
 
 # Config file can be specified via --configfile on command line
 default_config_path = os.path.join(snakefile_dir, "config.yaml")

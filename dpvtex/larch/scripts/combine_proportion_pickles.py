@@ -65,11 +65,6 @@ def find_proportion_pickles(data_root, pattern):
     return sorted(results, key=lambda x: x[0])
 
 
-def get_file_size_gb(path):
-    """Get file size in GB."""
-    return os.path.getsize(path) / (1024**3)
-
-
 def load_and_subsample(pickle_path, trees_per_level, rng):
     """Load a pickle and subsample to trees_per_level trees.
 
@@ -187,7 +182,7 @@ def main():
     skipped = []
     to_process = []
     for proportion, path in proportion_files:
-        size_gb = get_file_size_gb(path)
+        size_gb = os.path.getsize(path) / (1024**3)
         size_str = f"{size_gb:.1f} GB" if size_gb >= 1 else f"{size_gb*1024:.0f} MB"
         skip = size_gb > args.max_file_size_gb
         marker = " ** SKIP (too large)" if skip else ""
@@ -235,7 +230,7 @@ def main():
     with open(output_path, "wb") as f:
         pickle.dump(combined, f)
 
-    size_gb = get_file_size_gb(output_path)
+    size_gb = os.path.getsize(output_path) / (1024**3)
     size_str = f"{size_gb:.1f} GB" if size_gb >= 1 else f"{size_gb*1024:.0f} MB"
     print(f"Output size: {size_str}")
     print("Done.")

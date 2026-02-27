@@ -326,6 +326,7 @@ level.
 ```bash
 python scripts/combine_proportion_pickles.py \
     --data-root /path/to/per-proportion/pickles \
+    --pattern '*_t*.p' \
     --output /path/to/output/combined.p \
     --trees-per-level 50
 ```

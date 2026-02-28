@@ -288,6 +288,56 @@ The all-in-one workflow automatically:
 2. Filters and creates a dataset (Phase 2, no train/test split)
 3. Runs larch and extracts DPVT training data (Phase 3)
 
+### Generating varied non-MP proportion datasets
+
+To train models that generalize across different non-MP edge fractions (e.g.,
+for tree search evaluation where non-MP fractions change as the search
+progresses), you can generate a training set where the target non-MP proportion
+varies across trees. The workflow has three steps:
+
+**1. Generate configs for each target proportion:**
+
+```bash
+cd dpvtex/larch
+python scripts/generate_configs.py \
+    -i /path/to/input/alignments \
+    -d my_dataset \
+    -l larch \
+    -p 0.05 -p 0.10 -p 0.15 -p 0.20 -p 0.25 \
+    -p 0.30 -p 0.35 -p 0.40 -p 0.45 -p 0.50 \
+    -p 0.55 -p 0.60 -p 0.65 -p 0.70 -p 0.75 \
+    -p 0.80 -p 0.85 -p 0.90 -p 0.95 -p 1.0 \
+    --max-trees 1 \
+    --no-split
+```
+
+This generates one Phase 3 config per proportion. The `--max-trees 1` flag
+limits extraction to 1 tree per alignment, keeping file sizes manageable. Each
+config produces output with a proportion suffix (e.g., `*_t0.05_m1.p`).
+
+**2. Run the pipeline for each proportion:**
+
+Run Phase 3 for each generated config (or use `run_all_on_simulated.snakefile`
+if starting from raw alignments). This produces one pickle file per proportion
+level.
+
+**3. Combine and subsample into a single training set:**
+
+```bash
+python scripts/combine_proportion_pickles.py \
+    --data-root /path/to/per-proportion/pickles \
+    --pattern '*_t*.p' \
+    --output /path/to/output/combined.p \
+    --trees-per-level 50
+```
+
+This loads each per-proportion pickle, subsamples to `--trees-per-level` trees
+(default: 50), and combines them into a single training pickle. Use `--dry-run`
+to inspect file sizes and tree counts before loading.
+
+The script reports non-MP edge fraction statistics for the combined dataset to
+verify the intended range is covered.
+
 ### Running all steps individually
 
 In some cases we want to run each step of the pipeline for creating the `dpvt`
@@ -441,6 +491,9 @@ In `dpvtex/larch/scripts`:
   generate corresponding config files.
 - `analyze_edge_distributions.py`: Standalone script to visualize non-MP edge
   distributions across datasets. See [Plotting edge distributions](#plotting-edge-distributions).
+- `combine_proportion_pickles.py`: Combine per-proportion pickle files into a
+  single training set by loading each file, subsampling to a target number of
+  trees per proportion level, and merging into one pickle.
 
 - Used by `preprocess_alignments.snakefile`:
 

@@ -95,6 +95,7 @@ def get_full_edge_suffix(
     spr_radius=None,
     spr_target_proportion=None,
     subtree_target_proportion=None,
+    max_trees=None,
 ):
     """Generate full suffix including params for each edge distribution method.
 
@@ -108,18 +109,29 @@ def get_full_edge_suffix(
             suffix is added.
         spr_target_proportion: Target non-MP proportion for SPR-based methods.
         subtree_target_proportion: Target non-MP proportion for random_subtree method.
+        max_trees: Maximum trees to extract per alignment. If None (unlimited),
+            no max_trees suffix is added.
 
     Returns:
         A string suffix combining the method abbreviation and relevant parameters.
-        For example: '_C_r2_t0.1' for constant with radius 2 and target 0.1.
+        For example: '_spr_r2_t0.1_m1' for constant with radius 2, target 0.1,
+        and max 1 tree per alignment.
     """
     base_suffix = EDGE_DIST_TO_SUFFIX.get(edge_distribution, "")
 
     if edge_distribution in ("constant", "uniform", "treesearch_mimic"):
         if spr_radius is not None or spr_target_proportion is not None:
-            return base_suffix + get_spr_param_suffix(spr_radius, spr_target_proportion)
+            return (
+                base_suffix
+                + get_spr_param_suffix(spr_radius, spr_target_proportion)
+                + (f"_m{max_trees}" if max_trees is not None else "")
+            )
     elif edge_distribution == "random_subtree":
         if subtree_target_proportion is not None:
-            return base_suffix + get_subtree_param_suffix(subtree_target_proportion)
+            return (
+                base_suffix
+                + get_subtree_param_suffix(subtree_target_proportion)
+                + (f"_m{max_trees}" if max_trees is not None else "")
+            )
 
-    return base_suffix
+    return base_suffix + (f"_m{max_trees}" if max_trees is not None else "")

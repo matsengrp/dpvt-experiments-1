@@ -91,6 +91,10 @@ param_ids, param_dicts = generate_hyperparameter_dicts(
     use_hyperparameter_optimize=use_hyperparameter_optimize,
 )
 
+# Common context for path generation
+ctx = {"device": device, "timestamp": timestamp, "output_dir": output_dir}
+
+
 # Helper functions
 def get_trained_model_ckpt(model, train_data, param_id, device, timestamp, output_dir):
     path = get_trained_model_path(
@@ -127,6 +131,19 @@ def get_individual_tree_eval_path(
         output_dir=output_dir,
     )
     return f"{path}.csv"
+
+
+def get_benchmark_path(step_name, model_name, train_data_name, test_data_name, param_id):
+    path = build_log_path(
+        model_name=model_name,
+        train_data_name=train_data_name,
+        test_data_name=test_data_name,
+        param_id=param_id,
+        log_name="benchmarks",
+        step_name=step_name,
+        **ctx,
+    )
+    return f"{path}.tsv"
 
 
 # Generate paths
@@ -232,6 +249,8 @@ rule train_model_step:
             timestamp=timestamp,
             output_dir=output_dir,
         ),
+    benchmark:
+        get_benchmark_path("train_model", "{model_name}", "{train_data_name}", "none", "{param_id}")
     run:
         train_model(
             model_name=wildcards.model_name,
@@ -278,6 +297,8 @@ rule evaluate_individual_trees:
     wildcard_constraints:
         # Exclude baseline models from this rule
         model_name="(?!.*Baseline).*",
+    benchmark:
+        get_benchmark_path("evaluate_individual_trees", "{model_name}", "{train_data_name}", "{test_data_name}", "{param_id}")
     run:
         evaluate_individual_trees(
             model_name=wildcards.model_name,
@@ -305,6 +326,8 @@ rule evaluate_baseline_model:
     wildcard_constraints:
         # only use rule for baseline model
         baseline_model="|".join(baseline_models),
+    benchmark:
+        get_benchmark_path("evaluate_baseline", "{baseline_model}", "baseline", "{test_data_name}", "baseline")
     run:
         evaluate_baseline_reversion_on_trees(
             test_data_name=wildcards.test_data_name,

@@ -80,7 +80,7 @@ and not a new bias introduced by this choice.
 
 ## Ideas
 
-### A. Target the hard regime: near-MP trees (try first)
+### A. Target the hard regime: near-MP trees (try first) — done (#48)
 
 **Description**: Generate a training set specifically focused on trees with very
 low non-MP fractions (1-5%). This is the cheapest experiment to check whether
@@ -139,7 +139,7 @@ label correctness but this is not the driver of the evaluation problem.
 - Ties the MP definition to phangorn's search neighborhood (see note above)
 - Requires a pipeline change to connect phangorn output to larch input
 
-### C. Generate training data with diverse non-MP fractions
+### C. Generate training data with diverse non-MP fractions — done (#49)
 
 **Description**: Instead of generating all training data at a single target
 proportion (10%), cover the full range of non-MP fractions seen during tree
@@ -251,6 +251,66 @@ Only relevant when the model is actually deployed for classification.
 - Even with perfect calibration, the model still struggles in the late-search
   regime (AUROC drops from 0.87 to 0.78 for TraverseMaxPooling), so this
   complements rather than replaces training improvements
+
+---
+
+## Status
+
+**Idea A** did not work (#48): training on near-MP trees alone produced a
+dataset too unbalanced (very few non-MP edges per tree) for the model to learn
+anything useful — it either degenerated to predicting all edges as MP or failed
+to discriminate based on treesearch position.
+
+**Idea C** has been implemented as the `orthomam_varied_proportions` dataset
+(#49): orthomam training data with non-MP edge proportions varied from 5% to
+100% in 5% increments, ~50 trees per level. This is the best-performing model
+across all test datasets and search regimes (overall AUROC 0.862 vs 0.780 for
+the next best). Late-search performance (0.788) still lags behind early search
+(0.931). See #49 for full results and possible next steps.
+
+## More future directions: improving late-search performance
+
+The varied proportions model (#49) achieves late-search AUROC of 0.788, still
+lagging behind early search (0.931). With very few non-MP edges remaining in
+near-optimal trees (down to ~4%), the classification task is inherently harder.
+The following approaches could help close this gap.
+
+### F. Class reweighting
+
+The loss function treats all edges equally, so the model is rewarded for
+conservatively predicting MP when non-MP edges are rare. Weighting the binary
+cross-entropy to upweight non-MP edges, or using focal loss to emphasise
+hard-to-classify examples, could make the model more decisive on the few
+remaining non-MP edges in late-search trees.
+
+### G. Tree-level conditioning
+
+The model has no explicit information about where in the search a tree comes
+from. A two-stage approach — first estimate the tree's overall non-MP fraction
+(a regression task on the whole tree), then condition per-edge predictions on
+that estimate — could help the model calibrate its predictions. The data already
+shows the model has some implicit awareness of tree quality (avg_prob_pos tracks
+the non-MP fraction), so making this explicit could sharpen discrimination.
+
+### H. Oversampling the low-proportion regime
+
+The current training set has ~50 trees per proportion level uniformly.
+Oversampling trees with <10% non-MP edges would give the model more gradient
+signal from the regime where it struggles most.
+
+### I. Contrastive or pairwise objectives
+
+Rather than classifying each edge independently, training on pairs of edges from
+the same tree (one MP, one non-MP) and learning to rank them would sidestep the
+calibration problem — the model only needs to score non-MP edges higher than MP
+ones, regardless of the absolute proportion.
+
+### J. Specialised models per search stage
+
+Training separate models or prediction heads for different non-MP fraction
+regimes, then selecting at inference time based on a rough estimate of search
+progress, could allow each model to specialise in its regime rather than
+compromising across all of them.
 
 ---
 

@@ -71,7 +71,8 @@ dup_sites_suffix = get_dup_sites_suffix(remove_site_patterns)
 # Build full edge suffixes including SPR/subtree parameters
 FULL_EDGE_SUFFIX = {
     ed: get_full_edge_suffix(
-        ed, spr_radius, spr_target_non_mp_proportion, subtree_target_non_mp_proportion
+        ed, spr_radius, spr_target_non_mp_proportion, subtree_target_non_mp_proportion,
+        max_trees
     )
     for ed in edge_distributions
 }

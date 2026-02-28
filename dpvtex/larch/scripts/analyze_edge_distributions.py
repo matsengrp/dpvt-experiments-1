@@ -42,13 +42,13 @@ def get_pickle_pattern(method):
     if method == "mixed":
         return r"_spr_subtree_few_sprs\.p$"
     elif method == "constant":
-        return r"_spr(_r[^_]+_t[^_]+)?\.p$"
+        return r"_spr(_r[^_]+_t[^_]+)?(_m\d+)?\.p$"
     elif method == "random_subtree":
-        return r"_subtree(_t[^_]+)?\.p$"
+        return r"_subtree(_t[^_]+)?(_m\d+)?\.p$"
     elif method == "uniform":
-        return r"_uniform(_r[^_]+_t[^_]+)?\.p$"
+        return r"_uniform(_r[^_]+_t[^_]+)?(_m\d+)?\.p$"
     elif method == "treesearch_mimic":
-        return r"_treesearch_mimic(_r[^_]+_t[^_]+)?\.p$"
+        return r"_treesearch_mimic(_r[^_]+_t[^_]+)?(_m\d+)?\.p$"
     return r"\.p$"
 
 
@@ -67,26 +67,35 @@ def extract_method_label_from_filename(filename, method):
     basename = os.path.basename(filename)
     base_name = METHOD_NAME_MAP.get(method, method)
 
-    # Try to extract SPR parameters (radius and target)
+    # Try to extract SPR parameters (radius and target, optional max_trees)
     # Use [\d.]+ to match decimal numbers like 0.1, 0.167
-    spr_match = re.search(r"_spr_r([^_]+)_t([\d.]+)\.p$", basename)
+    spr_match = re.search(r"_spr_r([^_]+)_t([\d.]+)(?:_m(\d+))?\.p$", basename)
     if spr_match:
-        radius, target = spr_match.groups()
-        return f"{base_name} (r={radius}, t={target})"
+        radius, target, max_trees = spr_match.groups()
+        label = f"{base_name} (r={radius}, t={target})"
+        if max_trees:
+            label += f" m={max_trees}"
+        return label
 
-    # Try to extract subtree parameters (target only)
-    subtree_match = re.search(r"_subtree_t([\d.]+)\.p$", basename)
+    # Try to extract subtree parameters (target only, optional max_trees)
+    subtree_match = re.search(r"_subtree_t([\d.]+)(?:_m(\d+))?\.p$", basename)
     if subtree_match:
-        target = subtree_match.group(1)
-        return f"{base_name} (t={target})"
+        target, max_trees = subtree_match.groups()
+        label = f"{base_name} (t={target})"
+        if max_trees:
+            label += f" m={max_trees}"
+        return label
 
-    # Try to extract uniform/treesearch_mimic parameters
+    # Try to extract uniform/treesearch_mimic parameters (optional max_trees)
     other_match = re.search(
-        r"_(uniform|treesearch_mimic)_r([^_]+)_t([\d.]+)\.p$", basename
+        r"_(uniform|treesearch_mimic)_r([^_]+)_t([\d.]+)(?:_m(\d+))?\.p$", basename
     )
     if other_match:
-        _, radius, target = other_match.groups()
-        return f"{base_name} (r={radius}, t={target})"
+        _, radius, target, max_trees = other_match.groups()
+        label = f"{base_name} (r={radius}, t={target})"
+        if max_trees:
+            label += f" m={max_trees}"
+        return label
 
     # Fallback to base name for old-style suffixes
     return base_name

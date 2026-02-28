@@ -54,6 +54,7 @@ default_config = {
     "use_cross_datasets": False,
     "use_hyperparameter_optimize": True,
     "profiling": False,
+    "write_benchmarks": True,
     "hyperparameters": {
         "learning_rate": [0.0002, 0.0004],
         "batch_size": [512],
@@ -89,6 +90,7 @@ n_hyperparameter_trials = config["n_hyperparameter_trials"]
 use_cross_datasets = config["use_cross_datasets"]
 use_hyperparameter_optimize = config["use_hyperparameter_optimize"]
 profiling = config["profiling"]
+write_benchmarks = config.get("write_benchmarks", True)
 hyperparameters = config["hyperparameters"]
 label_config = (
     LabelConfig(**config["label_config"]) if "label_config" in config else None
@@ -306,7 +308,7 @@ rule all:
         summary_plots=summary_plots_output,
         csv_output_path=csv_output_path,
         baseline_csv_output_path=baseline_csv_output_path if baseline_model_list else [],
-        timing_plot=timing_plots_output,
+        timing_plot=timing_plots_output if write_benchmarks else [],
 
 
 rule log_metadata:
@@ -507,7 +509,8 @@ rule concat_baseline_csvs:
 
 rule plot_times:
     input:
-        benchmark_paths=all_benchmark_paths,
+        trained_models=trained_model_chkpts,
+        tested_models=tested_model_chkpts,
     output:
         timing_plot=timing_plots_output,
     run:

@@ -30,11 +30,11 @@ DPI = 300
 PALETTE = "Dark2"
 
 # Heatmap sizing (inches)
-HEATMAP_COL_WIDTH = 0.75
-HEATMAP_BASE_WIDTH = 10
-HEATMAP_ROW_HEIGHT = 0.3
-HEATMAP_ROW_HEIGHT_PER_LABEL = 0.15
-HEATMAP_BASE_HEIGHT = 4
+HEATMAP_COL_WIDTH = 1.2
+HEATMAP_BASE_WIDTH = 5
+HEATMAP_ROW_HEIGHT = 0.7
+HEATMAP_ROW_HEIGHT_PER_LABEL = 0.2
+HEATMAP_BASE_HEIGHT = 3
 
 # Label positioning (figure fraction coordinates)
 YLABEL_BASE_OFFSET = -0.055
@@ -536,9 +536,6 @@ def _create_heatmap_pivot(df_sorted, indices, test_cols, value_column):
     Returns:
         Pivot table DataFrame ready for heatmap rendering.
     """
-    if len(indices) <= 1:
-        return df_sorted.pivot(index="model", columns="test_data", values=value_column)
-
     df_for_pivot = df_sorted.copy()
     for col in indices + test_cols:
         if isinstance(df_for_pivot[col].dtype, pd.CategoricalDtype):
@@ -843,6 +840,7 @@ def build_performance_heatmap(
         ax=ax,
     )
     ax.set_ylabel("")
+    plt.xticks(rotation=0, fontsize=FONT_MED)
     cbar = sns_heatmap.collections[0].colorbar
     cbar.ax.tick_params(labelsize=FONT_MED)
     cbar.set_label(METRIC_LABELS.get(value_column, value_column), fontsize=FONT_MED)

@@ -184,7 +184,7 @@ final tree). This produces a CSV with one row per tree per replicate, including
 `tree_index` and `normalized_tree_index` columns:
 
 ```bash
-python quantify_labeling_problem.py \
+python quantify_phangorn_larch_comparison.py \
   --data-root ../../shared_data \
   --output-dir ../../shared_data/treesearch \
   --datasets influenzaC_fluC_M \

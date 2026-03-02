@@ -6,8 +6,29 @@ merges all such dicts into one and saves the result.
 
 import argparse
 import pickle
+import sys
 from glob import glob
 import os
+
+
+def merge_pickle_files(pickle_files):
+    """Merge multiple {tree: labels} pickle files into a single dict.
+
+    Raises ValueError if any duplicate tree keys are found across files.
+    """
+    merged = {}
+    for path in pickle_files:
+        with open(path, "rb") as f:
+            data = pickle.load(f)
+        overlap = set(merged.keys()) & set(data.keys())
+        if overlap:
+            raise ValueError(
+                f"{len(overlap)} duplicate tree keys found in {path}. "
+                "Each tree key must be unique across all input files."
+            )
+        merged.update(data)
+        print(f"Loaded {len(data)} trees from {os.path.basename(path)}")
+    return merged
 
 
 def main():
@@ -28,20 +49,14 @@ def main():
     pickle_files = sorted(glob(pattern, recursive=True))
 
     if not pickle_files:
-        print(f"No *_tree_search.p files found in {args.input_dir}")
-        return
+        print(f"Error: no *_tree_search.p files found in {args.input_dir}")
+        sys.exit(1)
 
-    merged = {}
-    for path in pickle_files:
-        with open(path, "rb") as f:
-            data = pickle.load(f)
-        overlap = set(merged.keys()) & set(data.keys())
-        if overlap:
-            print(f"WARNING: {len(overlap)} duplicate tree keys from {path}")
-        merged.update(data)
-        print(f"Loaded {len(data)} trees from {os.path.basename(path)}")
+    merged = merge_pickle_files(pickle_files)
 
-    os.makedirs(os.path.dirname(args.output_pickle), exist_ok=True)
+    output_dir = os.path.dirname(args.output_pickle)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     with open(args.output_pickle, "wb") as f:
         pickle.dump(merged, f)
 

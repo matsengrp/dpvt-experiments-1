@@ -179,16 +179,34 @@ CSV files with different column sets (all-trees vs summary) can be mixed freely.
 Summary-only CSVs appear in the summary plot but are skipped in the all-trees
 scatter plot.
 
-Use `--all-trees` to analyze every intermediate tree in the search (not just the
-final tree). This produces a CSV with one row per tree per replicate, including
-`tree_index` and `normalized_tree_index` columns:
+## Training Data Generation
+
+The pipeline above produces per-alignment pickle files for testing. To generate
+**training data** from treesearch intermediates, use the end-to-end script:
 
 ```bash
-python quantify_phangorn_larch_comparison.py \
-  --data-root ../../shared_data \
-  --output-dir ../../shared_data/treesearch \
-  --datasets influenzaC_fluC_M \
-  --start-types nj random --all-trees
+bash generate_treesearch_training_data.sh
+```
+
+This script:
+
+1. Runs the Snakemake pipeline with `config_orthomam_treesearch_training_nj.yaml`
+2. Merges all per-alignment pickles into a single training dataset using
+   `merge_treesearch_pickles.py`
+3. Registers the merged pickle in the training nicknames JSON
+
+Edit the variables at the top of the script to configure the config file, output
+paths, and nickname key.
+
+### `merge_treesearch_pickles.py`
+
+Merges multiple per-alignment `{tree: labels}` pickle files into a single
+training pickle. Raises an error if duplicate tree keys are found across files.
+
+```bash
+python merge_treesearch_pickles.py \
+  ../../shared_data/treesearch_training/nj_starting \
+  ../../shared_data/orthomam_treesearch_nj_training.p
 ```
 
 ## Next Steps

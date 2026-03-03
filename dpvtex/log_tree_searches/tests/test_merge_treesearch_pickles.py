@@ -2,6 +2,7 @@
 
 import os
 import pickle
+from glob import glob
 
 import pytest
 
@@ -31,8 +32,6 @@ def pickle_dir(tmp_path):
 def test_merge_pickle_files(pickle_dir):
     """Merging two non-overlapping pickles produces the union of their keys."""
     pattern = os.path.join(str(pickle_dir), "**", "*_tree_search.p")
-    from glob import glob
-
     files = sorted(glob(pattern, recursive=True))
     merged = merge_pickle_files(files)
 
@@ -52,8 +51,6 @@ def test_merge_pickle_files_duplicate_keys(pickle_dir):
         pickle.dump(data3, f)
 
     pattern = os.path.join(str(pickle_dir), "**", "*_tree_search.p")
-    from glob import glob
-
     files = sorted(glob(pattern, recursive=True))
 
     with pytest.raises(ValueError, match="duplicate tree keys"):

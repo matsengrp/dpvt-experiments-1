@@ -39,4 +39,4 @@ with open(path, 'w') as f:
     json.dump(data, f, indent=2)
     f.write('\n')
 print(f'Added {key} to {path}')
-" "$NICKNAMES_FILE" "$NICKNAME_KEY" "orthomam_treesearch_nj_training.p"
+" "$NICKNAMES_FILE" "$NICKNAME_KEY" "$(basename "$MERGED_PICKLE")"

@@ -5,10 +5,10 @@ merges all such dicts into one and saves the result.
 """
 
 import argparse
+import os
 import pickle
 import sys
 from glob import glob
-import os
 
 
 def merge_pickle_files(pickle_files):

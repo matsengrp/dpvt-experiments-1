@@ -185,8 +185,7 @@ of searches.
 - Use the existing `log_tree_searches` pipeline with new config files (no new
   pipeline needed)
 - Run on ~150 OrthoMaM training alignments, starting with NJ trees
-  (deterministic, no replicates needed), then adding random starting trees with
-  3 replicates
+  (deterministic, no replicates needed)
 - Merge per-alignment pickles into a single training dataset per starting tree
   type via a small post-processing script
 
@@ -302,15 +301,15 @@ compromising across all of them.
 
 ---
 
-## Suggested issue structure and order
-
-These should be split into separate issues:
+## Issue tracking
 
 1. **Idea A** → #48 (closed) — feasibility experiment showed near-MP regime
    alone doesn't work; model degenerates or doesn't discriminate.
-2. **Idea C** → #49 (open) — varied non-MP proportions with OrthoMaM data.
-3. **Idea D** → #52 (open) — real treesearch intermediates as training data.
+2. **Idea C** → #49 (closed) — varied non-MP proportions with OrthoMaM data.
+   Best-performing model across all test datasets (overall AUROC 0.862).
+3. **Idea D** → #52 (closed) — real treesearch intermediates as training data
+   (NJ starting trees only).
 4. ~~**Idea B**~~ (deprioritized) — label correctness is not the driver of the
-   evaluation problem (see #50).
+   evaluation problem (see #50, closed).
 5. ~~**Idea E**~~ (deprioritized) — AUROC already captures ranking ability;
    threshold tuning only matters when deploying for classification.

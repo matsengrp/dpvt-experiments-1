@@ -16,6 +16,64 @@ import sys
 UNKNOWN_DESCRIPTION_SUFFIX = "_<unknown_description>"
 
 
+def build_dag_to_fasta_name_map(dag, fasta_path):
+    """Build a mapping from DAG node_id to FASTA leaf names.
+
+    Larch's VCF pipeline replaces "-" with "N" in sample names, so DAG
+    node_ids don't match FASTA IDs directly. We build the mapping by
+    replacing "-" with "N" in FASTA names to find corresponding DAG node_ids.
+
+    Args:
+        dag: historydag.sequence_dag.SequenceHistoryDag (trimmed to MP)
+        fasta_path: Path to the FASTA file with original leaf names.
+
+    Returns:
+        dict: mapping from DAG node_id strings to FASTA ID strings.
+    """
+    fasta_ids = {record.id for record in SeqIO.parse(fasta_path, "fasta")}
+    dag_leaf_ids = set()
+    for node in dag.postorder():
+        if node.is_leaf():
+            dag_leaf_ids.add(node.label.node_id)
+
+    # Build map: FASTA name with "-" replaced by "N" should match DAG node_id
+    dag_to_fasta = {}
+    for fasta_id in fasta_ids:
+        dag_id = fasta_id.replace("-", "N")
+        if dag_id in dag_leaf_ids:
+            dag_to_fasta[dag_id] = fasta_id
+        elif fasta_id in dag_leaf_ids:
+            # No renaming needed for this leaf
+            dag_to_fasta[fasta_id] = fasta_id
+
+    unmapped = dag_leaf_ids - set(dag_to_fasta.keys())
+    if unmapped:
+        print(f"Warning: {len(unmapped)} DAG leaves could not be mapped to FASTA IDs")
+
+    return dag_to_fasta
+
+
+def extract_dag_clades_with_fasta_names(dag, dag_to_fasta):
+    """Extract DAG clades remapped to use FASTA leaf names.
+
+    Args:
+        dag: historydag.sequence_dag.SequenceHistoryDag
+        dag_to_fasta: mapping from DAG node_id to FASTA ID
+
+    Returns:
+        dict: clade -> child_clades, using FASTA leaf names
+    """
+    dag_clades_raw = extract_hdag_clade_child_clades(dag)
+    dag_clades = {}
+    for clade, child_clades in dag_clades_raw.items():
+        mapped_clade = frozenset(dag_to_fasta.get(n, n) for n in clade)
+        mapped_children = frozenset(
+            frozenset(dag_to_fasta.get(n, n) for n in cc) for cc in child_clades
+        )
+        dag_clades[mapped_clade] = mapped_children
+    return dag_clades
+
+
 def read_trees(filename, fasta_path):
     """
     Read trees from filename and return them as ete3 trees with sequences
@@ -114,11 +172,30 @@ def main():
     # Trim to only MP topologies and convert to sequence_dag
     dag.trim_optimal_weight()
     dag = hdag.sequence_dag.SequenceHistoryDag.from_history_dag(dag)
-    dag_clades = extract_hdag_clade_child_clades(dag)
-    # Take a random tree from dag to use with assign_edge_labels()
-    dag_tree = next(dag.get_histories()).to_ete()
 
-    trees = read_trees(tree_file, fasta_path)
+    # Map DAG node_ids to FASTA names and extract clades with FASTA names
+    dag_to_fasta = build_dag_to_fasta_name_map(dag, fasta_path)
+    dag_clades = extract_dag_clades_with_fasta_names(dag, dag_to_fasta)
+    dag_tree = next(dag.get_histories()).to_ete(
+        name_func=lambda n: dag_to_fasta.get(n.label.node_id, n.label.node_id)
+        if n.is_leaf()
+        else ""
+    )
+
+    all_trees = read_trees(tree_file, fasta_path)
+
+    # Deduplicate trees: phangorn logs every iteration, including ones where
+    # the tree didn't change. Sort descendants for canonical child ordering
+    # before comparing newick strings.
+    seen_newicks = set()
+    trees = []
+    for tree in all_trees:
+        tree.sort_descendants()
+        nw = tree.write(format=9)
+        if nw not in seen_newicks:
+            seen_newicks.add(nw)
+            trees.append(tree)
+    print(f"Kept {len(trees)} unique trees out of {len(all_trees)}")
 
     # Assign edge labels to each tree
     tree_label_dict = {}

@@ -113,7 +113,7 @@ rule log_mp_tree_search:
     input:
         fasta=input_dir + "/{basename}/input.fasta",
     output:
-        tree_log=input_dir + "/{basename}/{basename}_rep{replicate}_log.trees",
+        tree_log=input_dir + "/{basename}/{basename}_" + start_tree_type + "_rep{replicate}_log.trees",
     params:
         seed=lambda wildcards: int(wildcards.replicate) * 100,  # Different seed for each replicate
         start_tree=start_tree_type,
@@ -172,7 +172,7 @@ rule run_larch_usher:
 rule compute_labels:
     input:
         larch_output=input_dir + "/{basename}/larch-output.pb",
-        tree_log=input_dir + "/{basename}/{basename}_rep{replicate}_log.trees",
+        tree_log=input_dir + "/{basename}/{basename}_" + start_tree_type + "_rep{replicate}_log.trees",
         fasta=input_dir + "/{basename}/input.fasta",
     output:
         test_p=output_dir

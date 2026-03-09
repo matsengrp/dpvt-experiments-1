@@ -15,7 +15,7 @@ NICKNAME_KEY=orthomam_treesearch_nj_training
 
 # Step 1: Run phangorn tree searches + labeling via Snakemake
 echo "=== Step 1: Running phangorn tree searches + labeling ==="
-snakemake -s Snakefile --configfile "$CONFIG" -c8
+pixi run -e cpu snakemake -s Snakefile --configfile "$CONFIG" -c8
 
 # Step 2: Merge per-alignment pickles into a single training dataset
 echo "=== Step 2: Merging per-alignment pickles ==="

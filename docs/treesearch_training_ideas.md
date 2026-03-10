@@ -176,9 +176,9 @@ alignments (filtered to retain 50% of sites) and use the resulting labeled
 intermediate trees directly as training data. This gives the model exposure to
 the exact distribution of non-MP edges it will encounter during evaluation.
 
-**Expected benefit**: High. The model would train on trees that look exactly
-like what it's tested on, including the critical low non-MP regime near the end
-of searches.
+**Expected benefit**: ~~High.~~ Low, given #52 results. The model would train
+on trees that look exactly like what it's tested on, but the NJ treesearch
+data suffers from extreme class imbalance and limited diversity.
 
 **Implementation**: See issue #52 for the full plan. Key decisions:
 
@@ -188,6 +188,19 @@ of searches.
   (deterministic, no replicates needed)
 - Merge per-alignment pickles into a single training dataset per starting tree
   type via a small post-processing script
+
+**Result**: Training on real NJ treesearch intermediates performs substantially
+worse than synthetic SPR data. On NJ tree search test data, treesearch NJ
+MaxPooling achieves only 0.561–0.375 AUROC on fluC_M (vs 0.729–0.704 for
+varied proportions). The gap is even larger on random-starting tree searches
+(mean AUROC 0.505–0.769 vs 0.842–0.877 for varied proportions). The NJ
+treesearch data suffers from: (1) extreme class imbalance — NJ starting trees
+are near-optimal so most intermediates have very few non-MP edges, (2) limited
+diversity — only 3–11 intermediate trees per alignment (median 6), totaling
+~923 trees across 144 alignments, and (3) narrow non-MP fraction range
+compared to what models encounter during evaluation. Dynamic per-sample class
+reweighting (dpvt#43) could help address the class imbalance at the loss
+level.
 
 ### E. Threshold tuning / probability calibration — deprioritized
 
@@ -262,13 +275,17 @@ lagging behind early search (0.931). With very few non-MP edges remaining in
 near-optimal trees (down to ~4%), the classification task is inherently harder.
 The following approaches could help close this gap.
 
-### F. Class reweighting
+### F. Class reweighting → dpvt#43
 
 The loss function treats all edges equally, so the model is rewarded for
-conservatively predicting MP when non-MP edges are rare. Weighting the binary
-cross-entropy to upweight non-MP edges, or using focal loss to emphasise
-hard-to-classify examples, could make the model more decisive on the few
-remaining non-MP edges in late-search trees.
+conservatively predicting MP when non-MP edges are rare. Dynamic per-sample
+class reweighting for the BCE loss (dpvt#43) would upweight non-MP edges
+proportionally to their rarity in each tree, or focal loss could emphasise
+hard-to-classify examples. This could make the model more decisive on the few
+remaining non-MP edges in late-search trees. This is especially relevant given
+#52 results: the extreme class imbalance in NJ treesearch training data
+(most intermediates near-optimal with very few non-MP edges) likely contributed
+to the poor performance of treesearch-trained models.
 
 ### G. Tree-level conditioning
 
@@ -307,8 +324,9 @@ compromising across all of them.
    alone doesn't work; model degenerates or doesn't discriminate.
 2. **Idea C** → #49 (closed) — varied non-MP proportions with OrthoMaM data.
    Best-performing model across all test datasets (overall AUROC 0.862).
-3. **Idea D** → #52 (closed) — real treesearch intermediates as training data
-   (NJ starting trees only).
+3. **Idea D** → #52 (closed) — real NJ treesearch intermediates as training
+   data. Performed substantially worse than synthetic SPR data due to extreme
+   class imbalance and limited diversity in NJ search intermediates.
 4. ~~**Idea B**~~ (deprioritized) — label correctness is not the driver of the
    evaluation problem (see #50, closed).
 5. ~~**Idea E**~~ (deprioritized) — AUROC already captures ranking ability;

@@ -19,7 +19,7 @@ pixi run -e cpu snakemake -s Snakefile --configfile "$CONFIG" -c8
 
 # Step 2: Merge per-alignment pickles into a single training dataset
 echo "=== Step 2: Merging per-alignment pickles ==="
-python merge_treesearch_pickles.py \
+pixi run python merge_treesearch_pickles.py \
   "${OUTPUT_DIR}/${START_TYPE}_starting" \
   "$MERGED_PICKLE"
 
@@ -27,7 +27,7 @@ python merge_treesearch_pickles.py \
 # Note: add_to_dataset_nicknames.py registers per-alignment glob patterns;
 # here we register the single merged pickle, so we update the JSON directly.
 echo "=== Step 3: Registering in training nicknames ==="
-python -c "
+pixi run python -c "
 import json, sys
 path = sys.argv[1]
 key = sys.argv[2]

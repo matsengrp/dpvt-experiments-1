@@ -177,9 +177,9 @@ def main():
     dag_to_fasta = build_dag_to_fasta_name_map(dag, fasta_path)
     dag_clades = extract_dag_clades_with_fasta_names(dag, dag_to_fasta)
     dag_tree = next(dag.get_histories()).to_ete(
-        name_func=lambda n: dag_to_fasta.get(n.label.node_id, n.label.node_id)
-        if n.is_leaf()
-        else ""
+        name_func=lambda n: (
+            dag_to_fasta.get(n.label.node_id, n.label.node_id) if n.is_leaf() else ""
+        )
     )
 
     all_trees = read_trees(tree_file, fasta_path)

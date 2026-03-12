@@ -157,8 +157,8 @@ python quantify_phangorn_larch_comparison.py \
 
 ### `plot_phangorn_larch_comparison.py`
 
-Visualizes the CSVs produced by `quantify_phangorn_larch_comparison.py`. Pass one
-or more CSV files to combine results across datasets or runs:
+Visualizes the CSVs produced by `quantify_phangorn_larch_comparison.py`. Pass
+one or more CSV files to combine results across datasets or runs:
 
 ```bash
 python plot_phangorn_larch_comparison.py \
@@ -169,18 +169,49 @@ python plot_phangorn_larch_comparison.py \
 
 This produces:
 
-- `phangorn_larch_comparison_summary.pdf` — strip plots of score gap and fraction
-  of non-DAG edges per dataset (using the last tree per replicate)
-- `phangorn_larch_comparison_all_trees.pdf` — scatter plot of fraction of non-DAG
-  edges for every intermediate tree (only for CSVs produced with `--all-trees`)
+- `phangorn_larch_comparison_summary.pdf` — strip plots of score gap and
+  fraction of non-DAG edges per dataset (using the last tree per replicate)
+- `phangorn_larch_comparison_all_trees.pdf` — scatter plot of fraction of
+  non-DAG edges for every intermediate tree (only for CSVs produced with
+  `--all-trees`)
 
 CSV files with different column sets (all-trees vs summary) can be mixed freely.
 Summary-only CSVs appear in the summary plot but are skipped in the all-trees
 scatter plot.
 
+## Training Data Generation
+
+The pipeline above produces per-alignment pickle files for testing. To generate
+**training data** from treesearch intermediates, use the end-to-end script:
+
+```bash
+bash generate_treesearch_training_data.sh
+```
+
+This script:
+
+1. Runs the Snakemake pipeline with `config_orthomam_treesearch_training_nj.yaml`
+2. Merges all per-alignment pickles into a single training dataset using
+   `merge_treesearch_pickles.py`
+3. Registers the merged pickle in the training nicknames JSON
+
+Edit the variables at the top of the script to configure the config file, output
+paths, and nickname key.
+
+### `merge_treesearch_pickles.py`
+
+Merges multiple per-alignment `{tree: labels}` pickle files into a single
+training pickle. Raises an error if duplicate tree keys are found across files.
+
+```bash
+python merge_treesearch_pickles.py \
+  ../../shared_data/treesearch_training/nj_starting \
+  ../../shared_data/orthomam_treesearch_nj_training.p
+```
+
 ## Next Steps
 
 After generating treesearch data, use `train/treesearch.snakefile` to train
-models and evaluate their performance on the intermediate trees. See the
-"Tree Search Evaluation Workflow" section of the main
-[README](../../README.md) for details.
+models and evaluate their performance on the intermediate trees. See the "Tree
+Search Evaluation Workflow" section of the main [README](../../README.md) for
+details.

@@ -99,19 +99,17 @@ Also directly addresses the failure mode.
   achieve very low non-MP fractions
 - Generate a dedicated training set and evaluate on treesearch data
 
-**Considerations**:
-
-- With very low targets, many trees may end up with 0% non-MP edges if the
-  perturbation can't find valid SPR moves that introduce exactly the right
-  number of non-MP edges
-- Small perturbations may not create diverse enough training signal
-- If this works, combine with broader approaches (C or D) for full coverage
+**Result**: Training on near-MP trees alone does not work. Simulated data at
+t=0.05 and OrthoMaM at ~10% non-MP both produce degenerate models (all edges
+predicted as MP). OrthoMaM at ~50% non-MP predicts ~20% of edges as non-MP but
+with no discrimination across search stages. The model needs a broad range of
+non-MP fractions during training, not just the low end.
 
 ### B. Seed larch with phangorn's best tree — deprioritized
 
 **Status**: Deprioritized based on findings in issue #50. The analysis showed
-that while phangorn routinely matches or beats larch (see phangorn-larch
-comparison analysis), it does **not** explain the late-search AUROC degradation. The dataset
+that while the labeling problem is real (phangorn routinely matches or beats
+larch), it does **not** explain the late-search AUROC degradation. The dataset
 with the cleanest labels (fluC_PB2) shows the worst AUROC drop, while the
 noisiest (rotavirusA_H_H2) shows the least. The dominant driver is class
 imbalance shift during search, which this idea does not address. Effort is
@@ -151,9 +149,9 @@ including the critical low-fraction regime.
 
 **Implementation options**:
 
-- **Multiple pipeline runs**: Use the existing `-p` flag in `generate_configs.py`
-  to generate training data at several targets (e.g., 1%, 5%, 10%, 20%, 50%)
-  and combine the resulting pickle files
+- **Multiple pipeline runs**: Use the existing `-p` flag in
+  `generate_configs.py` to generate training data at several targets (e.g., 1%,
+  5%, 10%, 20%, 50%) and combine the resulting pickle files
 - **Tune `treesearch_mimic`**: First test the current `treesearch_mimic` as-is.
   If the low non-MP regime is still underrepresented, adjust the split in
   `generate_perturbed_trees_with_labels()` in
@@ -171,36 +169,38 @@ including the critical low-fraction regime.
 - Synthetic perturbations may not capture all structural properties of real
   search intermediates
 
-### D. Use real treesearch intermediates as training data
+### D. Use real treesearch intermediates as training data → issue #52
 
-**Description**: Run the `log_tree_searches` pipeline on training alignments
-(not just test alignments) and use the resulting labeled intermediate trees
-directly as training data. This gives the model exposure to the exact
-distribution of non-MP edges it will encounter during evaluation.
+**Description**: Run the `log_tree_searches` pipeline on OrthoMaM training
+alignments (filtered to retain 50% of sites) and use the resulting labeled
+intermediate trees directly as training data. This gives the model exposure to
+the exact distribution of non-MP edges it will encounter during evaluation.
 
-**Expected benefit**: High. The model would train on trees that look exactly
-like what it's tested on, including the critical low non-MP regime near the end
-of searches.
+**Expected benefit**: ~~High.~~ Low, given #52 results. The model would train
+on trees that look exactly like what it's tested on, but the NJ treesearch
+data suffers from extreme class imbalance and limited diversity.
 
-**Implementation**:
+**Implementation**: See issue #52 for the full plan. Key decisions:
 
-- The `dpvtex/log_tree_searches/Snakefile` pipeline already handles the full
-  workflow: run phangorn tree search, run larch for the MP DAG, label edges via
-  `create_testing_data.py`
-- Would need to run this on training alignments (currently only run on test
-  alignments)
-- The `add_to_dataset_nicknames.py` script handles registering the output
-  datasets
-- Main work: running the pipeline on training data and configuring the training
-  workflow to use the output
+- Use the existing `log_tree_searches` pipeline with new config files (no new
+  pipeline needed)
+- Run on ~150 OrthoMaM training alignments, starting with NJ trees
+  (deterministic, no replicates needed)
+- Merge per-alignment pickles into a single training dataset per starting tree
+  type via a small post-processing script
 
-**Considerations**:
-
-- Tree searches are expensive (R phangorn + larch per alignment)
-- Training and test data should use different alignments to avoid data leakage
-- The number of trees per search varies; may need to balance across alignments
-- Trees early in the search may dominate the dataset (searches log many early
-  trees before converging)
+**Result**: Training on real NJ treesearch intermediates performs substantially
+worse than synthetic SPR data. On NJ tree search test data, treesearch NJ
+MaxPooling achieves only 0.561–0.375 AUROC on fluC_M (vs 0.729–0.704 for
+varied proportions). The gap is even larger on random-starting tree searches
+(mean AUROC 0.505–0.769 vs 0.842–0.877 for varied proportions). The NJ
+treesearch data suffers from: (1) extreme class imbalance — NJ starting trees
+are near-optimal so most intermediates have very few non-MP edges, (2) limited
+diversity — only 3–11 intermediate trees per alignment (median 6), totaling
+~923 trees across 144 alignments, and (3) narrow non-MP fraction range
+compared to what models encounter during evaluation. Dynamic per-sample class
+reweighting (dpvt#43) could help address the class imbalance at the loss
+level.
 
 ### E. Threshold tuning / probability calibration — deprioritized
 
@@ -223,23 +223,23 @@ models without retraining.
 
 **Expected benefit**: ~~Medium.~~ Low for now. Immediately improves
 precision/recall/F1 from the existing trained models, but does not address the
-underlying distribution mismatch (AUROC still degrades late in the search).
-Only relevant when the model is actually deployed for classification.
+underlying distribution mismatch (AUROC still degrades late in the search). Only
+relevant when the model is actually deployed for classification.
 
 **Implementation options**:
 
 - **Threshold tuning**: Compute the ROC curve on a validation set and pick the
-  threshold that maximizes Youden's J (sensitivity + specificity - 1) or F1.
-  The optimal threshold will likely be around 0.01-0.03 rather than 0.5. This
-  is a standard post-processing step for imbalanced classification.
+  threshold that maximizes Youden's J (sensitivity + specificity - 1) or F1. The
+  optimal threshold will likely be around 0.01-0.03 rather than 0.5. This is a
+  standard post-processing step for imbalanced classification.
 - **Temperature scaling**: Learn a single temperature parameter T on a
   validation set, then use `sigmoid(logit / T)` instead of `sigmoid(logit)`.
   This recalibrates probabilities so that a prediction of 0.3 actually means
   ~30% chance of being non-DAG. Standard method from Guo et al. 2017.
 - **Per-stage thresholds**: Since class balance shifts dramatically during tree
-  search (97% non-DAG at start, 4% at end), a single threshold may not work
-  well across all stages. Could learn separate thresholds for early/mid/late
-  search, or use the predicted non-DAG fraction to adapt the threshold.
+  search (97% non-DAG at start, 4% at end), a single threshold may not work well
+  across all stages. Could learn separate thresholds for early/mid/late search,
+  or use the predicted non-DAG fraction to adapt the threshold.
 
 **Considerations**:
 
@@ -275,13 +275,17 @@ lagging behind early search (0.931). With very few non-MP edges remaining in
 near-optimal trees (down to ~4%), the classification task is inherently harder.
 The following approaches could help close this gap.
 
-### F. Class reweighting
+### F. Class reweighting → dpvt#43
 
 The loss function treats all edges equally, so the model is rewarded for
-conservatively predicting MP when non-MP edges are rare. Weighting the binary
-cross-entropy to upweight non-MP edges, or using focal loss to emphasise
-hard-to-classify examples, could make the model more decisive on the few
-remaining non-MP edges in late-search trees.
+conservatively predicting MP when non-MP edges are rare. Dynamic per-sample
+class reweighting for the BCE loss (dpvt#43) would upweight non-MP edges
+proportionally to their rarity in each tree, or focal loss could emphasise
+hard-to-classify examples. This could make the model more decisive on the few
+remaining non-MP edges in late-search trees. This is especially relevant given
+#52 results: the extreme class imbalance in NJ treesearch training data
+(most intermediates near-optimal with very few non-MP edges) likely contributed
+to the poor performance of treesearch-trained models.
 
 ### G. Tree-level conditioning
 
@@ -314,14 +318,16 @@ compromising across all of them.
 
 ---
 
-## Suggested issue structure and order
+## Issue tracking
 
-These should be split into separate issues:
-
-1. **Idea A** (feasibility experiment) - cheap and answers whether the model can
-   learn the near-MP regime at all. If it can't, the other ideas won't help.
-2. **Ideas C or D** (broader coverage) - pick based on results from A.
-3. ~~**Idea B**~~ (deprioritized) - label correctness is not the driver of the
-   evaluation problem (see issue #50).
-4. ~~**Idea E**~~ (deprioritized) - AUROC already captures ranking ability;
+1. **Idea A** → #48 (closed) — feasibility experiment showed near-MP regime
+   alone doesn't work; model degenerates or doesn't discriminate.
+2. **Idea C** → #49 (closed) — varied non-MP proportions with OrthoMaM data.
+   Best-performing model across all test datasets (overall AUROC 0.862).
+3. **Idea D** → #52 (closed) — real NJ treesearch intermediates as training
+   data. Performed substantially worse than synthetic SPR data due to extreme
+   class imbalance and limited diversity in NJ search intermediates.
+4. ~~**Idea B**~~ (deprioritized) — label correctness is not the driver of the
+   evaluation problem (see #50, closed).
+5. ~~**Idea E**~~ (deprioritized) — AUROC already captures ranking ability;
    threshold tuning only matters when deploying for classification.

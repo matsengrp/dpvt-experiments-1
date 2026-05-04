@@ -323,7 +323,7 @@ def plot_training_times(
         ax=ax,
     )
     ax.set_xlabel(
-        "Training dataset (avg number of leaves, avg number of sites, number of trees)",
+        "Training dataset (n = avg number of leaves, N = avg number of sites, T = number of trees)",
         fontsize=FONT_LARGE,
         labelpad=15,
     )
@@ -439,7 +439,7 @@ def _plot_single_test_breakdown(
         )
 
     ax.set_xlabel(
-        "Test dataset (avg number of leaves, avg number of sites, number of trees)",
+        "Test dataset (n = avg number of leaves, N = avg number of sites, T = number of trees)",
         fontsize=FONT_LARGE,
         labelpad=15,
     )
@@ -592,7 +592,7 @@ def plot_available_training_times(
         ax=ax,
     )
     ax.set_xlabel(
-        "Training dataset (avg number of leaves, avg number of sites, number of trees)",
+        "Training dataset (n = avg number of leaves, N = avg number of sites, T = number of trees)",
         fontsize=FONT_LARGE,
         labelpad=15,
     )

@@ -246,7 +246,7 @@ baseline_model_list = [model for model in model_names if model in baseline_model
 model_param_jsons = generate_train_paths(
     get_model_params_json, trained_models, train_data_names, param_ids
 )
-trained_model_chkpts = generate_train_paths(
+trained_model_ckpts = generate_train_paths(
     get_trained_model_ckpt, trained_models, train_data_names, param_ids
 )
 
@@ -263,7 +263,7 @@ baseline_csv_paths = [
     for test_data_name in test_data_names
 ]
 tested_model_chkpts = generate_paths(
-    get_tested_model_ckpt, model_names, data_pairs, param_ids
+    get_tested_model_ckpt, trained_models, data_pairs, param_ids
 )
 csv_single_paths = generate_paths(
     get_csv_log_path, trained_models, data_pairs, param_ids
@@ -509,7 +509,7 @@ rule concat_baseline_csvs:
 
 rule plot_times:
     input:
-        trained_models=trained_model_chkpts,
+        trained_models=trained_model_ckpts,
         tested_models=tested_model_chkpts,
     output:
         timing_plot=timing_plots_output,

@@ -826,7 +826,7 @@ def build_performance_heatmap(
     fig_height = (len(heatmap_data) * row_height) + HEATMAP_BASE_HEIGHT
     fig, ax = plt.subplots(figsize=(fig_width, fig_height))
 
-    cmap = sns.color_palette("crest", as_cmap=True)
+    cmap = sns.color_palette("Purples", as_cmap=True)
     sns_heatmap = sns.heatmap(
         data=heatmap_data,
         yticklabels=secondary_labels,

@@ -435,6 +435,7 @@ def train_model(
     param_id=None,
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
+    seed=None,
     **wrap_kwargs,
 ):
     """
@@ -451,8 +452,11 @@ def train_model(
         param_id: Parameter identifier for logging
         output_dir: Base output directory
         data_nicknames_path: Path to data nicknames JSON file
+        seed: If provided, passed to seed_everything for deterministic training
         **wrap_kwargs: Additional arguments passed to Wrap
     """
+    if seed is not None:
+        seed_everything(seed, workers=True)
     if timestamp is None:
         timestamp = get_timestamp()
     dir_dict, path_dict = build_paths_dict(

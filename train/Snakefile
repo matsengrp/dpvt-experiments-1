@@ -55,6 +55,7 @@ default_config = {
     "use_hyperparameter_optimize": True,
     "profiling": False,
     "write_benchmarks": True,
+    "seed": None,
     "hyperparameters": {
         "learning_rate": [0.0002, 0.0004],
         "batch_size": [512],
@@ -91,6 +92,7 @@ use_cross_datasets = config["use_cross_datasets"]
 use_hyperparameter_optimize = config["use_hyperparameter_optimize"]
 profiling = config["profiling"]
 write_benchmarks = config.get("write_benchmarks", True)
+seed = config.get("seed", None)
 hyperparameters = config["hyperparameters"]
 label_config = (
     LabelConfig(**config["label_config"]) if "label_config" in config else None
@@ -365,6 +367,7 @@ rule train_model:
             param_id='{wildcards.param_id}',
             output_dir='{output_dir}',
             data_nicknames_path='{data_nicknames_path}',
+            seed={seed},
         )"
         """
 

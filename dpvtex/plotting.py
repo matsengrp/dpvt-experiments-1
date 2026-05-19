@@ -8,6 +8,9 @@ import json
 import logging
 import pickle
 import re
+import shutil
+import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -1080,6 +1083,79 @@ def plot_loss_over_time(custom_dfs, output_path, model_list):
     logger.info(f"Saved loss over time plot to: {output_path}")
 
 
+def _find_pr_curve_pdf(test_llog_path):
+    """Find the pr_curve.pdf saved by the model in the TensorBoard log directory.
+
+    Args:
+        test_llog_path: Path to the test TensorBoard log directory.
+
+    Returns:
+        Path to pr_curve.pdf, or None if not found.
+    """
+    if test_llog_path is None or str(test_llog_path) == "none":
+        return None
+    pdf_files = sorted(Path(str(test_llog_path)).glob("*/pr_curve.pdf"))
+    return pdf_files[-1] if pdf_files else None
+
+
+def _render_pdf_to_image(pdf_path):
+    """Render a PDF file to a numpy image array using pdftoppm.
+
+    Args:
+        pdf_path: Path to the PDF file.
+
+    Returns:
+        Numpy image array (H, W, C), or None on failure.
+    """
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            subprocess.run(
+                ["pdftoppm", "-r", "150", "-png", str(pdf_path), f"{tmpdir}/page"],
+                check=True,
+                capture_output=True,
+            )
+            png_path = next(Path(tmpdir).glob("page-*.png"))
+            return plt.imread(str(png_path))
+    except Exception:
+        return None
+
+
+def plot_precision_recall_curves(curves, output_path, title="Precision-Recall Curves"):
+    """Plot precision-recall curve images for one or more model/dataset combinations.
+
+    Displays the PR curve figures that were logged to TensorBoard during testing,
+    one subplot per model/train-data combination.
+
+    Args:
+        curves: Dictionary mapping a display label to a numpy image array (H, W, C)
+            as returned by _load_pr_curve_image.
+        output_path: Path to save the output PDF.
+        title: Title for the overall figure.
+    """
+    n = len(curves)
+    if n == 0:
+        logger.warning("No PR curve images found, skipping plot.")
+        return
+    ncols = min(n, 3)
+    nrows = (n + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4 * nrows))
+    axes = np.array(axes).flatten()
+
+    for ax, (label, image) in zip(axes, curves.items()):
+        ax.imshow(image)
+        ax.set_title(label, fontsize=FONT_SMALL)
+        ax.axis("off")
+
+    for ax in axes[n:]:
+        ax.axis("off")
+
+    fig.suptitle(title, fontsize=FONT_LARGE)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=DPI, bbox_inches="tight")
+    plt.close(fig)
+    logger.info(f"Saved precision-recall curves to: {output_path}")
+
+
 # =============================================================================
 # Public API
 # =============================================================================
@@ -1274,6 +1350,38 @@ def generate_summary_plots(
             output_path = f"{results_dir}/{x_col}.barplot.pdf"
             plot_metric_by_model(summary_df, x_col, output_path, model_list)
             generated_plots[x_col] = output_path
+
+    # Generate PR curve plots (one per test dataset)
+    if "test_llog_path" in summary_df.columns:
+        for test_data_name in summary_df["test_data"].unique():
+            test_df = summary_df[summary_df["test_data"] == test_data_name]
+            curves = {}
+            for _, row in test_df.iterrows():
+                pdf_path = _find_pr_curve_pdf(row.get("test_llog_path"))
+                if pdf_path is None:
+                    continue
+                model_name = str(row["model"])
+                train_name = str(row["train_data"])
+                # Copy individual PDF to results_dir with a descriptive name
+                safe_test = str(test_data_name).replace("/", "_")
+                dest = Path(results_dir) / f"pr_curve_{model_name}_{train_name}_ON_{safe_test}.pdf"
+                shutil.copy2(pdf_path, dest)
+                generated_plots[dest.stem] = str(dest)
+                # Render for combined grid
+                image = _render_pdf_to_image(pdf_path)
+                if image is None:
+                    continue
+                model_display = MODEL_NAMES.get(model_name, model_name)
+                train_display = get_dataset_display_name(train_name)
+                curves[f"{model_display} / {train_display}"] = image
+            if curves:
+                pr_output_path = f"{results_dir}/pr_curves_{safe_test}.pdf"
+                plot_precision_recall_curves(
+                    curves,
+                    pr_output_path,
+                    title=f"Precision-Recall: {get_dataset_display_name(str(test_data_name))}",
+                )
+                generated_plots[f"pr_curves_{safe_test}"] = pr_output_path
 
     logger.info(f"Generated {len(generated_plots)} plots in {results_dir}")
     return generated_plots

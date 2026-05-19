@@ -21,6 +21,11 @@ FONT_LARGE, FONT_MED, FONT_SMALL = 16, 14, 12
 DPI = 300
 PALETTE = "Dark2"
 BAR_GROUP_WIDTH = 0.8
+_DATASET_LABEL_SUFFIX = (
+    "n = avg number of leaves, N = avg number of sites, T = number of trees"
+)
+TRAIN_DATASET_XLABEL = f"Training dataset ({_DATASET_LABEL_SUFFIX})"
+TEST_DATASET_XLABEL = f"Test dataset ({_DATASET_LABEL_SUFFIX})"
 BAR_CENTERING_OFFSET = 0.5
 
 # Model display names - order determines bar order in plots (rightmost last)
@@ -323,7 +328,7 @@ def plot_training_times(
         ax=ax,
     )
     ax.set_xlabel(
-        "Training dataset (n = avg number of leaves, N = avg number of sites, T = number of trees)",
+        TRAIN_DATASET_XLABEL,
         fontsize=FONT_LARGE,
         labelpad=15,
     )
@@ -439,7 +444,7 @@ def _plot_single_test_breakdown(
         )
 
     ax.set_xlabel(
-        "Test dataset (n = avg number of leaves, N = avg number of sites, T = number of trees)",
+        TEST_DATASET_XLABEL,
         fontsize=FONT_LARGE,
         labelpad=15,
     )
@@ -592,7 +597,7 @@ def plot_available_training_times(
         ax=ax,
     )
     ax.set_xlabel(
-        "Training dataset (n = avg number of leaves, N = avg number of sites, T = number of trees)",
+        TRAIN_DATASET_XLABEL,
         fontsize=FONT_LARGE,
         labelpad=15,
     )

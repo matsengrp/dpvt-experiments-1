@@ -33,11 +33,11 @@ DPI = 300
 PALETTE = "Dark2"
 
 # Heatmap sizing (inches)
-HEATMAP_COL_WIDTH = 1.2
-HEATMAP_BASE_WIDTH = 5
-HEATMAP_ROW_HEIGHT = 0.7
+HEATMAP_COL_WIDTH = 2
+HEATMAP_BASE_WIDTH = 10
+HEATMAP_ROW_HEIGHT = 0.2
 HEATMAP_ROW_HEIGHT_PER_LABEL = 0.2
-HEATMAP_BASE_HEIGHT = 3
+HEATMAP_BASE_HEIGHT = 2
 
 # Label positioning (figure fraction coordinates)
 YLABEL_BASE_OFFSET = -0.055
@@ -691,7 +691,7 @@ def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
         fig_y_pos = axis_bottom + ((center_row / len(heatmap_data.index)) * axis_height)
 
         fig.text(
-            axis_left - ylabel_shift + 0.1,
+            axis_left - ylabel_shift + 0.17,
             fig_y_pos,
             display_name,
             va="center",
@@ -744,7 +744,7 @@ def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
 
     fig.text(
         axis_left + (bbox.width / 2) + 0.15,
-        axis_bottom - 0.3,
+        axis_bottom - 0.1,
         xlabel,
         va="center",
         ha="center",
@@ -1142,34 +1142,48 @@ def _render_pdf_to_image(pdf_path):
         return None
 
 
-def plot_precision_recall_curves(curves, output_path, title="Precision-Recall Curves"):
-    """Plot precision-recall curve images for one or more model/dataset combinations.
+def plot_precision_recall_curves(
+    grid, row_labels, col_labels, output_path, title="Precision-Recall Curves"
+):
+    """Plot a grid of precision-recall curve images.
 
     Displays the PR curve figures that were logged to TensorBoard during testing,
-    one subplot per model/train-data combination.
+    laid out so that each column corresponds to a model (column header) and each
+    row to a training configuration such as the number of leaves (row label).
+    The same model therefore always appears in the same column and the same row
+    label in the same row. Missing combinations are left blank.
 
     Args:
-        curves: Dictionary mapping a display label to a numpy image array (H, W, C)
-            as returned by _render_pdf_to_image.
+        grid: Dictionary mapping (row_label, col_label) -> numpy image array
+            (H, W, C), as returned by _load_pr_curve_image.
+        row_labels: Ordered list of row labels shown on the left of each row.
+        col_labels: Ordered list of column labels shown above each column.
         output_path: Path to save the output PDF.
         title: Title for the overall figure.
     """
-    n = len(curves)
-    if n == 0:
+    nrows = len(row_labels)
+    ncols = len(col_labels)
+    if nrows == 0 or ncols == 0:
         logger.warning("No PR curve images found, skipping plot.")
         return
-    ncols = min(n, 3)
-    nrows = (n + ncols - 1) // ncols
-    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4 * nrows))
-    axes = np.array(axes).flatten()
+    fig, axes = plt.subplots(
+        nrows, ncols, figsize=(5 * ncols, 4 * nrows), squeeze=False
+    )
 
-    for ax, (label, image) in zip(axes, curves.items()):
-        ax.imshow(image)
-        ax.set_title(label, fontsize=FONT_SMALL)
-        ax.axis("off")
-
-    for ax in axes[n:]:
-        ax.axis("off")
+    for r, row_label in enumerate(row_labels):
+        for c, col_label in enumerate(col_labels):
+            ax = axes[r][c]
+            image = grid.get((row_label, col_label))
+            if image is not None:
+                ax.imshow(image)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            if r == 0:
+                ax.set_title(col_label, fontsize=FONT_SMALL)
+            if c == 0:
+                ax.set_ylabel(row_label, fontsize=FONT_SMALL)
 
     fig.suptitle(title, fontsize=FONT_LARGE)
     plt.tight_layout()
@@ -1378,7 +1392,12 @@ def generate_summary_plots(
         for test_data_name in summary_df["test_data"].unique():
             safe_test = re.sub(r"[^\w.-]", "_", str(test_data_name))
             test_df = summary_df[summary_df["test_data"] == test_data_name]
-            curves = {}
+            safe_test = str(test_data_name).replace("/", "_")
+            # Grid keyed by (leaf-count row label, model column label) so the same
+            # model lands in the same column and the same leaf count in the same row.
+            grid = {}
+            models_seen = {}  # model_name -> column label (display name)
+            rows_seen = {}  # leaf count (None last) -> row label
             for _, row in test_df.iterrows():
                 pdf_path = _find_pr_curve_pdf(row.get("test_llog_path"))
                 if pdf_path is None:
@@ -1397,12 +1416,31 @@ def generate_summary_plots(
                 if image is None:
                     continue
                 model_display = MODEL_NAMES.get(model_name, model_name)
-                train_display = get_dataset_display_name(train_name)
-                curves[f"{model_display} / {train_display}"] = image
-            if curves:
+                train_leaves = row.get("train_num_leaves")
+                leaves_val = None if pd.isna(train_leaves) else int(train_leaves)
+                row_label = (
+                    f"n={leaves_val}"
+                    if leaves_val is not None
+                    else get_dataset_display_name(train_name)
+                )
+                models_seen[model_name] = model_display
+                rows_seen[leaves_val] = row_label
+                grid[(row_label, model_display)] = image
+            if grid:
+                # Columns ordered by MODEL_ORDER (unknown models appended),
+                # rows by ascending leaf count (unknown/None last).
+                ordered_models = [m for m in MODEL_ORDER if m in models_seen]
+                ordered_models += [m for m in models_seen if m not in MODEL_ORDER]
+                col_labels = [models_seen[m] for m in ordered_models]
+                row_labels = [
+                    rows_seen[k]
+                    for k in sorted(rows_seen, key=lambda v: (v is None, v))
+                ]
                 pr_output_path = f"{results_dir}/pr_curves_{safe_test}.pdf"
                 plot_precision_recall_curves(
-                    curves,
+                    grid,
+                    row_labels,
+                    col_labels,
                     pr_output_path,
                     title=f"Precision-Recall: {get_dataset_display_name(str(test_data_name))}",
                 )

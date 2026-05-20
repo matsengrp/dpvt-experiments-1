@@ -1087,19 +1087,28 @@ def _find_pr_curve_pdf(test_llog_path):
     """Find the pr_curve.pdf saved by the model in the TensorBoard log directory.
 
     Args:
-        test_llog_path: Path to the test TensorBoard log directory.
+        test_llog_path: Path to the test TensorBoard log directory. A value of
+            None or the sentinel string "none" (used for baseline rows) returns None.
 
     Returns:
         Path to pr_curve.pdf, or None if not found.
     """
-    if test_llog_path is None or str(test_llog_path) == "none":
+    if test_llog_path is None or str(test_llog_path) == _MISSING_PATH_SENTINEL:
         return None
     pdf_files = sorted(Path(str(test_llog_path)).glob("*/pr_curve.pdf"))
+    # Use the last sorted match: TensorBoard version subdirs sort chronologically.
     return pdf_files[-1] if pdf_files else None
+
+
+_PR_CURVE_RENDER_DPI = 150
+
+_MISSING_PATH_SENTINEL = "none"
 
 
 def _render_pdf_to_image(pdf_path):
     """Render a PDF file to a numpy image array using pdftoppm.
+
+    Requires the poppler-utils system package (provides pdftoppm).
 
     Args:
         pdf_path: Path to the PDF file.
@@ -1110,13 +1119,26 @@ def _render_pdf_to_image(pdf_path):
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             subprocess.run(
-                ["pdftoppm", "-r", "150", "-png", str(pdf_path), f"{tmpdir}/page"],
+                [
+                    "pdftoppm",
+                    "-r",
+                    str(_PR_CURVE_RENDER_DPI),
+                    "-png",
+                    str(pdf_path),
+                    f"{tmpdir}/page",
+                ],
                 check=True,
                 capture_output=True,
             )
             png_path = next(Path(tmpdir).glob("page-*.png"))
             return plt.imread(str(png_path))
-    except Exception:
+    except FileNotFoundError:
+        logger.error(
+            "pdftoppm not found. Install poppler-utils to enable PR curve rendering."
+        )
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to render PDF {pdf_path} to image: {e}")
         return None
 
 
@@ -1128,7 +1150,7 @@ def plot_precision_recall_curves(curves, output_path, title="Precision-Recall Cu
 
     Args:
         curves: Dictionary mapping a display label to a numpy image array (H, W, C)
-            as returned by _load_pr_curve_image.
+            as returned by _render_pdf_to_image.
         output_path: Path to save the output PDF.
         title: Title for the overall figure.
     """
@@ -1354,6 +1376,7 @@ def generate_summary_plots(
     # Generate PR curve plots (one per test dataset)
     if "test_llog_path" in summary_df.columns:
         for test_data_name in summary_df["test_data"].unique():
+            safe_test = re.sub(r"[^\w.-]", "_", str(test_data_name))
             test_df = summary_df[summary_df["test_data"] == test_data_name]
             curves = {}
             for _, row in test_df.iterrows():
@@ -1363,8 +1386,10 @@ def generate_summary_plots(
                 model_name = str(row["model"])
                 train_name = str(row["train_data"])
                 # Copy individual PDF to results_dir with a descriptive name
-                safe_test = str(test_data_name).replace("/", "_")
-                dest = Path(results_dir) / f"pr_curve_{model_name}_{train_name}_ON_{safe_test}.pdf"
+                dest = (
+                    Path(results_dir)
+                    / f"pr_curve_{model_name}_{train_name}_ON_{safe_test}.pdf"
+                )
                 shutil.copy2(pdf_path, dest)
                 generated_plots[dest.stem] = str(dest)
                 # Render for combined grid

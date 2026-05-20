@@ -581,6 +581,29 @@ def _create_heatmap_pivot(df_sorted, indices, test_cols, value_column):
     return heatmap_data
 
 
+def _build_labels_from_tuples(items, prefixes, start_offset=0):
+    """Build formatted labels from a sequence of tuples or scalars.
+
+    Args:
+        items: Sequence of tuples or scalars to label.
+        prefixes: List of string prefixes per position. Empty string means
+                  show the value as-is (no prefix).
+        start_offset: Starting index into each tuple.
+
+    Returns:
+        List of newline-joined label strings.
+    """
+    labels = []
+    for item in items:
+        tup = item if isinstance(item, tuple) else (item,)
+        parts = []
+        for i, prefix in enumerate(prefixes):
+            val = tup[start_offset + i] if start_offset + i < len(tup) else ""
+            parts.append(f"{prefix}{val}" if prefix else str(val))
+        labels.append("\n".join(parts))
+    return labels
+
+
 def _build_secondary_y_labels(heatmap_data, flags):
     """Build secondary y-axis labels for multiindex heatmap rows.
 
@@ -597,42 +620,52 @@ def _build_secondary_y_labels(heatmap_data, flags):
     if not isinstance(heatmap_data.index, pd.MultiIndex):
         return True
 
-    secondary_labels = []
-    for idx in heatmap_data.index:
-        label_parts = []
-        col_offset = 1
+    prefixes = []
+    if flags["mixed_training"]:
+        prefixes.append("")
+    if flags["mixed_train_sources"]:
+        prefixes.append("")
+    if flags["train_leaves"]:
+        prefixes.append("n=")
+    if flags["train_sites"]:
+        prefixes.append("N=")
+    if flags["train_trees"]:
+        prefixes.append("T=")
+    if flags["train_nonmp"]:
+        prefixes.append("t=")
 
-        if flags["mixed_training"]:
-            perturbation = idx[col_offset] if len(idx) > col_offset else ""
-            label_parts.append(str(perturbation))
-            col_offset += 1
+    return _build_labels_from_tuples(heatmap_data.index, prefixes, start_offset=1)
 
-        if flags["mixed_train_sources"]:
-            source_name = idx[col_offset] if len(idx) > col_offset else ""
-            label_parts.append(str(source_name))
-            col_offset += 1
 
-        if flags["train_leaves"]:
-            leaves = idx[col_offset] if len(idx) > col_offset else ""
-            label_parts.append(f"n={leaves}")
-            col_offset += 1
+def _build_x_labels(heatmap_data, flags):
+    """Build x-axis tick labels for heatmap columns.
 
-        if flags["train_sites"]:
-            sites = idx[col_offset] if len(idx) > col_offset else ""
-            label_parts.append(f"N={sites}")
-            col_offset += 1
+    Each column label shows the testing data attributes (leaves, sites, etc.)
+    analogous to _build_secondary_y_labels for rows.
 
-        if flags["train_trees"]:
-            trees = idx[col_offset] if len(idx) > col_offset else ""
-            label_parts.append(f"T={trees}")
-            col_offset += 1
+    Args:
+        heatmap_data: Pivot table with column index.
+        flags: Display flags dictionary.
 
-        if flags["train_nonmp"]:
-            frac = idx[col_offset] if len(idx) > col_offset else ""
-            label_parts.append(f"t={frac}")
+    Returns:
+        List of label strings for each column.
+    """
+    columns = heatmap_data.columns
 
-        secondary_labels.append("\n".join(label_parts))
-    return secondary_labels
+    # Multi-source case: columns are already display name strings
+    if not isinstance(columns, pd.MultiIndex) and columns.dtype == object:
+        return list(columns)
+
+    prefixes = []
+    if flags["mixed_testing"]:
+        prefixes.append("")
+    prefixes.append("n=")  # test_num_leaves is always present
+    if flags["test_sites"]:
+        prefixes.append("N=")
+    if flags["test_nonmp"]:
+        prefixes.append("t=")
+
+    return _build_labels_from_tuples(list(columns), prefixes, start_offset=0)
 
 
 def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
@@ -812,6 +845,7 @@ def build_performance_heatmap(
     indices, test_cols = _build_heatmap_columns(flags)
     heatmap_data = _create_heatmap_pivot(df_sorted, indices, test_cols, value_column)
     secondary_labels = _build_secondary_y_labels(heatmap_data, flags)
+    x_labels = _build_x_labels(heatmap_data, flags)
 
     # Render heatmap
     num_y_labels = sum(
@@ -833,6 +867,7 @@ def build_performance_heatmap(
     sns_heatmap = sns.heatmap(
         data=heatmap_data,
         yticklabels=secondary_labels,
+        xticklabels=x_labels,
         annot=True,
         annot_kws={"fontsize": FONT_LARGE},
         cbar_kws={"label": value_column, "shrink": 0.8},

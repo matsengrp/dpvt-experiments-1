@@ -9,8 +9,6 @@ import logging
 import pickle
 import re
 import shutil
-import subprocess
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -1118,6 +1116,9 @@ def plot_loss_over_time(custom_dfs, output_path, model_list):
     logger.info(f"Saved loss over time plot to: {output_path}")
 
 
+_MISSING_PATH_SENTINEL = "none"
+
+
 def _find_pr_curve_pdf(test_llog_path):
     """Find the pr_curve.pdf saved by the model in the TensorBoard log directory.
 
@@ -1135,62 +1136,35 @@ def _find_pr_curve_pdf(test_llog_path):
     return pdf_files[-1] if pdf_files else None
 
 
-_PR_CURVE_RENDER_DPI = 150
-
-_MISSING_PATH_SENTINEL = "none"
-
-
-def _render_pdf_to_image(pdf_path):
-    """Render a PDF file to a numpy image array using pdftoppm.
-
-    Requires the poppler-utils system package (provides pdftoppm).
+def _find_pr_curve_csv(test_llog_path):
+    """Find the pr_curve.csv saved by the model in the TensorBoard log directory.
 
     Args:
-        pdf_path: Path to the PDF file.
+        test_llog_path: Path to the test TensorBoard log directory. A value of
+            None or the sentinel string "none" (used for baseline rows) returns None.
 
     Returns:
-        Numpy image array (H, W, C), or None on failure.
+        Path to pr_curve.csv, or None if not found.
     """
-    try:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            subprocess.run(
-                [
-                    "pdftoppm",
-                    "-r",
-                    str(_PR_CURVE_RENDER_DPI),
-                    "-png",
-                    str(pdf_path),
-                    f"{tmpdir}/page",
-                ],
-                check=True,
-                capture_output=True,
-            )
-            png_path = next(Path(tmpdir).glob("page-*.png"))
-            return plt.imread(str(png_path))
-    except FileNotFoundError:
-        logger.error(
-            "pdftoppm not found. Install poppler-utils to enable PR curve rendering."
-        )
+    if test_llog_path is None or str(test_llog_path) == _MISSING_PATH_SENTINEL:
         return None
-    except Exception as e:
-        logger.warning(f"Failed to render PDF {pdf_path} to image: {e}")
-        return None
+    csv_files = sorted(Path(str(test_llog_path)).glob("*/pr_curve.csv"))
+    # Use the last sorted match: TensorBoard version subdirs sort chronologically.
+    return csv_files[-1] if csv_files else None
 
 
 def plot_precision_recall_curves(
     grid, row_labels, col_labels, output_path, title="Precision-Recall Curves"
 ):
-    """Plot a grid of precision-recall curve images.
+    """Plot a grid of precision-recall curves using seaborn.
 
-    Displays the PR curve figures that were logged to TensorBoard during testing,
-    laid out so that each column corresponds to a model (column header) and each
-    row to a training configuration such as the number of leaves (row label).
-    The same model therefore always appears in the same column and the same row
-    label in the same row. Missing combinations are left blank.
+    Lays out PR curves so that each column corresponds to a model and each row
+    to a training configuration (e.g. number of leaves). Missing combinations
+    are left blank.
 
     Args:
-        grid: Dictionary mapping (row_label, col_label) -> numpy image array
-            (H, W, C), as returned by _load_pr_curve_image.
+        grid: Dictionary mapping (row_label, col_label) -> DataFrame with
+            "recall" and "precision" columns.
         row_labels: Ordered list of row labels shown on the left of each row.
         col_labels: Ordered list of column labels shown above each column.
         output_path: Path to save the output PDF.
@@ -1199,26 +1173,30 @@ def plot_precision_recall_curves(
     nrows = len(row_labels)
     ncols = len(col_labels)
     if nrows == 0 or ncols == 0:
-        logger.warning("No PR curve images found, skipping plot.")
+        logger.warning("No PR curve data found, skipping plot.")
         return
     fig, axes = plt.subplots(
-        nrows, ncols, figsize=(5 * ncols, 4 * nrows), squeeze=False
+        nrows, ncols, figsize=(4 * ncols, 3 * nrows), squeeze=False
     )
 
     for r, row_label in enumerate(row_labels):
         for c, col_label in enumerate(col_labels):
             ax = axes[r][c]
-            image = grid.get((row_label, col_label))
-            if image is not None:
-                ax.imshow(image)
-            ax.set_xticks([])
-            ax.set_yticks([])
-            for spine in ax.spines.values():
-                spine.set_visible(False)
+            df = grid.get((row_label, col_label))
+            if df is not None:
+                ap = df["avg_precision"].iloc[0]
+                sns.lineplot(
+                    data=df, x="recall", y="precision", ax=ax, label=f"AP={ap:.2f}"
+                )
+                ax.legend(loc="lower left", fontsize=FONT_SMALL)
+            ax.set_xlim(0, 1)
+            ax.set_ylim(0, 1)
             if r == 0:
                 ax.set_title(col_label, fontsize=FONT_SMALL)
-            if c == 0:
-                ax.set_ylabel(row_label, fontsize=FONT_SMALL)
+            ax.set_ylabel(
+                f"{row_label}\nPrecision" if c == 0 else "", fontsize=FONT_SMALL
+            )
+            ax.set_xlabel("Recall" if r == nrows - 1 else "", fontsize=FONT_SMALL)
 
     fig.suptitle(title, fontsize=FONT_LARGE)
     plt.tight_layout()
@@ -1434,22 +1412,22 @@ def generate_summary_plots(
             models_seen = {}  # model_name -> column label (display name)
             rows_seen = {}  # leaf count (None last) -> row label
             for _, row in test_df.iterrows():
-                pdf_path = _find_pr_curve_pdf(row.get("test_llog_path"))
-                if pdf_path is None:
-                    continue
                 model_name = str(row["model"])
                 train_name = str(row["train_data"])
-                # Copy individual PDF to results_dir with a descriptive name
-                dest = (
-                    Path(results_dir)
-                    / f"pr_curve_{model_name}_{train_name}_ON_{safe_test}.pdf"
-                )
-                shutil.copy2(pdf_path, dest)
-                generated_plots[dest.stem] = str(dest)
-                # Render for combined grid
-                image = _render_pdf_to_image(pdf_path)
-                if image is None:
+                # Copy individual PDF to results_dir if available
+                pdf_path = _find_pr_curve_pdf(row.get("test_llog_path"))
+                if pdf_path is not None:
+                    dest = (
+                        Path(results_dir)
+                        / f"pr_curve_{model_name}_{train_name}_ON_{safe_test}.pdf"
+                    )
+                    shutil.copy2(pdf_path, dest)
+                    generated_plots[dest.stem] = str(dest)
+                # Load CSV for combined seaborn grid
+                csv_path = _find_pr_curve_csv(row.get("test_llog_path"))
+                if csv_path is None:
                     continue
+                pr_df = pd.read_csv(csv_path)
                 model_display = MODEL_NAMES.get(model_name, model_name)
                 train_leaves = row.get("train_num_leaves")
                 leaves_val = None if pd.isna(train_leaves) else int(train_leaves)
@@ -1460,7 +1438,7 @@ def generate_summary_plots(
                 )
                 models_seen[model_name] = model_display
                 rows_seen[leaves_val] = row_label
-                grid[(row_label, model_display)] = image
+                grid[(row_label, model_display)] = pr_df
             if grid:
                 # Columns ordered by MODEL_ORDER (unknown models appended),
                 # rows by ascending leaf count (unknown/None last).

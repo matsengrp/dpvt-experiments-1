@@ -32,7 +32,7 @@ PALETTE = "Dark2"
 
 # Heatmap sizing (inches)
 HEATMAP_COL_WIDTH = 1
-HEATMAP_BASE_WIDTH = 8
+HEATMAP_BASE_WIDTH = 10
 HEATMAP_ROW_HEIGHT = 0.5
 HEATMAP_ROW_HEIGHT_PER_LABEL = 0.2
 HEATMAP_BASE_HEIGHT = 2
@@ -602,6 +602,37 @@ def _build_labels_from_tuples(items, prefixes, start_offset=0):
     return labels
 
 
+def _build_x_labels(heatmap_data, flags):
+    """Build formatted x-axis labels for heatmap columns.
+
+    Returns columns as-is when they are already display names (multi-source case).
+    Otherwise prepends n=, N=, t= prefixes matching _build_secondary_y_labels.
+
+    Args:
+        heatmap_data: Pivot table with potentially multi-level columns.
+        flags: Display flags dictionary.
+
+    Returns:
+        List of formatted label strings for each column.
+    """
+    if (
+        not isinstance(heatmap_data.columns, pd.MultiIndex)
+        and heatmap_data.columns.name == "test_data_name"
+    ):
+        return list(heatmap_data.columns)
+
+    prefixes = []
+    if flags["mixed_testing"]:
+        prefixes.append("")
+    prefixes.append("n=")
+    if flags["test_sites"]:
+        prefixes.append("N=")
+    if flags["test_nonmp"]:
+        prefixes.append("t=")
+
+    return _build_labels_from_tuples(heatmap_data.columns, prefixes)
+
+
 def _build_secondary_y_labels(heatmap_data, flags):
     """Build secondary y-axis labels for multiindex heatmap rows.
 
@@ -691,7 +722,7 @@ def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
         fig_y_pos = axis_bottom + ((center_row / len(heatmap_data.index)) * axis_height)
 
         fig.text(
-            axis_left - ylabel_shift + 0.12,
+            axis_left - ylabel_shift + 0.14,
             fig_y_pos,
             display_name,
             va="center",
@@ -705,11 +736,20 @@ def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
     )
     if num_displayed <= 1:
         ylabel_shift -= 0.05
+    ylabel = "Trained model\n"
+    ylabel_add = []
+    if flags["train_leaves"]:
+        ylabel_add.append("n: number of leaves")
+    if flags["train_sites"]:
+        ylabel_add.append("N: number of sites")
+    if flags["train_trees"]:
+        ylabel_add.append("T: number of trees")
+    ylabel = ylabel + ','.join(ylabel_add)
 
     fig.text(
-        axis_left - ylabel_shift,
+        axis_left - ylabel_shift + 0.01,
         axis_bottom + (axis_height / 2),
-        "Trained model",
+        ylabel,
         va="center",
         ha="center",
         rotation=90,
@@ -729,11 +769,11 @@ def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
         plt.yticks(positions, labels)
 
     plt.yticks(rotation=0, fontsize=FONT_LARGE)
-    plt.xticks(rotation=0, fontsize=FONT_MED)
+    plt.xticks(rotation=0, fontsize=FONT_LARGE)
     plt.subplots_adjust(left=0.3)
 
     # Build descriptive x-axis label
-    xlabel = "Testing data: number of leaves"
+    xlabel = "Testing data\n n: number of leaves"
     if flags["test_sites"]:
         xlabel = "Testing data\n n: avg number of leaves, N: avg number of sites, T: number of trees"
     if flags["mixed_testing"]:
@@ -812,7 +852,7 @@ def build_performance_heatmap(
     indices, test_cols = _build_heatmap_columns(flags)
     heatmap_data = _create_heatmap_pivot(df_sorted, indices, test_cols, value_column)
     secondary_labels = _build_secondary_y_labels(heatmap_data, flags)
-    x_labels = heatmap_data.columns
+    x_labels = _build_x_labels(heatmap_data, flags)
 
     # Render heatmap
     num_y_labels = sum(
@@ -1157,15 +1197,15 @@ def plot_precision_recall_curves(
                 sns.lineplot(
                     data=df, x="recall", y="precision", ax=ax, label=f"AP={ap:.2f}"
                 )
-                ax.legend(loc="lower left", fontsize=FONT_SMALL)
+                ax.legend(loc="lower left", fontsize=FONT_LARGE)
             ax.set_xlim(0, 1)
             ax.set_ylim(0, 1)
             if r == 0:
-                ax.set_title(col_label, fontsize=FONT_SMALL)
+                ax.set_title(col_label, fontsize=FONT_LARGE)
             ax.set_ylabel(
-                f"{row_label}\nPrecision" if c == 0 else "", fontsize=FONT_SMALL
+                f"{row_label}\nPrecision" if c == 0 else "", fontsize=FONT_LARGE
             )
-            ax.set_xlabel("Recall" if r == nrows - 1 else "", fontsize=FONT_SMALL)
+            ax.set_xlabel("Recall" if r == nrows - 1 else "", fontsize=FONT_LARGE)
 
     fig.suptitle(title, fontsize=FONT_LARGE)
     plt.tight_layout()

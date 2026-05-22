@@ -31,9 +31,9 @@ DPI = 300
 PALETTE = "Dark2"
 
 # Heatmap sizing (inches)
-HEATMAP_COL_WIDTH = 2
+HEATMAP_COL_WIDTH = 1
 HEATMAP_BASE_WIDTH = 8
-HEATMAP_ROW_HEIGHT = 0.2
+HEATMAP_ROW_HEIGHT = 0.5
 HEATMAP_ROW_HEIGHT_PER_LABEL = 0.2
 HEATMAP_BASE_HEIGHT = 2
 
@@ -691,7 +691,7 @@ def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
         fig_y_pos = axis_bottom + ((center_row / len(heatmap_data.index)) * axis_height)
 
         fig.text(
-            axis_left - ylabel_shift + 0.17,
+            axis_left - ylabel_shift + 0.12,
             fig_y_pos,
             display_name,
             va="center",
@@ -707,7 +707,7 @@ def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
         ylabel_shift -= 0.05
 
     fig.text(
-        axis_left - ylabel_shift + 0.05,
+        axis_left - ylabel_shift,
         axis_bottom + (axis_height / 2),
         "Trained model",
         va="center",
@@ -744,7 +744,7 @@ def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
 
     fig.text(
         axis_left + (bbox.width / 2) + 0.15,
-        axis_bottom - 0.1,
+        axis_bottom - 0.3,
         xlabel,
         va="center",
         ha="center",

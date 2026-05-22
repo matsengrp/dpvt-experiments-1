@@ -32,7 +32,7 @@ PALETTE = "Dark2"
 
 # Heatmap sizing (inches)
 HEATMAP_COL_WIDTH = 2
-HEATMAP_BASE_WIDTH = 10
+HEATMAP_BASE_WIDTH = 8
 HEATMAP_ROW_HEIGHT = 0.2
 HEATMAP_ROW_HEIGHT_PER_LABEL = 0.2
 HEATMAP_BASE_HEIGHT = 2
@@ -635,37 +635,6 @@ def _build_secondary_y_labels(heatmap_data, flags):
     return _build_labels_from_tuples(heatmap_data.index, prefixes, start_offset=1)
 
 
-def _build_x_labels(heatmap_data, flags):
-    """Build x-axis tick labels for heatmap columns.
-
-    Each column label shows the testing data attributes (leaves, sites, etc.)
-    analogous to _build_secondary_y_labels for rows.
-
-    Args:
-        heatmap_data: Pivot table with column index.
-        flags: Display flags dictionary.
-
-    Returns:
-        List of label strings for each column.
-    """
-    columns = heatmap_data.columns
-
-    # Multi-source case: columns are already display name strings
-    if not isinstance(columns, pd.MultiIndex) and columns.dtype == object:
-        return list(columns)
-
-    prefixes = []
-    if flags["mixed_testing"]:
-        prefixes.append("")
-    prefixes.append("n=")  # test_num_leaves is always present
-    if flags["test_sites"]:
-        prefixes.append("N=")
-    if flags["test_nonmp"]:
-        prefixes.append("t=")
-
-    return _build_labels_from_tuples(list(columns), prefixes, start_offset=0)
-
-
 def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
     """Position model labels and format heatmap axes for multiindex data.
 
@@ -843,7 +812,7 @@ def build_performance_heatmap(
     indices, test_cols = _build_heatmap_columns(flags)
     heatmap_data = _create_heatmap_pivot(df_sorted, indices, test_cols, value_column)
     secondary_labels = _build_secondary_y_labels(heatmap_data, flags)
-    x_labels = _build_x_labels(heatmap_data, flags)
+    x_labels = heatmap_data.columns
 
     # Render heatmap
     num_y_labels = sum(

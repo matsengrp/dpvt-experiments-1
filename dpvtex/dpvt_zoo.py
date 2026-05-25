@@ -21,7 +21,7 @@ from torch.utils.tensorboard import SummaryWriter
 from pytorch_lightning import seed_everything
 
 
-def configure_torch(num_threads=1, dtype=torch.float64):
+def configure_torch(num_threads=1, dtype=torch.float32):
     """Configure torch settings. Call this before training/testing."""
     torch.set_num_threads(num_threads)
     torch.set_default_dtype(dtype)

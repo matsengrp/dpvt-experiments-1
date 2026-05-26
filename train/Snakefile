@@ -55,6 +55,7 @@ default_config = {
     "use_hyperparameter_optimize": True,
     "profiling": False,
     "write_benchmarks": True,
+    "seed": None,
     "hyperparameters": {
         "learning_rate": [0.0002, 0.0004],
         "batch_size": [512],
@@ -90,7 +91,8 @@ n_hyperparameter_trials = config["n_hyperparameter_trials"]
 use_cross_datasets = config["use_cross_datasets"]
 use_hyperparameter_optimize = config["use_hyperparameter_optimize"]
 profiling = config["profiling"]
-write_benchmarks = config.get("write_benchmarks", True)
+write_benchmarks = config["write_benchmarks"]
+seed = config["seed"]
 hyperparameters = config["hyperparameters"]
 label_config = (
     LabelConfig(**config["label_config"]) if "label_config" in config else None
@@ -246,7 +248,7 @@ baseline_model_list = [model for model in model_names if model in baseline_model
 model_param_jsons = generate_train_paths(
     get_model_params_json, trained_models, train_data_names, param_ids
 )
-trained_model_chkpts = generate_train_paths(
+trained_model_ckpts = generate_train_paths(
     get_trained_model_ckpt, trained_models, train_data_names, param_ids
 )
 
@@ -262,8 +264,8 @@ baseline_csv_paths = [
     for model_name in baseline_model_list
     for test_data_name in test_data_names
 ]
-tested_model_chkpts = generate_paths(
-    get_tested_model_ckpt, model_names, data_pairs, param_ids
+tested_model_ckpts = generate_paths(
+    get_tested_model_ckpt, trained_models, data_pairs, param_ids
 )
 csv_single_paths = generate_paths(
     get_csv_log_path, trained_models, data_pairs, param_ids
@@ -352,21 +354,20 @@ rule train_model:
         trained_model=wildcard_trained_ckpt(),
     benchmark:
         wildcard_benchmark("train_model")
-    shell:
-        """
-        python -c "from dpvtex.dpvt_zoo import train_model; train_model(
-            model_name='{wildcards.model_name}',
-            data_name='{wildcards.train_data_name}',
-            train_checkpoint='{output.trained_model}',
-            device='{device}',
-            hyperparameter_path='{input.hyperparameter_path}',
-            profiling={profiling},
-            timestamp='{timestamp}',
-            param_id='{wildcards.param_id}',
-            output_dir='{output_dir}',
-            data_nicknames_path='{data_nicknames_path}',
-        )"
-        """
+    run:
+        train_model(
+            model_name=wildcards.model_name,
+            data_name=wildcards.train_data_name,
+            train_checkpoint=output.trained_model,
+            device=device,
+            hyperparameter_path=input.hyperparameter_path,
+            profiling=profiling,
+            timestamp=timestamp,
+            param_id=wildcards.param_id,
+            output_dir=output_dir,
+            data_nicknames_path=data_nicknames_path,
+            seed=seed,
+        )
 
 
 rule test_model:
@@ -509,8 +510,8 @@ rule concat_baseline_csvs:
 
 rule plot_times:
     input:
-        trained_models=trained_model_chkpts,
-        tested_models=tested_model_chkpts,
+        trained_models=trained_model_ckpts,
+        tested_models=tested_model_ckpts,
     output:
         timing_plot=timing_plots_output,
     run:

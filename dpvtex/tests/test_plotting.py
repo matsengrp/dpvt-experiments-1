@@ -17,10 +17,15 @@ from dpvtex.plotting import (
     plt_subplots,
     build_performance_heatmap,
     plot_hyperparameters_summary,
+    plot_precision_recall_curves,
     LabelConfig,
     METRIC_LABELS,
     MODEL_NAMES,
     DATASET_NAMES,
+    _build_labels_from_tuples,
+    _build_x_labels,
+    _find_pr_curve_pdf,
+    _find_pr_curve_csv,
 )
 
 
@@ -385,3 +390,157 @@ class TestPlotHyperparametersSummary:
             plot_hyperparameters_summary(many_models_df, str(output_path))
             # File should not be created when too many models
             assert not output_path.exists()
+
+
+# =============================================================================
+# Label Builder Tests
+# =============================================================================
+
+
+class TestBuildLabelsFromTuples:
+    def test_scalar_items(self):
+        assert _build_labels_from_tuples([10, 20], ["n="]) == ["n=10", "n=20"]
+
+    def test_tuple_items(self):
+        assert _build_labels_from_tuples([(10, 20)], ["n=", "N="]) == ["n=10\nN=20"]
+
+    def test_empty_prefix_shows_value_as_is(self):
+        assert _build_labels_from_tuples(["foo", "bar"], [""]) == ["foo", "bar"]
+
+    def test_start_offset(self):
+        assert _build_labels_from_tuples([(0, 10, 20)], ["n=", "N="], start_offset=1) == [
+            "n=10\nN=20"
+        ]
+
+    def test_out_of_bounds_index_gives_empty_string(self):
+        result = _build_labels_from_tuples([(10,)], ["n=", "N="])
+        assert result == ["n=10\nN="]
+
+    def test_empty_items(self):
+        assert _build_labels_from_tuples([], ["n="]) == []
+
+
+class TestBuildXLabels:
+    def _flags(self, mixed_testing=False, test_sites=False, test_nonmp=False):
+        return {
+            "mixed_testing": mixed_testing,
+            "test_sites": test_sites,
+            "test_nonmp": test_nonmp,
+            "mixed_training": False,
+            "mixed_train_sources": False,
+            "train_leaves": False,
+            "train_sites": False,
+            "train_trees": False,
+            "train_nonmp": False,
+        }
+
+    def test_display_name_columns_returned_as_is(self):
+        idx = pd.Index(["Dataset A", "Dataset B"], name="test_data_name")
+        heatmap_data = pd.DataFrame([[1, 2]], columns=idx)
+        result = _build_x_labels(heatmap_data, self._flags())
+        assert result == ["Dataset A", "Dataset B"]
+
+    def test_single_leaf_column(self):
+        idx = pd.Index([15, 50], name="test_num_leaves")
+        heatmap_data = pd.DataFrame([[1, 2]], columns=idx)
+        result = _build_x_labels(heatmap_data, self._flags())
+        assert result == ["n=15", "n=50"]
+
+    def test_mixed_testing_prepends_empty_prefix(self):
+        idx = pd.MultiIndex.from_tuples([("spr", 15), ("spr", 50)],
+                                         names=["perturbation", "test_num_leaves"])
+        heatmap_data = pd.DataFrame([[1, 2]], columns=idx)
+        result = _build_x_labels(heatmap_data, self._flags(mixed_testing=True))
+        assert result == ["spr\nn=15", "spr\nn=50"]
+
+    def test_sites_flag_adds_N_prefix(self):
+        idx = pd.MultiIndex.from_tuples([(15, 100)],
+                                         names=["test_num_leaves", "test_num_sites"])
+        heatmap_data = pd.DataFrame([[1]], columns=idx)
+        result = _build_x_labels(heatmap_data, self._flags(test_sites=True))
+        assert result == ["n=15\nN=100"]
+
+
+# =============================================================================
+# PR Curve File Finder Tests
+# =============================================================================
+
+
+class TestFindPrCurve:
+    def test_none_input_returns_none(self):
+        assert _find_pr_curve_pdf(None) is None
+        assert _find_pr_curve_csv(None) is None
+
+    def test_sentinel_string_returns_none(self):
+        assert _find_pr_curve_pdf("none") is None
+        assert _find_pr_curve_csv("none") is None
+
+    def test_directory_with_no_files_returns_none(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "version_0").mkdir()
+            assert _find_pr_curve_pdf(tmpdir) is None
+            assert _find_pr_curve_csv(tmpdir) is None
+
+    def test_finds_file_in_version_subdir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            version_dir = Path(tmpdir) / "version_0"
+            version_dir.mkdir()
+            pdf = version_dir / "pr_curve.pdf"
+            csv = version_dir / "pr_curve.csv"
+            pdf.write_text("")
+            csv.write_text("")
+            assert _find_pr_curve_pdf(tmpdir) == pdf
+            assert _find_pr_curve_csv(tmpdir) == csv
+
+    def test_returns_last_version_dir(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for v in ["version_0", "version_1", "version_2"]:
+                d = Path(tmpdir) / v
+                d.mkdir()
+                (d / "pr_curve.csv").write_text("")
+            result = _find_pr_curve_csv(tmpdir)
+            assert result == Path(tmpdir) / "version_2" / "pr_curve.csv"
+
+
+# =============================================================================
+# plot_precision_recall_curves Tests
+# =============================================================================
+
+
+class TestPlotPrecisionRecallCurves:
+    def _make_pr_df(self, ap=0.8):
+        return pd.DataFrame(
+            {
+                "recall": [0.0, 0.5, 1.0],
+                "precision": [1.0, 0.8, 0.5],
+                "avg_precision": [ap, ap, ap],
+            }
+        )
+
+    def test_creates_output_file(self):
+        grid = {("n=15", "MaxPool"): self._make_pr_df()}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = Path(tmpdir) / "pr.pdf"
+            plot_precision_recall_curves(grid, ["n=15"], ["MaxPool"], str(out))
+            assert out.exists()
+
+    def test_missing_grid_entry_leaves_blank_panel(self):
+        grid = {("n=15", "MaxPool"): self._make_pr_df()}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = Path(tmpdir) / "pr.pdf"
+            plot_precision_recall_curves(
+                grid, ["n=15", "n=50"], ["MaxPool", "AvgPool"], str(out)
+            )
+            assert out.exists()
+
+    def test_empty_row_labels_skips_plot(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = Path(tmpdir) / "pr.pdf"
+            plot_precision_recall_curves({}, [], ["MaxPool"], str(out))
+            assert not out.exists()
+
+    def test_empty_col_labels_skips_plot(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = Path(tmpdir) / "pr.pdf"
+            plot_precision_recall_curves({}, ["n=15"], [], str(out))
+            assert not out.exists()

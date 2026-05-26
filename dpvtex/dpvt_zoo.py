@@ -21,7 +21,7 @@ from torch.utils.tensorboard import SummaryWriter
 from pytorch_lightning import seed_everything
 
 
-def configure_torch(num_threads=1, dtype=torch.float64):
+def configure_torch(num_threads=1, dtype=torch.float32):
     """Configure torch settings. Call this before training/testing."""
     torch.set_num_threads(num_threads)
     torch.set_default_dtype(dtype)
@@ -435,6 +435,7 @@ def train_model(
     param_id=None,
     output_dir=".",
     data_nicknames_path="data_nicknames.json",
+    seed=None,
     **wrap_kwargs,
 ):
     """
@@ -451,8 +452,12 @@ def train_model(
         param_id: Parameter identifier for logging
         output_dir: Base output directory
         data_nicknames_path: Path to data nicknames JSON file
+        seed: If provided, passed to seed_everything(seed, workers=True) to seed
+            the main process and DataLoader workers for deterministic training
         **wrap_kwargs: Additional arguments passed to Wrap
     """
+    if seed is not None:
+        seed_everything(seed, workers=True)
     if timestamp is None:
         timestamp = get_timestamp()
     dir_dict, path_dict = build_paths_dict(

@@ -606,7 +606,8 @@ def _build_x_labels(heatmap_data, flags):
     """Build formatted x-axis labels for heatmap columns.
 
     Returns columns as-is when they are already display names (multi-source case).
-    Otherwise prepends n=, N=, t= prefixes matching _build_secondary_y_labels.
+    Otherwise builds prefixes for perturbation method, n=, N=, and t= columns
+    based on active flags.
 
     Args:
         heatmap_data: Pivot table with potentially multi-level columns.
@@ -1141,8 +1142,11 @@ def _find_pr_curve_pdf(test_llog_path):
     if test_llog_path is None or str(test_llog_path) == _MISSING_PATH_SENTINEL:
         return None
     pdf_files = sorted(Path(str(test_llog_path)).glob("*/pr_curve.pdf"))
-    # Use the last sorted match: TensorBoard version subdirs sort chronologically.
-    return pdf_files[-1] if pdf_files else None
+    # Use the last sorted match: Lightning auto-increments version_N dirs on each run.
+    if not pdf_files:
+        logger.debug(f"No pr_curve.pdf found under {test_llog_path}.")
+        return None
+    return pdf_files[-1]
 
 
 def _find_pr_curve_csv(test_llog_path):
@@ -1158,8 +1162,11 @@ def _find_pr_curve_csv(test_llog_path):
     if test_llog_path is None or str(test_llog_path) == _MISSING_PATH_SENTINEL:
         return None
     csv_files = sorted(Path(str(test_llog_path)).glob("*/pr_curve.csv"))
-    # Use the last sorted match: TensorBoard version subdirs sort chronologically.
-    return csv_files[-1] if csv_files else None
+    # Use the last sorted match: Lightning auto-increments version_N dirs on each run.
+    if not csv_files:
+        logger.debug(f"No pr_curve.csv found under {test_llog_path}.")
+        return None
+    return csv_files[-1]
 
 
 def plot_precision_recall_curves(
@@ -1192,7 +1199,7 @@ def plot_precision_recall_curves(
         for c, col_label in enumerate(col_labels):
             ax = axes[r][c]
             df = grid.get((row_label, col_label))
-            if df is not None:
+            if df is not None and not df.empty and "avg_precision" in df.columns:
                 ap = df["avg_precision"].iloc[0]
                 sns.lineplot(
                     data=df, x="recall", y="precision", ax=ax, label=f"AP={ap:.2f}"
@@ -1414,7 +1421,6 @@ def generate_summary_plots(
         for test_data_name in summary_df["test_data"].unique():
             safe_test = re.sub(r"[^\w.-]", "_", str(test_data_name))
             test_df = summary_df[summary_df["test_data"] == test_data_name]
-            safe_test = str(test_data_name).replace("/", "_")
             # Grid keyed by (leaf-count row label, model column label) so the same
             # model lands in the same column and the same leaf count in the same row.
             grid = {}
@@ -1430,13 +1436,25 @@ def generate_summary_plots(
                         Path(results_dir)
                         / f"pr_curve_{model_name}_{train_name}_ON_{safe_test}.pdf"
                     )
-                    shutil.copy2(pdf_path, dest)
-                    generated_plots[dest.stem] = str(dest)
+                    try:
+                        shutil.copy2(pdf_path, dest)
+                        generated_plots[dest.stem] = str(dest)
+                    except OSError as e:
+                        logger.warning(
+                            f"Failed to copy PR curve PDF {pdf_path} to {dest}: {e}"
+                        )
                 # Load CSV for combined seaborn grid
                 csv_path = _find_pr_curve_csv(row.get("test_llog_path"))
                 if csv_path is None:
                     continue
-                pr_df = pd.read_csv(csv_path)
+                try:
+                    pr_df = pd.read_csv(csv_path)
+                except (pd.errors.ParserError, pd.errors.EmptyDataError, OSError) as e:
+                    logger.warning(f"Failed to read PR curve CSV {csv_path}: {e}")
+                    continue
+                if pr_df.empty:
+                    logger.warning(f"PR curve CSV has no data rows: {csv_path}")
+                    continue
                 model_display = MODEL_NAMES.get(model_name, model_name)
                 train_leaves = row.get("train_num_leaves")
                 leaves_val = None if pd.isna(train_leaves) else int(train_leaves)

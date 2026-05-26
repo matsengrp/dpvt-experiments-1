@@ -452,7 +452,8 @@ def train_model(
         param_id: Parameter identifier for logging
         output_dir: Base output directory
         data_nicknames_path: Path to data nicknames JSON file
-        seed: If provided, passed to seed_everything for deterministic training
+        seed: If provided, passed to seed_everything(seed, workers=True) to seed
+            the main process and DataLoader workers for deterministic training
         **wrap_kwargs: Additional arguments passed to Wrap
     """
     if seed is not None:

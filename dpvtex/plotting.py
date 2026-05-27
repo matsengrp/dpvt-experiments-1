@@ -1458,13 +1458,14 @@ def generate_summary_plots(
                 model_display = MODEL_NAMES.get(model_name, model_name)
                 train_leaves = row.get("train_num_leaves")
                 leaves_val = None if pd.isna(train_leaves) else int(train_leaves)
+                dataset_display = get_dataset_display_name(train_name)
                 row_label = (
-                    f"n={leaves_val}"
+                    f"{dataset_display}\nn={leaves_val}"
                     if leaves_val is not None
-                    else get_dataset_display_name(train_name)
+                    else dataset_display
                 )
                 models_seen[model_name] = model_display
-                rows_seen[leaves_val] = row_label
+                rows_seen[(dataset_display, leaves_val)] = row_label
                 grid[(row_label, model_display)] = pr_df
             if grid:
                 # Columns ordered by MODEL_ORDER (unknown models appended),
@@ -1474,7 +1475,7 @@ def generate_summary_plots(
                 col_labels = [models_seen[m] for m in ordered_models]
                 row_labels = [
                     rows_seen[k]
-                    for k in sorted(rows_seen, key=lambda v: (v is None, v))
+                    for k in sorted(rows_seen, key=lambda v: (v[0], v[1] is None, v[1]))
                 ]
                 pr_output_path = f"{results_dir}/pr_curves_{safe_test}.pdf"
                 plot_precision_recall_curves(

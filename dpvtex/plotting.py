@@ -32,10 +32,10 @@ PALETTE = "Dark2"
 
 # Heatmap sizing (inches)
 HEATMAP_COL_WIDTH = 1
-HEATMAP_BASE_WIDTH = 10
+HEATMAP_BASE_WIDTH = 12
 HEATMAP_ROW_HEIGHT = 0.5
 HEATMAP_ROW_HEIGHT_PER_LABEL = 0.2
-HEATMAP_BASE_HEIGHT = 2
+HEATMAP_BASE_HEIGHT = 3
 
 # Label positioning (figure fraction coordinates)
 YLABEL_BASE_OFFSET = -0.055
@@ -453,8 +453,10 @@ def _determine_label_visibility(df_sorted, label_config):
         df_sorted["train_data"].str.contains("subtree", na=False).any(),
         df_sorted["train_data"].str.contains("uniform", na=False).any(),
     ]
-    flags["mixed_training"] = _should_show_label(
-        train_methods, label_config.show_perturbation
+    flags["mixed_training"] = (
+        label_config.show_perturbation
+        if label_config.show_perturbation is not None
+        else sum(train_methods) >= 2
     )
 
     # Check for mixed perturbation methods in testing data
@@ -463,8 +465,10 @@ def _determine_label_visibility(df_sorted, label_config):
         df_sorted["test_data"].str.contains("subtree", na=False).any(),
         df_sorted["test_data"].str.contains("uniform", na=False).any(),
     ]
-    flags["mixed_testing"] = _should_show_label(
-        test_methods, label_config.show_perturbation
+    flags["mixed_testing"] = (
+        label_config.show_perturbation
+        if label_config.show_perturbation is not None
+        else sum(test_methods) >= 2
     )
 
     return df_sorted, flags
@@ -667,6 +671,43 @@ def _build_secondary_y_labels(heatmap_data, flags):
     return _build_labels_from_tuples(heatmap_data.index, prefixes, start_offset=1)
 
 
+def _set_heatmap_xlabel(fig, ax, flags, title):
+    """Render the descriptive x-axis label and title, clearing seaborn defaults.
+
+    Clears the automatic axis label (which would otherwise show the pivot's raw
+    column index name, e.g. ``test_data_name``) and draws a descriptive caption.
+
+    Args:
+        fig: Matplotlib figure.
+        ax: Matplotlib axes with the rendered heatmap.
+        flags: Display flags dictionary.
+        title: Title for the heatmap.
+    """
+    bbox = ax.get_position()
+
+    # Build descriptive x-axis label
+    xlabel = "Testing data\n n: number of leaves"
+    if flags["test_sites"]:
+        xlabel = "Testing data\n n: avg number of leaves, N: avg number of sites, T: number of trees"
+    if flags["mixed_testing"]:
+        if flags["test_sites"]:
+            xlabel = "Testing data: perturbation method - number of leaves - number of sites - number of trees"
+        else:
+            xlabel = "Testing data: perturbation method - number of leaves"
+
+    fig.text(
+        bbox.x0 + (bbox.width / 2),
+        bbox.y0 - 0.25,
+        xlabel,
+        va="center",
+        ha="center",
+        fontsize=FONT_LARGE,
+    )
+    ax.set_xlabel("")
+    ax.set_title(title)
+    plt.title("")
+
+
 def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
     """Position model labels and format heatmap axes for multiindex data.
 
@@ -681,6 +722,17 @@ def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
         title: Title for the heatmap.
     """
     if not isinstance(heatmap_data.index, pd.MultiIndex):
+        # Single-level (model-only) index: seaborn shows the raw model names.
+        # Map them to display names, matching the MultiIndex path below.
+        ax.set_yticklabels(
+            [MODEL_NAMES.get(m, m) for m in heatmap_data.index],
+            rotation=0,
+            fontsize=FONT_LARGE,
+        )
+        # No per-model train attributes vary here, so a plain "Trained model"
+        # label suffices (the MultiIndex path adds n:/N:/T: detail lines).
+        ax.set_ylabel("Trained model", fontsize=FONT_LARGE)
+        _set_heatmap_xlabel(fig, ax, flags, title)
         return
 
     # Find row spans for each model and draw dividers
@@ -694,7 +746,7 @@ def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
         if current_model != model:
             if current_model is not None:
                 model_rows[current_model] = (start_idx, i - 1)
-                ax.axhline(y=i, color="black", linewidth=1)
+                ax.axhline(y=i, color="white", linewidth=1.5)
             current_model = model
             start_idx = i
 
@@ -723,7 +775,7 @@ def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
         fig_y_pos = axis_bottom + ((center_row / len(heatmap_data.index)) * axis_height)
 
         fig.text(
-            axis_left - ylabel_shift + 0.14,
+            axis_left - ylabel_shift + 0.12,
             fig_y_pos,
             display_name,
             va="center",
@@ -738,17 +790,17 @@ def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
     if num_displayed <= 1:
         ylabel_shift -= 0.05
     ylabel = "Trained model\n"
-    ylabel_add = []
-    if flags["train_leaves"]:
-        ylabel_add.append("n: number of leaves")
-    if flags["train_sites"]:
-        ylabel_add.append("N: number of sites")
-    if flags["train_trees"]:
-        ylabel_add.append("T: number of trees")
-    ylabel = ylabel + ','.join(ylabel_add)
+    # ylabel_add = []
+    # if flags["train_leaves"]:
+    #     ylabel_add.append("n: number of leaves")
+    # if flags["train_sites"]:
+    #     ylabel_add.append("N: number of sites")
+    # if flags["train_trees"]:
+    #     ylabel_add.append("T: number of trees")
+    # ylabel = ylabel + ','.join(ylabel_add)
 
     fig.text(
-        axis_left - ylabel_shift + 0.01,
+        axis_left - ylabel_shift + 0.07,
         axis_bottom + (axis_height / 2),
         ylabel,
         va="center",
@@ -773,27 +825,7 @@ def _render_heatmap_layout(fig, ax, heatmap_data, flags, title):
     plt.xticks(rotation=0, fontsize=FONT_LARGE)
     plt.subplots_adjust(left=0.3)
 
-    # Build descriptive x-axis label
-    xlabel = "Testing data\n n: number of leaves"
-    if flags["test_sites"]:
-        xlabel = "Testing data\n n: avg number of leaves, N: avg number of sites, T: number of trees"
-    if flags["mixed_testing"]:
-        if flags["test_sites"]:
-            xlabel = "Testing data: perturbation method - number of leaves - number of sites - number of trees"
-        else:
-            xlabel = "Testing data: perturbation method - number of leaves"
-
-    fig.text(
-        axis_left + (bbox.width / 2) + 0.15,
-        axis_bottom - 0.3,
-        xlabel,
-        va="center",
-        ha="center",
-        fontsize=FONT_LARGE,
-    )
-    ax.set_xlabel("")
-    ax.set_title(title)
-    plt.title("")
+    _set_heatmap_xlabel(fig, ax, flags, title)
 
 
 # =============================================================================
@@ -806,7 +838,7 @@ def build_performance_heatmap(
     value_column,
     output_path,
     title="",
-    v_range=(0.0, 1.0),
+    v_range=(0.4, 1.0),
     label_config: LabelConfig | None = None,
 ):
     """Build a performance heatmap from summary DataFrame.
@@ -886,10 +918,10 @@ def build_performance_heatmap(
         ax=ax,
     )
     ax.set_ylabel("")
-    plt.xticks(rotation=0, fontsize=FONT_MED)
+    plt.xticks(rotation=0, fontsize=FONT_LARGE)
     cbar = sns_heatmap.collections[0].colorbar
-    cbar.ax.tick_params(labelsize=FONT_MED)
-    cbar.set_label(METRIC_LABELS.get(value_column, value_column), fontsize=FONT_MED)
+    cbar.ax.tick_params(labelsize=FONT_LARGE)
+    cbar.set_label(METRIC_LABELS.get(value_column, value_column), fontsize=FONT_LARGE)
 
     plt.tight_layout()
     _render_heatmap_layout(fig, ax, heatmap_data, flags, title)
@@ -1353,7 +1385,7 @@ def generate_summary_plots(
 
     # Generate heatmaps
     heatmap_settings = {
-        "test_auroc": {"title": "Test AUROC", "v_range": (0.0, 1.0)},
+        "test_auroc": {"title": "Test AUROC", "v_range": (0.4, 1.0)},
         "test_loss": {"title": "Test Loss", "v_range": (0.0, None)},
         "test_accuracy": {"title": "Test accuracy", "v_range": (0.0, 1.0)},
     }
@@ -1416,33 +1448,27 @@ def generate_summary_plots(
             plot_metric_by_model(summary_df, x_col, output_path, model_list)
             generated_plots[x_col] = output_path
 
-    # Generate PR curve plots (one per test dataset)
-    if "test_llog_path" in summary_df.columns:
-        for test_data_name in summary_df["test_data"].unique():
-            safe_test = re.sub(r"[^\w.-]", "_", str(test_data_name))
-            test_df = summary_df[summary_df["test_data"] == test_data_name]
-            # Grid keyed by (leaf-count row label, model column label) so the same
-            # model lands in the same column and the same leaf count in the same row.
-            grid = {}
-            models_seen = {}  # model_name -> column label (display name)
-            rows_seen = {}  # leaf count (None last) -> row label
-            for _, row in test_df.iterrows():
-                model_name = str(row["model"])
-                train_name = str(row["train_data"])
-                # Copy individual PDF to results_dir if available
-                pdf_path = _find_pr_curve_pdf(row.get("test_llog_path"))
-                if pdf_path is not None:
-                    dest = (
-                        Path(results_dir)
-                        / f"pr_curve_{model_name}_{train_name}_ON_{safe_test}.pdf"
-                    )
-                    try:
-                        shutil.copy2(pdf_path, dest)
-                        generated_plots[dest.stem] = str(dest)
-                    except OSError as e:
-                        logger.warning(
-                            f"Failed to copy PR curve PDF {pdf_path} to {dest}: {e}"
+        # Generate PR curve plots (one per test dataset)
+        if "test_llog_path" in summary_df.columns:
+            for test_data_name in summary_df["test_data"].unique():
+                safe_test = re.sub(r"[^\w.-]", "_", str(test_data_name))
+                test_df = summary_df[summary_df["test_data"] == test_data_name]
+                # Grid keyed by (leaf-count row label, model column label) so the same
+                # model lands in the same column and the same leaf count in the same row.
+                grid = {}
+                models_seen = {}  # model_name -> column label (display name)
+                rows_seen = {}  # leaf count (None last) -> row label
+                for _, row in test_df.iterrows():
+                    model_name = str(row["model"])
+                    train_name = str(row["train_data"])
+                    # Copy individual PDF to results_dir if available
+                    pdf_path = _find_pr_curve_pdf(row.get("test_llog_path"))
+                    if pdf_path is not None:
+                        dest = (
+                            Path(results_dir)
+                            / f"pr_curve_{model_name}_{train_name}_ON_{safe_test}.pdf"
                         )
+<<<<<<< Updated upstream
                 # Load CSV for combined seaborn grid
                 csv_path = _find_pr_curve_csv(row.get("test_llog_path"))
                 if csv_path is None:
@@ -1486,6 +1512,57 @@ def generate_summary_plots(
                     title=f"Precision-Recall: {get_dataset_display_name(str(test_data_name))}",
                 )
                 generated_plots[f"pr_curves_{safe_test}"] = pr_output_path
+=======
+                        try:
+                            shutil.copy2(pdf_path, dest)
+                            generated_plots[dest.stem] = str(dest)
+                        except OSError as e:
+                            logger.warning(
+                                f"Failed to copy PR curve PDF {pdf_path} to {dest}: {e}"
+                            )
+                    # Load CSV for combined seaborn grid
+                    csv_path = _find_pr_curve_csv(row.get("test_llog_path"))
+                    if csv_path is None:
+                        continue
+                    try:
+                        pr_df = pd.read_csv(csv_path)
+                    except (pd.errors.ParserError, pd.errors.EmptyDataError, OSError) as e:
+                        logger.warning(f"Failed to read PR curve CSV {csv_path}: {e}")
+                        continue
+                    if pr_df.empty:
+                        logger.warning(f"PR curve CSV has no data rows: {csv_path}")
+                        continue
+                    model_display = MODEL_NAMES.get(model_name, model_name)
+                    train_leaves = row.get("train_num_leaves")
+                    leaves_val = None if pd.isna(train_leaves) else int(train_leaves)
+                    row_label = (
+                        f"n={leaves_val}"
+                        if leaves_val is not None
+                        else get_dataset_display_name(train_name)
+                    )
+                    models_seen[model_name] = model_display
+                    rows_seen[leaves_val] = row_label
+                    grid[(row_label, model_display)] = pr_df
+                if grid:
+                    # Columns ordered by MODEL_ORDER (unknown models appended),
+                    # rows by ascending leaf count (unknown/None last).
+                    ordered_models = [m for m in MODEL_ORDER if m in models_seen]
+                    ordered_models += [m for m in models_seen if m not in MODEL_ORDER]
+                    col_labels = [models_seen[m] for m in ordered_models]
+                    row_labels = [
+                        rows_seen[k]
+                        for k in sorted(rows_seen, key=lambda v: (v is None, v))
+                    ]
+                    pr_output_path = f"{results_dir}/pr_curves_{safe_test}.pdf"
+                    plot_precision_recall_curves(
+                        grid,
+                        row_labels,
+                        col_labels,
+                        pr_output_path,
+                        title=f"Precision-Recall: {get_dataset_display_name(str(test_data_name))}",
+                    )
+                    generated_plots[f"pr_curves_{safe_test}"] = pr_output_path
+>>>>>>> Stashed changes
 
     logger.info(f"Generated {len(generated_plots)} plots in {results_dir}")
     return generated_plots

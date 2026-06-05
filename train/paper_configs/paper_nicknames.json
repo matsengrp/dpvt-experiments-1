@@ -1,0 +1,19 @@
+{
+    "data_dir": "../datasets/dpvt_data",
+    "influenzaC_fluC_M_spr": "influenzaC_fluC_M_spr.p",
+    "influenzaC_fluC_NS_spr": "influenzaC_fluC_NS_spr.p",
+    "influenzaC_fluC_PB2_spr": "influenzaC_fluC_PB2_spr.p",
+    "orthomam_test_0.5_200_samples_spr": "orthomam_test_0.5_200_samples_spr.p",
+    "orthomam_train_0.5_1000_samples_spr": "orthomam_train_0.5_1000_samples_spr.p",
+    "pandit_test_0.8_spr": "pandit_test_0.8_spr.p",
+    "pandit_train_0.8_spr": "pandit_train_0.8_spr.p",
+    "rotavirusA_H_H2_spr": "rotavirusA_H_H2_spr.p",
+    "simulated_25_seq_100_sites_200_algnmnts_filtered_0.8_spr": "simulated_25_seq_100_sites_200_algnmnts_filtered_0.8_spr.p",
+    "simulated_25_seq_100_sites_500_algnmnts_filtered_0.8_spr": "simulated_25_seq_100_sites_500_algnmnts_filtered_0.8_spr.p",
+    "simulated_50_seq_100_sites_200_algnmnts_filtered_0.8_spr": "simulated_50_seq_100_sites_200_algnmnts_filtered_0.8_spr.p",
+    "simulated_50_seq_100_sites_200_algnmnts_filtered_0.8_subtree": "simulated_50_seq_100_sites_200_algnmnts_filtered_0.8_subtree.p",
+    "simulated_50_seq_100_sites_200_algnmnts_spr_subtree": "simulated_50_seq_100_sites_200_algnmnts_spr_subtree.p",
+    "simulated_50_seq_100_sites_500_algnmnts_filtered_0.8_spr": "simulated_50_seq_100_sites_500_algnmnts_filtered_0.8_spr.p",
+    "simulated_50_seq_100_sites_500_algnmnts_filtered_0.8_subtree": "simulated_50_seq_100_sites_500_algnmnts_filtered_0.8_subtree.p",
+    "simulated_50_seq_100_sites_500_algnmnts_spr_subtree": "simulated_50_seq_100_sites_500_algnmnts_spr_subtree.p"
+}

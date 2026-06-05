@@ -6,6 +6,15 @@ Workflow*). We also provide different ways of generating training and
 testing data from simulated or empirical alignments (*Training/Testing Data
 Generation*).
 
+These models are presented in this paper: [Unifying phylogenetic traversal and deep learning to guide tree exploration (Collienne et al. 2026)](https://doi.org/10.64898/2026.01.14.699358 )
+
+## Reproducing results presented in publication
+
+Follow the installation guide.
+The data used for training models is provided on DRYAD.
+Download the data and update the link to your data directory in the data nicknames file `train/paper_configs/paper_nicknames.json`.
+These configs can then be used to train and test our models as described in *Standard Training Workflow*.
+
 
 ## Installation
 
@@ -77,10 +86,10 @@ More details to these inputs can be found in the following subsections.
 To execute the workflow, move into the directory `train` and run:
 
 ```bash
-snakemake -c[num_cores]
+snakemake --configfile [/path/to/config] -c[num_cores]
 ```
 
-`[num_cores]` should be replaced with the number of cores you want to use.
+`[num_cores]` should be replaced with the number of cores you want to use and `[path/to/config]` should be replaced by the path to your config file.
 Alternatively, run `snakemake --snakefile path/to/Snakefile -c[num_cores]` by
 providing the path to the Snakefile.
 

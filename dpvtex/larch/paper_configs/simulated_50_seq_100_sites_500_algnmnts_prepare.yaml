@@ -1,0 +1,47 @@
+# Config for simulated_50_seq_100_sites_500_algnmnts - Phases 1 & 2
+# This config is for preprocessing and dataset preparation
+
+# ============================================================================
+# Dataset Identification
+# ============================================================================
+dataset_name: "simulated_50_seq_100_sites_500_algnmnts"
+input_data: "../../datasets/simulated_alignments/simulated_50_seq_100_sites_500_algnmnts_filtered_0.8_spr"
+
+# ============================================================================
+# Phase 1: Preprocessing Settings (sequence-level filtering)
+# ============================================================================
+max_ambiguous_site_frac_per_seq: 0.2     # Remove sequences with >20% gaps/ambiguous chars
+remove_duplicate_site_patterns: False    # Whether to deduplicate columns
+
+# ============================================================================
+# Phase 2: Dataset Preparation Settings (alignment-level filtering)
+# ============================================================================
+output_datasets: "../../datasets/dpvt_data"
+min_frac_sites_retained: 0.8             # Exclude alignments that lost >19% of sites
+
+# Train/test splitting disabled (use _generate.yaml for Phase 3)
+create_train_test_split: False
+
+# ============================================================================
+# Phase 3: Training Data Generation Settings
+# ============================================================================
+larch_command: larch                   # Command to run larch (can be "larch", "larch-phylo", or a full path)
+larch_output: "../../datasets/dpvt_data"
+edge_distributions:
+  - "constant"
+  - "random_subtree"            # Options: constant, uniform, treesearch_mimic, random_subtree
+num_cores: 8
+
+# Tree extraction parameters
+max_trees: 200                           # Max trees to extract per alignment
+
+# SPR parameters (for constant/uniform edge distributions)
+spr_radius: null                          # Max topological distance for SPR regraft (null = unlimited)
+spr_target_non_mp_proportion: 1.0   # Target non-MP edge proportion
+max_spr_attempts: 100                   # Max SPR attempts before stopping (ignored when spr_moves_per_leaf is set)
+spr_moves_per_leaf: 0.1                      # If set, overrides max_spr_attempts with int(num_leaves * value) per tree
+
+# Subtree replacement parameters
+subtree_max_attempts: 100                # Max attempts for subtree replacement
+subtree_target_non_mp_proportion: 0.3333333333333333  # Target non-MP edge proportion
+subtree_depth: 3                        # Subtree depth for replacement (null = tree_depth // 2)

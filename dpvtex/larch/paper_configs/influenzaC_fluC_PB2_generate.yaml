@@ -1,0 +1,16 @@
+# Phase 3 config for influenzaC_fluC_PB2
+input_data: "empirical_single_aln/influenzaC_fluC_PB2"
+output_data: "../../datasets/dpvt_data"
+dataset_name: "influenzaC_fluC_PB2"
+larch_command: "larch"
+edge_distributions: ["constant"]
+num_cores: 8
+remove_duplicate_site_patterns: False
+max_trees: 200
+spr_radius: null
+spr_target_non_mp_proportion: 1.0
+max_spr_attempts: 100
+spr_moves_per_leaf: 0.1
+subtree_max_attempts: 100
+subtree_target_non_mp_proportion: 0.3333333333333333
+subtree_depth: 3

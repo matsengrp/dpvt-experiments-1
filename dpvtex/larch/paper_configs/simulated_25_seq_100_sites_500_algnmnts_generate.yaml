@@ -1,0 +1,31 @@
+# Phase 3 Config: All Data (no train/test split) for simulated_25_seq_100_sites_500_algnmnts
+# This config points to the filtered dataset created by Phase 2 (no train/test split)
+
+# Input: All Data (no train/test split) from Phase 2 (must match Phase 2 output naming)
+input_data: "../../datasets/dpvt_data/simulated_25_seq_100_sites_500_algnmnts_filtered_0.8"
+
+# Output directory for training data
+output_data: "../../datasets/dpvt_data"
+
+# Dataset name for output files
+dataset_name: "simulated_25_seq_100_sites_500_algnmnts_filtered_0.8"
+
+# Larch settings (should match unified config)
+larch_command: "larch"
+edge_distributions: ["constant"]
+num_cores: 8
+remove_duplicate_site_patterns: False
+
+# Tree extraction parameters
+max_trees: 200                           # Max trees to extract per alignment
+
+# SPR parameters (for constant/uniform edge distributions)
+spr_radius: null                          # Max topological distance for SPR regraft (null = unlimited)
+spr_target_non_mp_proportion: 1.0   # Target non-MP edge proportion
+max_spr_attempts: 100                   # Max SPR attempts before stopping (ignored when spr_moves_per_leaf is set)
+spr_moves_per_leaf: 0.1                      # If set, overrides max_spr_attempts with int(num_leaves * value) per tree
+
+# Subtree replacement parameters
+subtree_max_attempts: 100                # Max attempts for subtree replacement
+subtree_target_non_mp_proportion: 0.3333333333333333  # Target non-MP edge proportion
+subtree_depth: 3                        # Subtree depth for replacement (null = tree_depth // 2)
